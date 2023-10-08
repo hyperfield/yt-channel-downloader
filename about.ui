@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>aboutDialog</class>
+ <widget class="QDialog" name="aboutDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>362</width>
+    <height>324</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>About</string>
+  </property>
+  <widget class="QLabel" name="aboutLabel">
+   <property name="geometry">
+    <rect>
+     <x>110</x>
+     <y>10</y>
+     <width>211</width>
+     <height>261</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>&lt;html&gt;
+&lt;head&gt;
+    &lt;title&gt;About&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+    &lt;h3&gt;YT Channel Downloader&lt;/h3&gt;
+    &lt;p&gt;&lt;strong&gt;Version:&lt;/strong&gt; 0.1.0&lt;/p&gt;
+    &lt;p&gt;&lt;strong&gt;Year: &lt;/strong&gt;2023&lt;/p&gt;
+    &lt;p&gt;&lt;strong&gt;License: &lt;/strong&gt;MIT&lt;/p&gt;
+    &lt;p&gt;&lt;strong&gt;Github: &lt;/strong&gt;&lt;a href=&quot;https://github.com/hyperfield/yt-channel-downloader&quot;&gt;View on Github&lt;/a&gt;&lt;/p&gt;
+    &lt;p&gt;&lt;strong&gt;Author: &lt;/strong&gt;&lt;a href=&quot;mailto:pzarva@quicknode.net&quot;&gt;Pavel Zarva&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="aboutOkButton">
+   <property name="geometry">
+    <rect>
+     <x>220</x>
+     <y>270</y>
+     <width>89</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>OK</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>30</y>
+     <width>81</width>
+     <height>91</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;img src=&quot;:/images/icon.png&quot; width=&quot;64&quot; height=&quot;64&quot;/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+</string>
+   </property>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

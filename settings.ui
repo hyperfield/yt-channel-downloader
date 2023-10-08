@@ -1,0 +1,447 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Settings</class>
+ <widget class="QDialog" name="Settings">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>764</width>
+    <height>512</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Settings</string>
+  </property>
+  <widget class="QPushButton" name="save_button">
+   <property name="geometry">
+    <rect>
+     <x>570</x>
+     <y>480</y>
+     <width>80</width>
+     <height>22</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Save</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="close_button">
+   <property name="geometry">
+    <rect>
+     <x>670</x>
+     <y>480</y>
+     <width>80</width>
+     <height>22</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Close</string>
+   </property>
+  </widget>
+  <widget class="QWidget" name="layoutWidget">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>180</y>
+     <width>391</width>
+     <height>51</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="vid_quality_hlayout">
+    <item>
+     <widget class="QLabel" name="pref_vid_quality_label">
+      <property name="text">
+       <string>Preferred video quality:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QComboBox" name="pref_vid_quality_dropdown">
+      <item>
+       <property name="text">
+        <string>144p</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>240p</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>360p</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>480p</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>720p (HD)</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>1080p (Full HD)</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>1440p (2K)</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>2160p (4K)</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Best available</string>
+       </property>
+      </item>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="layoutWidget_2">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>110</y>
+     <width>391</width>
+     <height>51</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="pref_video_format_layout">
+    <item>
+     <widget class="QLabel" name="pref_vid_format">
+      <property name="text">
+       <string>Preferred video format:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QComboBox" name="pref_vid_format_dropdown">
+      <item>
+       <property name="text">
+        <string>Any</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>mp4</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>webm</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>avi</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>mov</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>mkv</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>flv</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>3gp</string>
+       </property>
+      </item>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="layoutWidget_3">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>320</y>
+     <width>391</width>
+     <height>51</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="audio_quality_hlayout">
+    <item>
+     <widget class="QLabel" name="audio_quality_label">
+      <property name="text">
+       <string>Preferred audio quality:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QComboBox" name="pref_aud_quality_dropdown">
+      <item>
+       <property name="text">
+        <string>32 kbps</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>64 kbps</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>128 kbps</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>160 kbps</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>192 kbps</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>256 kbps</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>320 kbps</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Best available</string>
+       </property>
+      </item>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="layoutWidget_4">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>250</y>
+     <width>391</width>
+     <height>51</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="pref_audio_format_layout">
+    <item>
+     <widget class="QLabel" name="pref_aud_format">
+      <property name="text">
+       <string>Preferred audio format:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QComboBox" name="pref_aud_format_dropdown">
+      <item>
+       <property name="text">
+        <string>Any</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>mp3</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>ogg / oga [Vorbis]</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>m4a</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>aac</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>opus</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>flac</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>wav</string>
+       </property>
+      </item>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="layoutWidget_5">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>390</y>
+     <width>601</width>
+     <height>72</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="proxy_server_layout">
+    <item>
+     <widget class="QLabel" name="proxy_label">
+      <property name="text">
+       <string>SOCKS / proxy:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QComboBox" name="proxy_server_type">
+      <item>
+       <property name="text">
+        <string>None</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>HTTPS</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>SOCKS4</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>SOCKS5</string>
+       </property>
+      </item>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="proxy_server_label">
+      <property name="text">
+       <string>Server:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLineEdit" name="proxy_server_addr"/>
+    </item>
+    <item>
+     <widget class="QLabel" name="proxy_port_label">
+      <property name="text">
+       <string>Port:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLineEdit" name="proxy_server_port">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>70</width>
+        <height>16777215</height>
+       </size>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="layoutWidget_6">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>40</y>
+     <width>601</width>
+     <height>72</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="dl_dir_layout">
+    <item>
+     <widget class="QLabel" name="save_downloads_label">
+      <property name="text">
+       <string>Save downloads to:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLineEdit" name="save_downloads_edit"/>
+    </item>
+    <item>
+     <widget class="QPushButton" name="browse_btn">
+      <property name="text">
+       <string>Browse</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="layoutWidget_7">
+   <property name="geometry">
+    <rect>
+     <x>440</x>
+     <y>120</y>
+     <width>278</width>
+     <height>94</height>
+    </rect>
+   </property>
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QCheckBox" name="check_audio_only">
+      <property name="text">
+       <string>Only the associated audio tracks</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label">
+      <property name="text">
+       <string>(Entire videos may be downloaded, then</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_2">
+      <property name="text">
+       <string>audio would be extracted and the videos</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_3">
+      <property name="text">
+       <string>will be deleted.)</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
