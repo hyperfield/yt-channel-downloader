@@ -25,70 +25,69 @@
 
 ### Linux or MacOS
 
-```bash
-# Clone the repository
-git clone https://github.com/hyperfield/yt-channel-downloader.git
+##### Clone the repository
 
-# Navigate into the directory
-cd yt-channel-downloader
+    git clone <https://github.com/hyperfield/yt-channel-downloader.git>
 
-# Optional: create a virtual environment:
-python3 -m venv .venv
+##### Navigate into the directory
 
-# Install requirements (optional: in a virtual environment)
-pip install -r requirements.txt
+    cd yt-channel-downloader
 
-# Run the program
-python3 main.py
+##### Optional: create a virtual environment
+
+    python3 -m venv .venv
+
+##### Install requirements (optional: in a virtual environment)
+
+    pip install -r requirements.txt
+
+##### Run the program
+
+    python3 main.py
 
 or
 
-chmod +x main.py
+    chmod +x main.py
 
 and then
 
-./main.py
-```
+    ./main.py
+
+To deactivate the virtual environment after usage, type
+
+    deactivate
 
 ### Windows
 
 #### Using Command Prompt or PowerShell
 
-1. **Clone the repository**
+##### Clone the repository
 
-    ```cmd
     git clone https://github.com/my_user_name/yt-channel-downloader.git
-    ```
 
-2. **Navigate into the directory**
+##### Navigate into the directory
 
-    ```cmd
     cd yt-channel-downloader
-    ```
 
-3. **Optional: Create a virtual environment**
+##### Optional: Create a virtual environment
 
-    ```cmd
     python -m venv .venv
-    ```
 
-4. **Activate the virtual environment**
+##### Activate the virtual environment
 
-    ```cmd
-    .venv\Scripts\activate
-    ```
+    .venv\Scripts\activate.bat
 
-5. **Install requirements**
+##### Install requirements
 
-    ```cmd
     pip install -r requirements.txt
-    ```
 
-6. **Run the program**
+##### Run the program
 
-    ```cmd
     python main.py
-    ```
+
+##### Deactivate the virtual environment after usage
+
+    .venv\Scripts\deactivate.bat
 
 #### Graphical Interface Approach
 
