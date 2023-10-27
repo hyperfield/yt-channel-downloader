@@ -4,6 +4,11 @@
 import sys
 import certifi
 import os
+from PySide6.QtWidgets import QApplication
+
+from classes.mainwindow import MainWindow
+
+
 os.environ['SSL_CERT_FILE'] = certifi.where()
 
 # Important:
