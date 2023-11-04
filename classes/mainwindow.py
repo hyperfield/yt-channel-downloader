@@ -7,6 +7,7 @@ import yt_dlp
 import re
 import os
 import glob
+from pathlib import Path
 
 import resources    # Qt resources
 from .dialogs import CustomDialog
@@ -129,7 +130,9 @@ class DownloadThread(QThread):
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowIcon(QtGui.QIcon('icon.png'))
+        icon_path = Path(__file__).resolve().parent.parent / "icon.png"
+        print(icon_path)
+        self.setWindowIcon(QtGui.QIcon(str(icon_path)))
         self.ui = Ui_MainWindow()
         self.center_on_screen()
         self.ui.setupUi(self)
