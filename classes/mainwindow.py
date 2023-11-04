@@ -131,7 +131,6 @@ class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
         icon_path = Path(__file__).resolve().parent.parent / "icon.png"
-        print(icon_path)
         self.setWindowIcon(QtGui.QIcon(str(icon_path)))
         self.ui = Ui_MainWindow()
         self.center_on_screen()
