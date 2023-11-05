@@ -2,6 +2,12 @@
 
 ![YT Channel Downloader Screenshot](screenshot.png)
 
+## Binaries
+
+[Download the latest installer for Windows here](https://quicknode.net/media/dist/ytchandl_installer.zip)
+
+Mac and Linux binaries are coming soon.
+
 ## Description
 
 **YT Channel Downloader** is an intuitive desktop application built to simplify the process of downloading YouTube channel content. Leveraging the robustness of [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [scrapetube](https://github.com/dermasmid/scrapetube) and enriched with a modern PyQt 6 GUI, this tool offers a seamless experience to get your favorite content offline.
