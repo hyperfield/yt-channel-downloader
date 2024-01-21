@@ -4,7 +4,9 @@
 
 **YT Channel Downloader** is an intuitive desktop application built to simplify the process of downloading YouTube channel content. Leveraging the robustness of [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [scrapetube](https://github.com/dermasmid/scrapetube) and enriched with a modern PyQt 6 GUI, this tool offers a seamless experience to get your favorite content offline.
 
-<hr>
+![YT Channel Downloader Screenshot](screenshot.png)
+
+---
 
 - [Binaries](#binaries)
 - [Features](#features)
@@ -16,8 +18,6 @@
 - [License](#license)
 - [Authors](#authors)
 - [Donation](#donation)
-
-![YT Channel Downloader Screenshot](screenshot.png)
 
 ## Binaries
 
@@ -143,5 +143,7 @@ See also the list of [contributors](https://github.com/hyperfield/yt-channel-dow
 If you like this application and feel like you can donate a little bit to support the author and speed up the introduction of new exciting features to the program, I'll appreciate your donation to my PayPal, Bitcoin or Ethereum account. :)
 
 **[PayPal](https://paypal.me/hyperfield)**
+
 **Bitcoin**: bc1pglp2m26kqatgm6z8vtuhk66jd74ghv948wtyhtgtj6wh30nzz6csjajv00
+
 **Ethereum**: 0x9CEf6B928BF9fFd894ca83db1B822820917ca89a
