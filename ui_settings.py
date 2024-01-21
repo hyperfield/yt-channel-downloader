@@ -227,7 +227,7 @@ class Ui_Settings(object):
     # setupUi
 
     def retranslateUi(self, Settings):
-        Settings.setWindowTitle(QCoreApplication.translate("Settings", u"Dialog", None))
+        Settings.setWindowTitle(QCoreApplication.translate("Settings", u"Settings", None))
         self.save_button.setText(QCoreApplication.translate("Settings", u"Save", None))
         self.close_button.setText(QCoreApplication.translate("Settings", u"Close", None))
         self.pref_vid_quality_label.setText(QCoreApplication.translate("Settings", u"Preferred video quality:", None))

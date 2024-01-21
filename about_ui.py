@@ -46,7 +46,7 @@ class Ui_aboutDialog(object):
 "</head>\n"
 "<body>\n"
 "    <h3>YT Channel Downloader</h3>\n"
-"    <p><strong>Version:</strong> 0.1.5</p>\n"
+"    <p><strong>Version:</strong> 0.1.0</p>\n"
 "    <p><strong>Year: </strong>2023</p>\n"
 "    <p><strong>License: </strong>MIT</p>\n"
 "    <p><strong>Github: </strong><a href=\"https://github.com/hyperfield/yt-channel-downloader\">View on Github</a></p>\n"

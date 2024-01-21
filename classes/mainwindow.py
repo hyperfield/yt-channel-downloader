@@ -1,3 +1,11 @@
+# Author: hyperfield
+# Email: info@quicknode.net
+# Date: October 13, 2023
+# Project: YT Channel Downloader
+# Description: This module contains the classes MainWindow, GetListThread
+# and DownloadThread.
+# License: MIT License
+
 from PySide6.QtCore import QThread, Signal, Slot
 from ui_form import Ui_MainWindow
 from PySide6 import QtGui, QtCore
@@ -20,17 +28,68 @@ from .constants import settings_map
 
 
 class GetListThread(QThread):
+    """
+    A thread class for fetching a list of videos from a YouTube channel or
+    a single video.
+
+    This class inherits from QThread and is used to retrieve either all
+    videos from a given YouTube channel or a single video, based on the
+    provided channel ID or video URL. The retrieval process is done in
+    a separate thread to avoid blocking the main application.
+
+    Attributes:
+    finished (Signal): A signal that is emitted when the video list
+                       retrieval is complete.
+                       The signal sends a list of videos.
+
+    Parameters:
+    channel_id (str): The unique identifier for a YouTube channel.
+                      If this is None, the class will fetch a single
+                      video using channel_url.
+    yt_channel (YTChannel): An instance of the YTChannel class that
+                            provides the functionality to fetch
+                            video details from YouTube.
+    channel_url (str, optional): The URL of a single YouTube video.
+                                 This is used only if channel_id is
+                                 None. Defaults to None.
+    parent (QObject, optional): The parent object of the thread.
+                                Defaults to None.
+    """
     finished = Signal(list)
 
-    def __init__(self, channel_id, yt_channel, parent=None):
+    def __init__(self, channel_id, yt_channel, channel_url=None, parent=None):
+        """
+        Initializes the GetListThread with the necessary attributes.
+
+        Parameters:
+        channel_id (str): The unique identifier for a YouTube channel.
+        yt_channel (YTChannel): An instance of the YTChannel class.
+        channel_url (str, optional): The URL of a single YouTube video.
+        Defaults to None.
+        parent (QObject, optional): The parent object of the thread.
+        Defaults to None.
+        """
         super().__init__(parent)
-        # self.settings_manager = SettingsManager()
         self.channel_id = channel_id
         self.yt_channel = yt_channel
+        self.channel_url = channel_url
 
     def run(self):
-        video_list = self.yt_channel.get_all_video_in_channel(self.channel_id)
-        self.finished.emit(video_list)
+        """
+        The main execution method for the thread.
+
+        Depending on whether a channel_id or channel_url is provided, this
+        method fetches either all videos from a YouTube channel or a single
+        video. Once the data is fetched, it emits the 'finished' signal
+        with the video list.
+        """
+        if not self.channel_id:
+            video_list = self.yt_channel.get_single_video(self.channel_url)
+            self.finished.emit(video_list)
+        else:
+            video_list = self.yt_channel.get_all_videos_in_channel(
+                self.channel_id)
+            self.finished.emit(video_list)
 
 
 class DownloadThread(QThread):
@@ -193,7 +252,7 @@ class MainWindow(QMainWindow):
     def get_vid_list(self, channel_id, yt_channel):
         self.yt_chan_vids_titles_links.clear()
         self.yt_chan_vids_titles_links = \
-            yt_channel.get_all_video_in_channel(channel_id)
+            yt_channel.get_all_videos_in_channel(channel_id)
 
     def populate_window_list(self):
         self.reinit_model()
@@ -237,28 +296,44 @@ class MainWindow(QMainWindow):
         channel_url = self.ui.chanUrlEdit.text()
         yt_channel = YTChannel()
         channel_id = None
-        try:
-            channel_id = yt_channel.get_channel_id(channel_url)
-        except ValueError:
-            dlg = CustomDialog("URL error", "Please check your URL")
-            dlg.exec()
-            self.ui.getVidListButton.setEnabled(True)
-            return
-        except error.URLError:
-            dlg = CustomDialog(
-                "URL error", "Please check your internet connection")
-            dlg.exec()
-            self.ui.getVidListButton.setEnabled(True)
-            return
 
-        self.get_list_thread = GetListThread(channel_id, yt_channel)
-        self.get_list_thread.finished.connect(self.handle_video_list)
-        # Re-enable the button on completion
-        self.get_list_thread.finished.connect(self.enable_get_vid_list_button)
-        self.get_list_thread.start()
+        if yt_channel.is_video_url(channel_url):
+            self.get_list_thread = GetListThread(channel_id, yt_channel, channel_url)
+            self.get_list_thread.finished.connect(self.handle_single_video)
+            # Re-enable the button on completion
+            self.get_list_thread.finished.connect(
+                self.enable_get_vid_list_button)
+            self.get_list_thread.start()
+
+        else:
+            try:
+                channel_id = yt_channel.get_channel_id(channel_url)
+            except ValueError:
+                dlg = CustomDialog("URL error", "Please check your URL")
+                dlg.exec()
+                self.ui.getVidListButton.setEnabled(True)
+                return
+            except error.URLError:
+                dlg = CustomDialog(
+                    "URL error", "Please check your URL")
+                dlg.exec()
+                self.ui.getVidListButton.setEnabled(True)
+                return
+
+            self.get_list_thread = GetListThread(channel_id, yt_channel)
+            self.get_list_thread.finished.connect(self.handle_video_list)
+            # Re-enable the button on completion
+            self.get_list_thread.finished.connect(
+                self.enable_get_vid_list_button)
+            self.get_list_thread.start()
 
     @Slot(list)
     def handle_video_list(self, video_list):
+        self.yt_chan_vids_titles_links = video_list
+        self.populate_window_list()
+
+    @Slot(list)
+    def handle_single_video(self, video_list):
         self.yt_chan_vids_titles_links = video_list
         self.populate_window_list()
 

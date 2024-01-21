@@ -1,16 +1,29 @@
 # YT Channel Downloader
 
+[![Version](https://badgen.net/badge/version/0.1.5)](#) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield)
+
+**YT Channel Downloader** is an intuitive desktop application built to simplify the process of downloading YouTube channel content. Leveraging the robustness of [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [scrapetube](https://github.com/dermasmid/scrapetube) and enriched with a modern PyQt 6 GUI, this tool offers a seamless experience to get your favorite content offline.
+
+<hr>
+
+- [Binaries](#binaries)
+- [Features](#features)
+- [Installation](#installation)
+  - [Linux or MacOS](#linux-or-macos)
+  - [Windows](#windows)
+- [How to Use](#how-to-use)
+- [Contributing](#contributing)
+- [License](#license)
+- [Authors](#authors)
+- [Donation](#donation)
+
 ![YT Channel Downloader Screenshot](screenshot.png)
 
 ## Binaries
 
-[Download the latest installer for Windows here](https://quicknode.net/media/dist/ytchandl_installer.zip)
+[Download the latest installer for Windows here.](https://quicknode.net/media/dist/ytchandl_installer.zip)
 
 Mac and Linux binaries are coming soon.
-
-## Description
-
-**YT Channel Downloader** is an intuitive desktop application built to simplify the process of downloading YouTube channel content. Leveraging the robustness of [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [scrapetube](https://github.com/dermasmid/scrapetube) and enriched with a modern PyQt 6 GUI, this tool offers a seamless experience to get your favorite content offline.
 
 ## Features
 
@@ -121,6 +134,14 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Authors
 
-- **Pavel Zarva** - *Initial work* and *Documentation* - [hyperfield](https://github.com/hyperfield)
+- **hyperfield** - *Initial work* and *Documentation* - [hyperfield](https://github.com/hyperfield)
 
 See also the list of [contributors](https://github.com/hyperfield/yt-channel-downloader/contributors) who participated in this project.
+
+## Donation
+
+If you like this application and feel like you can donate a little bit to support the author and speed up the introduction of new exciting features to the program, I'll appreciate your donation to my PayPal, Bitcoin or Ethereum account. :)
+
+**[PayPal](https://paypal.me/hyperfield)**
+**Bitcoin**: bc1pglp2m26kqatgm6z8vtuhk66jd74ghv948wtyhtgtj6wh30nzz6csjajv00
+**Ethereum**: 0x9CEf6B928BF9fFd894ca83db1B822820917ca89a
