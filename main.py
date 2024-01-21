@@ -16,8 +16,6 @@ os.environ['SSL_CERT_FILE'] = certifi.where()
 #     pyside6-uic form.ui -o ui_form.py, or
 #     pyside2-uic form.ui -o ui_form.py
 
-# os.environ["PYQT_DEBUG_PLUGINS"] = "1"
-
 
 def main():
     app = QApplication(sys.argv)
