@@ -21,7 +21,7 @@
 
 ## Binaries
 
-[Download the latest installer for Windows here.](https://quicknode.net/media/dist/ytchandl_installer.zip)
+[Download the latest installer for Windows here.](https://quicknode.net/media/dist/ytchandl_015_installer.zip)
 
 Mac and Linux binaries are coming soon.
 
