@@ -14,6 +14,7 @@ from urllib import error
 import yt_dlp
 import re
 import os
+import glob
 from pathlib import Path
 
 import resources    # Qt resources
@@ -180,21 +181,21 @@ class DownloadThread(QThread):
 
     @staticmethod
     def is_download_complete(filepath):
-        # Pattern to match file that starts with `filepath`,
-        # followed by an extension, and ends with .part or .ytdl
-        pattern = re.compile(re.escape(filepath) + r'\..*?\.(part|ytdl)$')
+        part_files = glob.glob(f"{filepath}*.part")
+        ytdl_files = glob.glob(f"{filepath}*.ytdl")
 
-        directory = os.path.dirname(filepath)
-        if not directory:
-            directory = '.'
+        # If any partially downloaded files are found,
+        # the download is incomplete
+        if part_files or ytdl_files:
+            return False
 
-        for filename in os.listdir(directory):
-            full_path = os.path.join(directory, filename)
-            if pattern.match(full_path):
-                return False
+        matching_files = glob.glob(f"{filepath}.*")
+
+        # Otherwise only completely downloaded files would be found
+        if not matching_files:
+            return False
 
         return True
-
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
