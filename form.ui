@@ -60,13 +60,13 @@
           <string/>
          </property>
          <property name="whatsThis">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Youtube channel URL&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Youtube video, playlist or channel URL&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>
          <property name="text">
           <string/>
          </property>
          <property name="placeholderText">
-          <string>Youtube channel URL</string>
+          <string>Youtube video, playlist or channel URL</string>
          </property>
         </widget>
        </item>
@@ -79,7 +79,7 @@
           </sizepolicy>
          </property>
          <property name="text">
-          <string>Get list</string>
+          <string>Fetch</string>
          </property>
         </widget>
        </item>

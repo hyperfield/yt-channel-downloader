@@ -6,15 +6,14 @@
 # and DownloadThread.
 # License: MIT License
 
-from PySide6.QtCore import QThread, Signal, Slot
+from PySide6.QtCore import Qt, QThread, Signal, Slot
 from ui_form import Ui_MainWindow
 from PySide6 import QtGui, QtCore
-from PySide6.QtWidgets import QApplication, QMainWindow, QDialog
+from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QCheckBox
 from urllib import error
 import yt_dlp
 import re
 import os
-import glob
 from pathlib import Path
 
 import resources    # Qt resources
@@ -85,6 +84,10 @@ class GetListThread(QThread):
         """
         if not self.channel_id:
             video_list = self.yt_channel.get_single_video(self.channel_url)
+            self.finished.emit(video_list)
+        elif self.channel_id == "playlist":
+            video_list = self.yt_channel.get_videos_from_playlist(
+                self.channel_url)
             self.finished.emit(video_list)
         else:
             video_list = self.yt_channel.get_all_videos_in_channel(
@@ -177,13 +180,20 @@ class DownloadThread(QThread):
 
     @staticmethod
     def is_download_complete(filepath):
-        # Check if the temporary yt-dlp files exist
-        if os.path.exists(filepath + ".part") or \
-                os.path.exists(filepath + ".ytdl"):
-            return False
-        # If the final file exists and no temporary files exist,
-        # the download is complete
-        return bool(glob.glob(f"{filepath}.*"))
+        # Pattern to match file that starts with `filepath`,
+        # followed by an extension, and ends with .part or .ytdl
+        pattern = re.compile(re.escape(filepath) + r'\..*?\.(part|ytdl)$')
+
+        directory = os.path.dirname(filepath)
+        if not directory:
+            directory = '.'
+
+        for filename in os.listdir(directory):
+            full_path = os.path.join(directory, filename)
+            if pattern.match(full_path):
+                return False
+
+        return True
 
 
 class MainWindow(QMainWindow):
@@ -207,6 +217,7 @@ class MainWindow(QMainWindow):
         self.yt_chan_vids_titles_links = []
         self.vid_dl_indexes = []
         self.dl_threads = []
+        self.dl_path_correspondences = {}
         self.model = QtGui.QStandardItemModel()
         self.ui.actionExit.triggered.connect(self.exit)
         self.ui.getVidListButton.clicked.connect(self.show_vid_list)
@@ -217,6 +228,60 @@ class MainWindow(QMainWindow):
 
         self.settings_manager = SettingsManager()
         self.user_settings = self.settings_manager.settings
+
+        self.selectAllCheckBox = QCheckBox("Select All", self)
+        self.selectAllCheckBox.setVisible(False)
+        self.ui.verticalLayout.addWidget(self.selectAllCheckBox)
+        self.selectAllCheckBox.stateChanged.connect(
+            self.onSelectAllStateChanged)
+
+    def autoAdjustWindowWidth(self):
+        # Obtain general screen size
+        screen = QApplication.primaryScreen()
+        screen_size = screen.size()
+        half_screen_width = screen_size.width() / 2
+
+        # Calculate total width needed by the treeView
+        # according to populated contents
+        total_width = self.ui.treeView.viewport().sizeHint().width()
+        for column in range(self.model.columnCount()):
+            total_width += self.ui.treeView.columnWidth(column)
+
+        # Adjust the width for layout margins, scrollbars, etc.
+        total_width += self.ui.treeView.verticalScrollBar().width() * 3
+        total_width += self.ui.treeView.frameWidth() * 2
+        total_width = min(total_width, half_screen_width)
+        self.resize(total_width, self.height())
+
+    # def onSelectAllStateChanged(self, state):
+    #     newValue = state == 2
+
+    #     for row in range(self.model.rowCount()):
+    #         index = self.model.index(row, 0)
+    #         self.model.setData(index, newValue, Qt.DisplayRole)
+
+    #         # Update the Qt.CheckStateRole accordingly
+    #         newCheckState = Qt.Checked if newValue else Qt.Unchecked
+    #         self.model.setData(index, newCheckState, Qt.CheckStateRole)
+
+    def onSelectAllStateChanged(self, state):
+        newValue = state == 2
+
+        for row in range(self.model.rowCount()):
+            item_title_index = self.model.index(row, 1)
+            item_title = self.model.data(item_title_index)
+            full_file_path = self.dl_path_correspondences[item_title]
+
+            if full_file_path and \
+               DownloadThread.is_download_complete(full_file_path):
+                continue
+
+            index = self.model.index(row, 0)
+            self.model.setData(index, newValue, Qt.DisplayRole)
+
+            # Update the Qt.CheckStateRole accordingly
+            newCheckState = Qt.Checked if newValue else Qt.Unchecked
+            self.model.setData(index, newCheckState, Qt.CheckStateRole)
 
     def center_on_screen(self):
         screen = QApplication.primaryScreen()
@@ -232,6 +297,7 @@ class MainWindow(QMainWindow):
         self.model.setHorizontalHeaderLabels(['Download?', 'Title',
                                               'Link', 'Progress'])
         self.ui.treeView.setModel(self.model)
+        self.selectAllCheckBox.setVisible(False)
 
     def showSettingsDialog(self):
         settings_dialog = SettingsDialog()
@@ -248,6 +314,19 @@ class MainWindow(QMainWindow):
             item = self.model.item(row, 0)
             if item.checkState() == QtCore.Qt.Checked:
                 self.ui.downloadSelectedVidsButton.setEnabled(True)
+
+    @Slot(str)
+    def display_error_dialog(self, message):
+        """
+        Displays an error dialog with the given message and re-enables the
+        'getVidListButton'.
+
+        Parameters:
+        message (str): The error message to be displayed.
+        """
+        dlg = CustomDialog("URL error", message)
+        dlg.exec()
+        self.ui.getVidListButton.setEnabled(True)
 
     def get_vid_list(self, channel_id, yt_channel):
         self.yt_chan_vids_titles_links.clear()
@@ -274,8 +353,9 @@ class MainWindow(QMainWindow):
                 item_title.setForeground(QtGui.QBrush(QtGui.QColor('grey')))
                 item_checkbox.setForeground(QtGui.QBrush(QtGui.QColor('grey')))
                 item_link.setForeground(QtGui.QBrush(QtGui.QColor('grey')))
-                item[3].setText("Already downloaded")
+                item[3].setText("Complete")
             self.rootItem.appendRow(item)
+            self.dl_path_correspondences[item_title_text] = full_file_path
         self.ui.treeView.expandAll()
         self.ui.treeView.show()
         cb_delegate = CheckBoxDelegate()
@@ -289,16 +369,32 @@ class MainWindow(QMainWindow):
             background-color: gray;
         }
         """)
+        if self.model.rowCount() > 0:
+            self.selectAllCheckBox.setVisible(True)
+            self.autoAdjustWindowWidth()
 
     @Slot()
     def show_vid_list(self):
         self.ui.getVidListButton.setEnabled(False)
         channel_url = self.ui.chanUrlEdit.text()
         yt_channel = YTChannel()
+        yt_channel.showError.connect(self.display_error_dialog)
         channel_id = None
 
-        if yt_channel.is_video_url(channel_url):
-            self.get_list_thread = GetListThread(channel_id, yt_channel, channel_url)
+        if yt_channel.is_video_with_playlist_url(channel_url) or \
+           yt_channel.is_playlist_url(channel_url):
+            # Handle playlist URL
+            self.get_list_thread = GetListThread(
+                "playlist", yt_channel, channel_url)
+            self.get_list_thread.finished.connect(self.handle_video_list)
+            self.get_list_thread.finished.connect(
+                self.enable_get_vid_list_button)
+            self.get_list_thread.start()
+
+        elif yt_channel.is_video_url(channel_url):
+            # Debug exception
+            self.get_list_thread = GetListThread(channel_id, yt_channel,
+                                                 channel_url)
             self.get_list_thread.finished.connect(self.handle_single_video)
             # Re-enable the button on completion
             self.get_list_thread.finished.connect(
@@ -306,18 +402,14 @@ class MainWindow(QMainWindow):
             self.get_list_thread.start()
 
         else:
+            # Handle as channel URL
             try:
                 channel_id = yt_channel.get_channel_id(channel_url)
             except ValueError:
-                dlg = CustomDialog("URL error", "Please check your URL")
-                dlg.exec()
-                self.ui.getVidListButton.setEnabled(True)
+                self.display_error_dialog("Please check your URL")
                 return
             except error.URLError:
-                dlg = CustomDialog(
-                    "URL error", "Please check your URL")
-                dlg.exec()
-                self.ui.getVidListButton.setEnabled(True)
+                self.display_error_dialog("Please check your URL")
                 return
 
             self.get_list_thread = GetListThread(channel_id, yt_channel)
