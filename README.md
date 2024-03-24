@@ -1,13 +1,14 @@
 # YT Channel Downloader
 
-[![Version](https://badgen.net/badge/version/0.1.5)](#) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield)
+[![Version](https://badgen.net/badge/version/0.3.0)](#) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield)
 
-**YT Channel Downloader** is an intuitive desktop application built to simplify the process of downloading YouTube channel content. Leveraging the robustness of [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [scrapetube](https://github.com/dermasmid/scrapetube) and enriched with a modern PyQt 6 GUI, this tool offers a seamless experience to get your favorite content offline.
+**YT Channel Downloader** is an intuitive desktop application built to simplify the process of downloading YouTube media content. Leveraging the robustness of [yt-dlp](https://github.com/yt-dlp/yt-dlp), [scrapetube](https://github.com/dermasmid/scrapetube), and [pytube](https://github.com/pytube/pytube), and enriched with a modern PyQt 6 GUI, this tool offers a seamless experience to download your favorite content.
 
 ![YT Channel Downloader Screenshot](screenshot.png)
 
 ---
 
+- [What's New in version 0.3.0](#whats-new-in-version-030)
 - [Binaries](#binaries)
 - [Features](#features)
 - [Installation](#installation)
@@ -19,16 +20,22 @@
 - [Authors](#authors)
 - [Donation](#donation)
 
+## What's New in version 0.3.0
+
+- **Download playlists**, in addition to channels or single videos
+- **Select All** check box: allows to select all non-downloaded videos in a list at once
+- **Bug fixes**: improved URL validation, partial download completion
+- **Interface improvements**
+- **Other improvements**: code cleanup, updated README
+
 ## Binaries
 
-[Download the latest installer for Windows here.](https://quicknode.net/media/dist/ytchandl_015_installer.zip)
-
-Mac and Linux binaries are coming soon.
+[Download the latest installer for Windows here.](https://quicknode.net/media/dist/ytchandl_030_installer.zip)
 
 ## Features
 
-- **Fetch Video Listings**: Just input a YouTube channel URL and get a list of all available videos.
-- **Selective Download**: Choose exactly which videos you want to download.
+- **Fetch Video Listings**: Just input a YouTube video, playlist or channel URL and get a list of the videos.
+- **Selective Download**: Choose exactly which videos you want to download, or select all at once.
 - **Quality Control**: Specify video/audio quality or opt to download only the audio.
 - **Download Marking**: Keeps track of downloaded files for easier management.
 
@@ -38,7 +45,8 @@ Mac and Linux binaries are coming soon.
 - Enhanced download progress bar
 - Download history tracking
 - Support for other audio and video platforms
-- General improvements
+- Functionality improvements
+- Interface improvements
 
 ## Installation
 

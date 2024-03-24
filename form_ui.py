@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'form.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.5.1
+## Created by: Qt User Interface Compiler version 6.6.0
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -148,11 +148,11 @@ class Ui_MainWindow(object):
         self.chanUrlEdit.setToolTip("")
 #endif // QT_CONFIG(tooltip)
 #if QT_CONFIG(whatsthis)
-        self.chanUrlEdit.setWhatsThis(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>Youtube channel URL</p></body></html>", None))
+        self.chanUrlEdit.setWhatsThis(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>Youtube video, playlist or channel URL</p></body></html>", None))
 #endif // QT_CONFIG(whatsthis)
         self.chanUrlEdit.setText("")
-        self.chanUrlEdit.setPlaceholderText(QCoreApplication.translate("MainWindow", u"Youtube channel URL", None))
-        self.getVidListButton.setText(QCoreApplication.translate("MainWindow", u"Get list", None))
+        self.chanUrlEdit.setPlaceholderText(QCoreApplication.translate("MainWindow", u"Youtube video, playlist or channel URL", None))
+        self.getVidListButton.setText(QCoreApplication.translate("MainWindow", u"Fetch", None))
         self.downloadSelectedVidsButton.setText(QCoreApplication.translate("MainWindow", u"Download", None))
         self.menuFile.setTitle(QCoreApplication.translate("MainWindow", u"File", None))
         self.menuHelp.setTitle(QCoreApplication.translate("MainWindow", u"Help", None))

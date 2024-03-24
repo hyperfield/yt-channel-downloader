@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'about.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.5.3
+## Created by: Qt User Interface Compiler version 6.6.0
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -46,8 +46,8 @@ class Ui_aboutDialog(object):
 "</head>\n"
 "<body>\n"
 "    <h3>YT Channel Downloader</h3>\n"
-"    <p><strong>Version:</strong> 0.1.5</p>\n"
-"    <p><strong>Year: </strong>2023</p>\n"
+"    <p><strong>Version:</strong> 0.3.0</p>\n"
+"    <p><strong>Year: </strong>2024</p>\n"
 "    <p><strong>License: </strong>MIT</p>\n"
 "    <p><strong>Github: </strong><a href=\"https://github.com/hyperfield/yt-channel-downloader\">View on Github</a></p>\n"
 "    <p><strong>Author: </strong><a href=\"mailto:info@quicknode.net\">hyperfield</p>\n"
