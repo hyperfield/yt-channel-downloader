@@ -10,6 +10,7 @@ from PySide6.QtCore import Qt, QThread, Signal, Slot
 from ui_form import Ui_MainWindow
 from PySide6 import QtGui, QtCore
 from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QCheckBox
+from PySide6.QtCore import QSemaphore
 from urllib import error
 import yt_dlp
 import re
@@ -100,15 +101,17 @@ class DownloadThread(QThread):
     downloadProgressSignal = Signal(dict)
     downloadCompleteSignal = Signal(str)
 
-    def __init__(self, url, index, title, parent=None):
+    def __init__(self, url, index, title, mainWindow, parent=None):
         super().__init__(parent)
         self.url = url
         self.index = index
         self.title = title
+        self.mainWindow = mainWindow
         self.settings_manager = SettingsManager()
         self.user_settings = self.settings_manager.settings
 
     def run(self):
+        self.mainWindow.download_semaphore.acquire()
         sanitized_title = self.sanitize_filename(self.title)
         download_directory = self.user_settings.get('download_directory')
 
@@ -150,6 +153,7 @@ class DownloadThread(QThread):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([self.url])
         self.downloadCompleteSignal.emit(self.index)
+        self.mainWindow.download_semaphore.release()
 
     def dl_hook(self, d):
         if d['status'] == 'downloading':
@@ -165,14 +169,16 @@ class DownloadThread(QThread):
     def sanitize_filename(filename):
         filename = filename.strip()
         filename = filename.replace(' ', '_')
-        # remove or replace characters that are illegal in Windows filenames
-        filename = re.sub(r'[\\/*?:"<>|]', '', filename)
+        # Remove or replace characters that are illegal in Windows filenames,
+        # and potentially problematic for glob patterns (like square brackets)
+        filename = re.sub(r'[\\/*?:"<>|\[\]]', '', filename)
         filename = filename[:250]
-        # check for Windows reserved filenames
+
+        # Check for Windows reserved filenames
         reserved_filenames = {
-            "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4",
-            "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2",
-            "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+            "CON", "PRN", "AUX", "NUL",
+            "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+            "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
         }
         if filename.upper() in reserved_filenames:
             filename += "_"
@@ -201,6 +207,8 @@ class DownloadThread(QThread):
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
+        # Limit to 3 simultaneous downloads
+        self.download_semaphore = QSemaphore(3)
         icon_path = Path(__file__).resolve().parent.parent / "icon.png"
         self.setWindowIcon(QtGui.QIcon(str(icon_path)))
         self.ui = Ui_MainWindow()
@@ -254,17 +262,6 @@ class MainWindow(QMainWindow):
         total_width += self.ui.treeView.frameWidth() * 2
         total_width = min(total_width, half_screen_width)
         self.resize(total_width, self.height())
-
-    # def onSelectAllStateChanged(self, state):
-    #     newValue = state == 2
-
-    #     for row in range(self.model.rowCount()):
-    #         index = self.model.index(row, 0)
-    #         self.model.setData(index, newValue, Qt.DisplayRole)
-
-    #         # Update the Qt.CheckStateRole accordingly
-    #         newCheckState = Qt.Checked if newValue else Qt.Unchecked
-    #         self.model.setData(index, newCheckState, Qt.CheckStateRole)
 
     def onSelectAllStateChanged(self, state):
         newValue = state == 2
@@ -448,7 +445,7 @@ class MainWindow(QMainWindow):
             self.model.setItem(index, 3, progress_item)
             link = self.model.item(index, 2).text()
             title = self.model.item(index, 1).text()
-            dl_thread = DownloadThread(link, index, title)
+            dl_thread = DownloadThread(link, index, title, self)
             dl_thread.downloadCompleteSignal.connect(self.populate_window_list)
             dl_thread.downloadProgressSignal.connect(self.update_progress)
             self.dl_threads.append(dl_thread)

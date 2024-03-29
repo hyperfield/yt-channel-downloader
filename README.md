@@ -9,7 +9,7 @@
 
 ---
 
-- [What's New in version 0.3.0](#whats-new-in-version-030)
+- [Change Log](#change-log)
 - [Binaries](#binaries)
 - [Features](#features)
 - [Installation](#installation)
@@ -21,7 +21,14 @@
 - [Authors](#authors)
 - [Donation](#donation)
 
-## What's New in version 0.3.0
+## Change Log
+
+### What's New in version 0.3.1
+
+- **Limiting of simultaneous download threads**: this improves the responsiveness of the application and optimizes its handling of large download lists.
+- **Improved file name sanitation method**: this prevents some completed downloads not being marked as such.
+
+### What's New in version 0.3.0
 
 - **Download playlists**, in addition to channels or single videos
 - **Select All** check box: allows to select all non-downloaded videos in a list at once

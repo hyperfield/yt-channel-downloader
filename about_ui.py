@@ -40,19 +40,7 @@ class Ui_aboutDialog(object):
 
     def retranslateUi(self, aboutDialog):
         aboutDialog.setWindowTitle(QCoreApplication.translate("aboutDialog", u"About", None))
-        self.aboutLabel.setText(QCoreApplication.translate("aboutDialog", u"<html>\n"
-"<head>\n"
-"    <title>About</title>\n"
-"</head>\n"
-"<body>\n"
-"    <h3>YT Channel Downloader</h3>\n"
-"    <p><strong>Version:</strong> 0.3.0</p>\n"
-"    <p><strong>Year: </strong>2024</p>\n"
-"    <p><strong>License: </strong>MIT</p>\n"
-"    <p><strong>Github: </strong><a href=\"https://github.com/hyperfield/yt-channel-downloader\">View on Github</a></p>\n"
-"    <p><strong>Author: </strong><a href=\"mailto:info@quicknode.net\">hyperfield</p>\n"
-"</body>\n"
-"</html>", None))
+        self.aboutLabel.setText(QCoreApplication.translate("aboutDialog", u"<html><head><title>About</title></head><body><h3 style=\" margin-top:14px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-size:large; font-weight:700;\">YT Channel Downloader</span></h3><p><span style=\" font-weight:700;\">Version:</span> 0.3.1</p><p><span style=\" font-weight:700;\">Year: </span>2024 </p><p><span style=\" font-weight:700;\">License: </span>MIT </p><p><span style=\" font-weight:700;\">Github: </span><a href=\"https://github.com/hyperfield/yt-channel-downloader\"><span style=\" text-decoration: underline; color:#0000ff;\">View on Github</span></a></p><p><span style=\" font-weight:700;\">Author: </span><a href=\"mailto:info@quicknode.net\"><span style=\" text-decoration: underline; color:#0000ff;\">hyperfield</span></a></p></body></html>", None))
         self.aboutOkButton.setText(QCoreApplication.translate("aboutDialog", u"OK", None))
         self.label.setText(QCoreApplication.translate("aboutDialog", u"<html><head/><body><p><img src=\":/images/icon.png\" width=\"64\" height=\"64\"/></p></body></html>\n"
 "", None))
