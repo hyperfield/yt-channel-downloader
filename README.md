@@ -1,6 +1,6 @@
 # YT Channel Downloader
 
-[![Version](https://badgen.net/badge/version/0.3.0)](#) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield)
+[![Version](https://badgen.net/badge/version/0.3.1)](#) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield)
 
 **YT Channel Downloader** is an intuitive desktop application built to simplify the process of downloading YouTube media content. Leveraging the robustness of [yt-dlp](https://github.com/yt-dlp/yt-dlp), [scrapetube](https://github.com/dermasmid/scrapetube), and [pytube](https://github.com/pytube/pytube), and enriched with a modern PyQt 6 GUI, this tool offers a seamless experience to download your favorite content.
 
@@ -38,7 +38,7 @@
 
 ## Binaries
 
-[Download the latest installer for Windows here.](https://quicknode.net/media/dist/ytchandl_030_installer.zip)
+[Download the latest installer for Windows here.](https://quicknode.net/media/dist/ytchandl_031_installer.zip)
 
 ## Features
 
