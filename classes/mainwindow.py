@@ -111,6 +111,7 @@ class DownloadThread(QThread):
         self.user_settings = self.settings_manager.settings
 
     def run(self):
+        from .utils import get_video_format_details
         self.mainWindow.download_semaphore.acquire()
         sanitized_title = self.sanitize_filename(self.title)
         download_directory = self.user_settings.get('download_directory')
@@ -123,8 +124,21 @@ class DownloadThread(QThread):
 
         video_format = settings_map['preferred_video_format'].get(
             self.user_settings.get('preferred_video_format', 'Any'), 'Any')
-        if video_format:
-            ydl_opts['format'] = video_format
+        video_quality = settings_map['preferred_video_quality'].get(
+            self.user_settings.get('preferred_video_quality',
+                                   'bestvideo'), 'Any')
+
+        closest_format_id = None
+        closest_format_id = get_video_format_details(
+            self.url, video_quality, video_format)
+
+        if closest_format_id:
+            ydl_opts['format'] = closest_format_id
+        elif video_quality:
+            ydl_opts['format'] = video_quality
+        else:
+            ydl_opts['format'] = 'bestvideo'
+
         if self.user_settings.get('audio_only'):
             audio_format = settings_map['preferred_audio_format'].get(
                 self.user_settings.get('preferred_audio_format', 'Any'), 'Any')
@@ -150,6 +164,8 @@ class DownloadThread(QThread):
             if proxy_type and proxy_addr and proxy_port:
                 ydl_opts['proxy'] = f"{proxy_type}://{proxy_addr}:{proxy_port}"
 
+        import pprint
+        pprint.pprint(ydl_opts)
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([self.url])
         self.downloadCompleteSignal.emit(self.index)

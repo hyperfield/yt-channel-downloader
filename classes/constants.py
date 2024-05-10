@@ -5,7 +5,7 @@ DEFAULT_VIDEO_QUALITY = '1080p'
 
 settings_map = {
     'preferred_video_quality': {
-        'Best available': 'best',
+        'Best available': 'bestvideo',
         '2160p (4K)': '2160p',
         '1440p (2K)': '1440p',
         '1080p (Full HD)': '1080p',
@@ -16,7 +16,7 @@ settings_map = {
         '144p': '144p'
     },
     'preferred_audio_quality': {
-        'Best available': 'best',
+        'Best available': 'bestaudio',
         '320 kbps': '320k',
         '256 kbps': '256k',
         '192 kbps': '192k',
