@@ -5,6 +5,9 @@
 TODO.txt
 .DS_Store
 
+# Code
+*.code-workspace
+
 ### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/
