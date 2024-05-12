@@ -98,6 +98,27 @@ class GetListThread(QThread):
 
 
 class DownloadThread(QThread):
+    """
+    A QThread subclass that handles downloading videos from YouTube with
+    specificformats and qualities.
+
+    Attributes:
+        downloadProgressSignal (Signal): Signal emitted during the download
+        process with progress details.
+        downloadCompleteSignal (Signal): Signal emitted once the download
+        is complete.
+
+    Args:
+        url (str): The URL of the video to be downloaded.
+        index (int): The index identifier for the download, used for managing
+        multiple downloads.
+        title (str): The title of the video, used for naming the downloaded
+        file.
+        mainWindow (MainWindow): Reference to the main window of the
+        applicationfor UI interactions and semaphore access.
+        parent (QObject, optional): The parent QObject. Defaults to None.
+    """
+
     downloadProgressSignal = Signal(dict)
     downloadCompleteSignal = Signal(str)
 
@@ -111,6 +132,11 @@ class DownloadThread(QThread):
         self.user_settings = self.settings_manager.settings
 
     def run(self):
+        """
+        Executes the download process in a separate thread. Configures download
+        options based on user preferences, fetches the video, and emits signals
+        to update the UI on progress and completion.
+        """
         from .utils import get_video_format_details
         self.mainWindow.download_semaphore.acquire()
         sanitized_title = self.sanitize_filename(self.title)
@@ -128,16 +154,15 @@ class DownloadThread(QThread):
             self.user_settings.get('preferred_video_quality',
                                    'bestvideo'), 'Any')
 
-        closest_format_id = None
         closest_format_id = get_video_format_details(
             self.url, video_quality, video_format)
 
         if closest_format_id:
-            ydl_opts['format'] = closest_format_id
+            ydl_opts['format'] = f"{closest_format_id}+bestaudio"
         elif video_quality:
             ydl_opts['format'] = video_quality
         else:
-            ydl_opts['format'] = 'bestvideo'
+            ydl_opts['format'] = 'bestvideo+bestaudio'
 
         if self.user_settings.get('audio_only'):
             audio_format = settings_map['preferred_audio_format'].get(
@@ -164,14 +189,19 @@ class DownloadThread(QThread):
             if proxy_type and proxy_addr and proxy_port:
                 ydl_opts['proxy'] = f"{proxy_type}://{proxy_addr}:{proxy_port}"
 
-        import pprint
-        pprint.pprint(ydl_opts)
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([self.url])
         self.downloadCompleteSignal.emit(self.index)
         self.mainWindow.download_semaphore.release()
 
     def dl_hook(self, d):
+        """
+        Callback function used by yt-dlp to handle download progress updates.
+
+        Args:
+            d (dict): A dictionary containing status information about the
+            ongoing download.
+        """
         if d['status'] == 'downloading':
             progress_str = d['_percent_str']
             ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
@@ -183,6 +213,15 @@ class DownloadThread(QThread):
 
     @staticmethod
     def sanitize_filename(filename):
+        """
+        Sanitizes the filename by removing illegal characters and checking against reserved filenames.
+
+        Args:
+            filename (str): The initial filename based on the video title.
+
+        Returns:
+            str: A sanitized filename safe for use in file systems.
+        """
         filename = filename.strip()
         filename = filename.replace(' ', '_')
         # Remove or replace characters that are illegal in Windows filenames,
@@ -192,9 +231,9 @@ class DownloadThread(QThread):
 
         # Check for Windows reserved filenames
         reserved_filenames = {
-            "CON", "PRN", "AUX", "NUL",
-            "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-            "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+            "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5",
+            "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4",
+            "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
         }
         if filename.upper() in reserved_filenames:
             filename += "_"
@@ -203,6 +242,17 @@ class DownloadThread(QThread):
 
     @staticmethod
     def is_download_complete(filepath):
+        """
+        Checks if the download for a given file is complete by looking for
+        temporary `.part` or `.ytdl` files.
+
+        Args:
+            filepath (str): The path to the file without the extension.
+
+        Returns:
+            bool: True if the download is complete, False otherwise.
+        """
+
         part_files = glob.glob(f"{filepath}*.part")
         ytdl_files = glob.glob(f"{filepath}*.ytdl")
 

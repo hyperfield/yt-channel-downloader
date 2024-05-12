@@ -24,6 +24,10 @@
 
 ## Change Log
 
+### What's New in version 0.3.3
+
+- **Improved default audio track downloading**: the program will now always attempt to download the best available quality audio track. Previously, the associated audio track was not always downloaded, for 4k quality videos in particular.
+
 ### What's New in version 0.3.2
 
 - **Fixed the handling of video resolutions and formats specified in Settings**: the program will correctly find the closest available video resolution and format based on user settings, for horizontal and vertical videos.
