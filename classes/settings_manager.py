@@ -57,7 +57,8 @@ class SettingsManager:
             'proxy_server_type': '',
             'proxy_server_addr': '',
             'proxy_server_port': '',
-            'audio_only': False
+            'audio_only': False,
+            'dont_show_login_prompt': False
         }
 
     def save_settings_to_file(self, settings):

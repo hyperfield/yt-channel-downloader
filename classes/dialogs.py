@@ -1,12 +1,15 @@
 import http.cookiejar
 import time
+import os
 
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout, QLabel
-from PyQt6.QtWidgets import QMainWindow
-from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtCore import QUrl, QDateTime, QTimer, QDateTime
-from PyQt6.QtNetwork import QNetworkCookie
-from PyQt6.QtWebEngineCore import QWebEngineProfile
+from PySide6.QtWidgets import QMainWindow, QDialog, QDialogButtonBox, QVBoxLayout, QLabel
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
+from PySide6.QtCore import QUrl, QDateTime, QTimer, QDateTime
+from PySide6.QtNetwork import QNetworkCookie
+from PySide6.QtCore import Signal
+
+from .settings_manager import SettingsManager
 
 URL_LOGIN = "https://accounts.google.com/ServiceLogin?service=youtube"
 URL_YOUTUBE = "https://www.youtube.com/"
@@ -15,13 +18,10 @@ URL_YOUTUBE = "https://www.youtube.com/"
 class CustomDialog(QDialog):
     def __init__(self, title, message):
         super().__init__()
-
         self.setWindowTitle(title)
-
         QBtn = QDialogButtonBox.Ok
         self.buttonBox = QDialogButtonBox(QBtn)
         self.buttonBox.accepted.connect(self.accept)
-
         self.layout = QVBoxLayout()
         dlg_message = QLabel(message)
         self.layout.addWidget(dlg_message)
@@ -30,28 +30,36 @@ class CustomDialog(QDialog):
 
 
 class YoutubeLoginDialog(QMainWindow):
-    def __init__(self):
+    logged_in_signal = Signal()
+
+    def __init__(self, cookie_jar_path):
         super().__init__()
         self.browser = QWebEngineView()
         self.setCentralWidget(self.browser)
-        self.cookie_jar = http.cookiejar.MozillaCookieJar('youtube_cookies.txt')
+
+        self.settings_manager = SettingsManager()
+        self.cookie_jar_path = cookie_jar_path
+        self.cookie_jar = http.cookiejar.MozillaCookieJar(self.cookie_jar_path)
+        
         self.cookies_loaded = False
         self.logged_in = False
         self.cookie_expirations = {}
 
+        self.profile = QWebEngineProfile.defaultProfile()
+        self.cookie_store = self.profile.cookieStore()
+
         self.load_cookies()
 
-        # Load the appropriate URL based on whether cookies are loaded
         if self.cookies_loaded:
+            self.logged_in = True
+            self.logged_in_signal.emit()
             self.browser.load(QUrl(URL_YOUTUBE))
         else:
             self.browser.load(QUrl(URL_LOGIN))
 
-        self.browser.page().profile().cookieStore().cookieAdded.connect(self.process_cookie)
+        self.cookie_store.cookieAdded.connect(self.process_cookie)
 
-        # Check cookies after some time delay to ensure they are set properly
         QTimer.singleShot(10000, self.check_cookies)
-        # Periodically check cookie expiry
         QTimer.singleShot(60000, self.check_cookie_expiry)  # Check every minute
 
     def process_cookie(self, cookie):
@@ -77,18 +85,24 @@ class YoutubeLoginDialog(QMainWindow):
         self.cookie_jar.set_cookie(py_cookie)
         self.cookie_jar.save(ignore_discard=True)
 
-        # Store the expiration time for tracking
         if py_cookie.expires:
             self.cookie_expirations[py_cookie.name] = py_cookie.expires
 
-        # Check if the user is logged in by detecting specific cookies
         if cookie.name().data().decode('utf-8') in ["SID", "HSID", "SSID"]:
+            print("""
+                  ***
+                  Cookies loaded
+                  ***
+                  """)
             self.logged_in = True
-            QTimer.singleShot(2000, self.close_window)  # Close window after 2 seconds
+            QTimer.singleShot(2000, self.emit_logged_in_signal)
 
     def load_cookies(self):
         try:
             self.cookie_jar.load(ignore_discard=True)
+            logged_in_cookies = ["SID", "HSID", "SSID"]
+            found_logged_in_cookies = set()
+
             for cookie in self.cookie_jar:
                 q_cookie = QNetworkCookie(
                     cookie.name.encode('utf-8'),
@@ -101,17 +115,35 @@ class YoutubeLoginDialog(QMainWindow):
                     q_cookie.setExpirationDate(QDateTime.fromSecsSinceEpoch(cookie.expires))
                     self.cookie_expirations[cookie.name] = cookie.expires
 
-                QWebEngineProfile.defaultProfile().cookieStore().\
-                    setCookie(q_cookie)
-                self.cookies_loaded = True
-                print("Loaded cookie:", q_cookie.name().data().decode('utf-8'))
+                QWebEngineProfile.defaultProfile().cookieStore().setCookie(q_cookie)
+                print(f"Loaded cookie: {q_cookie.name().data().decode('utf-8')}")
+
+                # Check if the loaded cookie is one of the logged-in cookies
+                if cookie.name in logged_in_cookies:
+                    found_logged_in_cookies.add(cookie.name)
+
+            # Set cookies_loaded to True only if all logged-in cookies are found
+            self.cookies_loaded = all(cookie in found_logged_in_cookies for cookie in logged_in_cookies)
+            self.logged_in = self.cookies_loaded
         except FileNotFoundError:
             print("No cookies file found. Starting fresh.")
 
+    def clear_cookies(self):
+        self.cookie_jar.clear()
+        self.cookie_jar.save(ignore_discard=True)
+        self.cookies_loaded = False
+        self.profile = self.browser.page().profile()
+        self.profile.cookieStore().deleteAllCookies()
+
+    def logout(self):
+        self.clear_cookies()
+        self.profile.clearHttpCache()
+        self.browser.page().triggerAction(QWebEnginePage.ReloadAndBypassCache)
+        self.browser.load(QUrl("https://accounts.google.com/signin"))
+        self.logged_in = False
+
     def check_cookies(self):
-        # Debug method to print all cookies
-        self.browser.page().profile().cookieStore().cookieAdded.\
-            connect(self.debug_print_cookie)
+        self.cookie_store.cookieAdded.connect(self.debug_print_cookie)
 
     def debug_print_cookie(self, cookie):
         print("Cookie Name:", cookie.name().data().decode('utf-8'))
@@ -128,8 +160,12 @@ class YoutubeLoginDialog(QMainWindow):
                 print(f"Cookie {cookie_name} has expired, reloading cookies.")
                 self.load_cookies()
                 break
-        # Recheck the expiry in another minute
         QTimer.singleShot(60000, self.check_cookie_expiry)
+
+    def emit_logged_in_signal(self):
+        if self.logged_in:
+            self.logged_in_signal.emit()
+            self.close()
 
     def close_window(self):
         if self.logged_in:

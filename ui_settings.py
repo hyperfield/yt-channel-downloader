@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'settings.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.5.3
+## Created by: Qt User Interface Compiler version 6.7.2
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -26,10 +26,10 @@ class Ui_Settings(object):
         Settings.resize(764, 512)
         self.save_button = QPushButton(Settings)
         self.save_button.setObjectName(u"save_button")
-        self.save_button.setGeometry(QRect(570, 480, 80, 22))
+        self.save_button.setGeometry(QRect(570, 471, 80, 31))
         self.close_button = QPushButton(Settings)
         self.close_button.setObjectName(u"close_button")
-        self.close_button.setGeometry(QRect(670, 480, 80, 22))
+        self.close_button.setGeometry(QRect(670, 471, 80, 31))
         self.layoutWidget = QWidget(Settings)
         self.layoutWidget.setObjectName(u"layoutWidget")
         self.layoutWidget.setGeometry(QRect(20, 180, 391, 51))
@@ -164,7 +164,7 @@ class Ui_Settings(object):
 
         self.proxy_server_port = QLineEdit(self.layoutWidget_5)
         self.proxy_server_port.setObjectName(u"proxy_server_port")
-        sizePolicy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.proxy_server_port.sizePolicy().hasHeightForWidth())
