@@ -6,20 +6,24 @@
 # and DownloadThread.
 # License: MIT License
 
-from PySide6.QtCore import Qt, QThread, Signal, Slot
-from ui_form import Ui_MainWindow
-from PySide6 import QtGui, QtCore
-from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QCheckBox
-from PySide6.QtCore import QSemaphore
 from urllib import error
 import yt_dlp
 import re
 import os
 import glob
 from pathlib import Path
+import http.cookiejar
+
+from PySide6.QtCore import Qt, QThread, Signal, Slot
+from ui_form import Ui_MainWindow
+from PySide6 import QtGui, QtCore
+from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QCheckBox
+from PySide6.QtCore import QSemaphore
 
 import resources    # Qt resources
 from .dialogs import CustomDialog
+from .dialogs import YoutubeLoginDialog
+from .login_prompt_dialog import LoginPromptDialog
 from .checkbox import CheckBoxDelegate
 from .YTChannel import YTChannel
 from .settings import SettingsDialog
@@ -281,7 +285,6 @@ class MainWindow(QMainWindow):
         self.center_on_screen()
         self.ui.setupUi(self)
 
-        # Initialize About Dialog
         self.about_dialog = QDialog()
         self.about_ui = Ui_aboutDialog()
         self.about_ui.setupUi(self.about_dialog)
@@ -310,6 +313,50 @@ class MainWindow(QMainWindow):
         self.ui.verticalLayout.addWidget(self.selectAllCheckBox)
         self.selectAllCheckBox.stateChanged.connect(
             self.onSelectAllStateChanged)
+
+        self.youtube_login_dialog = None  # Initialize to None
+        self.ui.actionYoutube_login.triggered.connect(
+            self.handle_youtube_login)
+
+        self.check_youtube_login_status()
+
+    def check_youtube_login_status(self):
+        config_dir = self.settings_manager.get_config_directory()
+        cookie_jar_path = Path(config_dir) / "youtube_cookies.txt"
+        self.youtube_login_dialog = YoutubeLoginDialog(cookie_jar_path)
+        self.update_youtube_login_menu()
+
+    def show_youtube_login_dialog(self):
+        if self.youtube_login_dialog and self.youtube_login_dialog.logged_in:
+            self.youtube_login_dialog.logout()
+            self.youtube_login_dialog = None  # Destroy the current instance
+            self.ui.actionYoutube_login.setText("YouTube login")
+        else:
+            # If youtube_login_dialog is None, reinitialize it
+            if self.youtube_login_dialog is None:
+                config_dir = self.settings_manager.get_config_directory()
+                cookie_jar_path = Path(config_dir) / "youtube_cookies.txt"
+                self.youtube_login_dialog = YoutubeLoginDialog(cookie_jar_path)
+                self.youtube_login_dialog.logged_in_signal.connect(self.update_youtube_login_menu)
+
+            self.youtube_login_dialog.show()
+
+    def handle_youtube_login(self):
+        if not self.youtube_login_dialog:
+            config_dir = self.settings_manager.get_config_directory()
+            cookie_jar_path = Path(config_dir) / "youtube_cookies.txt"
+            self.youtube_login_dialog = YoutubeLoginDialog(cookie_jar_path)
+        
+        self.youtube_login_dialog.logged_in_signal.connect(
+            self.update_youtube_login_menu)
+
+        user_settings = self.settings_manager.settings
+        if user_settings.get('dont_show_login_prompt'):
+            self.show_youtube_login_dialog()
+        else:
+            login_prompt_dialog = LoginPromptDialog(self)
+            if login_prompt_dialog.exec() == QDialog.Accepted:
+                self.show_youtube_login_dialog()
 
     def autoAdjustWindowWidth(self):
         # Obtain general screen size
@@ -372,6 +419,13 @@ class MainWindow(QMainWindow):
         self.about_ui.aboutLabel.setOpenExternalLinks(True)
         self.about_ui.aboutOkButton.clicked.connect(self.about_dialog.accept)
         self.about_dialog.exec_()
+
+    @Slot()
+    def update_youtube_login_menu(self):
+        if self.youtube_login_dialog and self.youtube_login_dialog.logged_in:
+            self.ui.actionYoutube_login.setText("YouTube logout")
+        else:
+            self.ui.actionYoutube_login.setText("YouTube login")
 
     def update_download_button_state(self):
         self.ui.downloadSelectedVidsButton.setEnabled(False)

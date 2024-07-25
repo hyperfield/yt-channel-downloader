@@ -12,9 +12,8 @@ from classes.mainwindow import MainWindow
 os.environ['SSL_CERT_FILE'] = certifi.where()
 
 # Important:
-# You need to run the following command to generate the ui_form.py file
+# You need to run the following command to generate a Python ui file, e.g.
 #     pyside6-uic form.ui -o ui_form.py, or
-#     pyside2-uic form.ui -o ui_form.py
 
 
 def main():
