@@ -57,7 +57,7 @@ def find_best_format_by_resolution(
 
 
 def get_video_format_details(url, target_resolution='bestvideo',
-                             target_container="Any"):
+                             target_container="Any", cookie_file_path=None):
     """
     Retrieves video format details for a given URL using yt_dlp,
     filtering by resolution and container format.
@@ -70,6 +70,9 @@ def get_video_format_details(url, target_resolution='bestvideo',
     - target_container (str): The container format to filter by
       (e.g., 'mp4', 'webm').
       Use 'Any' to ignore container format in the selection.
+    - cookie_file_path (str, optional): The path to the cookie file
+      to use for authentication. Required for private or age-restricted
+      videos.
 
     Returns:
     - str: The format_id of the video that best matches the criteria.
@@ -78,8 +81,16 @@ def get_video_format_details(url, target_resolution='bestvideo',
     """
     ydl_opts = {'noplaylist': True}
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        video_info = ydl.extract_info(url, download=False)
-        return find_best_format_by_resolution(video_info['formats'],
-                                              target_resolution,
-                                              target_container)
+    if cookie_file_path:
+        ydl_opts['cookiefile'] = cookie_file_path
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            video_info = ydl.extract_info(url, download=False)
+            return find_best_format_by_resolution(video_info['formats'],
+                                                  target_resolution,
+                                                  target_container)
+    except yt_dlp.utils.DownloadError as e:
+        # Handle download errors, such as authentication failures
+        print(f"Failed to extract video information: {e}")
+        return None
