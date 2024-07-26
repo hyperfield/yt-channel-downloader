@@ -337,7 +337,8 @@ class MainWindow(QMainWindow):
                 config_dir = self.settings_manager.get_config_directory()
                 cookie_jar_path = Path(config_dir) / "youtube_cookies.txt"
                 self.youtube_login_dialog = YoutubeLoginDialog(cookie_jar_path)
-                self.youtube_login_dialog.logged_in_signal.connect(self.update_youtube_login_menu)
+                self.youtube_login_dialog.logged_in_signal.connect(
+                    self.update_youtube_login_menu)
 
             self.youtube_login_dialog.show()
 
@@ -346,7 +347,7 @@ class MainWindow(QMainWindow):
             config_dir = self.settings_manager.get_config_directory()
             cookie_jar_path = Path(config_dir) / "youtube_cookies.txt"
             self.youtube_login_dialog = YoutubeLoginDialog(cookie_jar_path)
-        
+
         self.youtube_login_dialog.logged_in_signal.connect(
             self.update_youtube_login_menu)
 

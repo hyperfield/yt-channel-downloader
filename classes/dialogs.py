@@ -89,11 +89,6 @@ class YoutubeLoginDialog(QMainWindow):
             self.cookie_expirations[py_cookie.name] = py_cookie.expires
 
         if cookie.name().data().decode('utf-8') in ["SID", "HSID", "SSID"]:
-            print("""
-                  ***
-                  Cookies loaded
-                  ***
-                  """)
             self.logged_in = True
             QTimer.singleShot(2000, self.emit_logged_in_signal)
 
@@ -115,18 +110,18 @@ class YoutubeLoginDialog(QMainWindow):
                     q_cookie.setExpirationDate(QDateTime.fromSecsSinceEpoch(cookie.expires))
                     self.cookie_expirations[cookie.name] = cookie.expires
 
-                QWebEngineProfile.defaultProfile().cookieStore().setCookie(q_cookie)
-                print(f"Loaded cookie: {q_cookie.name().data().decode('utf-8')}")
-
+                QWebEngineProfile.defaultProfile().cookieStore().setCookie(
+                    q_cookie)
                 # Check if the loaded cookie is one of the logged-in cookies
                 if cookie.name in logged_in_cookies:
                     found_logged_in_cookies.add(cookie.name)
 
             # Set cookies_loaded to True only if all logged-in cookies are found
-            self.cookies_loaded = all(cookie in found_logged_in_cookies for cookie in logged_in_cookies)
+            self.cookies_loaded = all(cookie in found_logged_in_cookies
+                                      for cookie in logged_in_cookies)
             self.logged_in = self.cookies_loaded
         except FileNotFoundError:
-            print("No cookies file found. Starting fresh.")
+            pass
 
     def clear_cookies(self):
         self.cookie_jar.clear()
@@ -142,22 +137,10 @@ class YoutubeLoginDialog(QMainWindow):
         self.browser.load(QUrl("https://accounts.google.com/signin"))
         self.logged_in = False
 
-    def check_cookies(self):
-        self.cookie_store.cookieAdded.connect(self.debug_print_cookie)
-
-    def debug_print_cookie(self, cookie):
-        print("Cookie Name:", cookie.name().data().decode('utf-8'))
-        print("Cookie Value:", cookie.value().data().decode('utf-8'))
-        print("Domain:", cookie.domain())
-        print("Path:", cookie.path())
-        print("Expires:", cookie.expirationDate().toString())
-        print("Is Secure:", cookie.isSecure())
-
     def check_cookie_expiry(self):
         current_time = time.time()
         for cookie_name, expiry in list(self.cookie_expirations.items()):
             if expiry < current_time:
-                print(f"Cookie {cookie_name} has expired, reloading cookies.")
                 self.load_cookies()
                 break
         QTimer.singleShot(60000, self.check_cookie_expiry)
