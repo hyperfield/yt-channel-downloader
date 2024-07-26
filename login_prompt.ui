@@ -17,7 +17,7 @@
    <item>
     <widget class="QLabel" name="label">
      <property name="text">
-      <string>This login process will allow you to download private or age-restricted content using your YouTube account. When you log in, this app will download media on behalf of your account. You can log out with a single click from the same menu.</string>
+      <string>This login process will allow you to download private, age-restricted or premium content using your YouTube account. When you log in, this app will download media on behalf of your account. You can log out with a single click from the same menu.</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>

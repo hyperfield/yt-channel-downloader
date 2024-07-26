@@ -29,6 +29,7 @@ from .YTChannel import YTChannel
 from .settings import SettingsDialog
 from ui_about import Ui_aboutDialog
 from .settings_manager import SettingsManager
+from .utils import get_video_format_details
 from .constants import settings_map
 
 
@@ -141,7 +142,7 @@ class DownloadThread(QThread):
         options based on user preferences, fetches the video, and emits signals
         to update the UI on progress and completion.
         """
-        from .utils import get_video_format_details
+
         self.mainWindow.download_semaphore.acquire()
         sanitized_title = self.sanitize_filename(self.title)
         download_directory = self.user_settings.get('download_directory')
@@ -152,6 +153,12 @@ class DownloadThread(QThread):
             'progress_hooks': [self.dl_hook],
         }
 
+        if self.mainWindow.youtube_login_dialog and self.mainWindow.youtube_login_dialog.logged_in:
+            cookie_file_path = self.mainWindow.youtube_login_dialog.cookie_jar_path
+            ydl_opts['cookiefile'] = cookie_file_path
+        else:
+            cookie_file_path = None
+
         video_format = settings_map['preferred_video_format'].get(
             self.user_settings.get('preferred_video_format', 'Any'), 'Any')
         video_quality = settings_map['preferred_video_quality'].get(
@@ -159,7 +166,7 @@ class DownloadThread(QThread):
                                    'bestvideo'), 'Any')
 
         closest_format_id = get_video_format_details(
-            self.url, video_quality, video_format)
+            self.url, video_quality, video_format, cookie_file_path)
 
         if closest_format_id:
             ydl_opts['format'] = f"{closest_format_id}+bestaudio"

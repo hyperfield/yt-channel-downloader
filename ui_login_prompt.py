@@ -51,7 +51,7 @@ class Ui_LoginPromptDialog(object):
 
     def retranslateUi(self, LoginPromptDialog):
         LoginPromptDialog.setWindowTitle(QCoreApplication.translate("LoginPromptDialog", u"Login Prompt", None))
-        self.label.setText(QCoreApplication.translate("LoginPromptDialog", u"This login process will allow you to download private or age-restricted content using your YouTube account. When you log in, this app will download media on behalf of your account. You can log out with a single click from the same menu.", None))
+        self.label.setText(QCoreApplication.translate("LoginPromptDialog", u"This login process will allow you to download private, age-restricted or premium content using your YouTube account. When you log in, this app will download media on behalf of your account. You can log out with a single click from the same menu.", None))
         self.checkBox.setText(QCoreApplication.translate("LoginPromptDialog", u"Do not show this message again", None))
     # retranslateUi
 

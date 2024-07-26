@@ -59,8 +59,7 @@ class YoutubeLoginDialog(QMainWindow):
 
         self.cookie_store.cookieAdded.connect(self.process_cookie)
 
-        QTimer.singleShot(10000, self.check_cookies)
-        QTimer.singleShot(60000, self.check_cookie_expiry)  # Check every minute
+        QTimer.singleShot(60000, self.check_cookie_expiry)
 
     def process_cookie(self, cookie):
         py_cookie = http.cookiejar.Cookie(
