@@ -14,7 +14,7 @@
 - [Binaries](#binaries)
 - [Features](#features)
 - [Installation](#installation)
-  - [Linux or MacOS](#linux-or-macos)
+  - [MacOS or Linux](#macos-or-linux)
   - [Windows](#windows)
 - [How to Use](#how-to-use)
 - [Contributing](#contributing)
@@ -23,6 +23,11 @@
 - [Donation](#donation)
 
 ## Change Log
+
+### What's New in version 0.4.0
+
+- **YouTube Login and Logout**: You can now log in to your YouTube account directly within the application to download private or age-restricted content. You can log out of your YouTube account with a single click. This action clears the stored cookies and resets the session. The cookies are stored within the app's config directory.
+- **Minor Improvements and Bug Fixes**.
 
 ### What's New in version 0.3.3
 
@@ -47,17 +52,22 @@
 
 ## Binaries
 
-[Download the latest installer for Windows here.](https://quicknode.net/media/dist/ytchandl_031_installer.zip)
+[Download the latest installer for Windows here.](https://github.com/hyperfield/yt-channel-downloader/releases)
 
 ## Features
 
 - **Fetch Video Listings**: Just input a YouTube video, playlist or channel URL and get a list of the videos.
 - **Selective Download**: Choose exactly which videos you want to download, or select all at once.
-- **Quality Control**: Specify video/audio quality or opt to download only the audio.
+- **Quality Control**: Specify video/audio quality or opt to download only the associated audio track.
 - **Download Marking**: Keeps track of downloaded files for easier management.
+- **Playlist Downloads**: Download all or some videos from a playlist URL.
+- **Channel Downloads**: Download all or some videos from a channel URL.
+- **Single Video or Audio Downloads**: Type in a single video link and download it.
+- **Private and Age-Restricted Videos**: Download media on behalf of your Youtube account. 
 
 ### Coming Soon
 
+- Download shorts
 - Search field to search within a retrieved list of videos
 - Enhanced download progress bar
 - Download history tracking
@@ -67,7 +77,34 @@
 
 ## Installation
 
-### Linux or MacOS
+### MacOS or Linux
+
+`ffmpeg` is needed for the app to work correctly, so make sure you have it on your system. Check in your terminal emulator if `ffmpeg` is installed:
+
+    ffmpeg -version
+
+#### How to install `ffmpeg` on MacOS or Linux
+
+You can download it from https://ffmpeg.org/download.html or install it from a repository according to your OS distribution.
+
+On MacOS with [Homebew](https://brew.sh/):
+
+    brew install ffmpeg
+
+On Debian/Ubuntu:
+
+    sudo apt update
+    sudo apt install ffmpeg
+
+On Fedora:
+
+    sudo dnf install ffmpeg
+
+On Arch Linux:
+
+    sudo pacman -S ffmpeg
+
+#### Install YT Channel Downloader
 
 ##### Clone the repository
 
@@ -103,11 +140,49 @@ To deactivate the virtual environment after usage, type
 
 ### Windows
 
-#### Using Command Prompt or PowerShell
+`ffmpeg` is needed for the app to work correctly, so make sure you have it on your system. Open the command line (`CMD`) and type
+
+    ffmpeg -version
+
+to check if it's on your system.
+
+#### How to install `ffmpeg` on Windows
+
+1. **Download `ffmpeg`**:
+   - Visit the official [FFmpeg download page](https://ffmpeg.org/download.html).
+   - Alternatively, you can use this direct link: [Download FFmpeg for Windows](https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip).
+
+2. **Extract the files**:
+   - Extract the downloaded archive to a directory, such as `C:\ffmpeg`.
+
+3. **Add `ffmpeg` to your system PATH**:
+   - Open the Start menu and search for "Environment Variables".
+   - Select "Edit the system environment variables".
+   - In the "System Properties" window, click on the "Environment Variables" button.
+   - Under "System variables", find the `Path` variable and select it. Then click "Edit".
+   - Click "New" and add `C:\ffmpeg\bin` to the list. Click "OK" to close all the windows.
+
+4. **Verify the installation**:
+   - Open Command Prompt (`CMD`).
+   - Run the following command:
+
+     ```sh
+     ffmpeg -version
+     ```
+
+   - You should see the version information for `ffmpeg` if it is correctly installed.
+
+#### How to install YT Channel Downloader
+
+First, you need `git`. Download the `git-scm` package for Windows from [git-scm.com](https://git-scm.com/downloads) and install it. Verify the installation in `cmd` or `powershell` with
+
+    git --version
+
+You can also now launch `Git Bash` from Start Menu.
 
 ##### Clone the repository
 
-    git clone https://github.com/my_user_name/yt-channel-downloader.git
+    git clone https://github.com/hyperfield/yt-channel-downloader.git
 
 ##### Navigate into the directory
 
