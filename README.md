@@ -85,7 +85,7 @@
 
 #### How to install `ffmpeg` on MacOS or Linux
 
-You can download it from https://ffmpeg.org/download.html or install it from a repository according to your OS distribution.
+You can download it from [FFmpeg's official site](https://ffmpeg.org/download.html) or install it from a repository according to your OS distribution.
 
 On MacOS with [Homebew](https://brew.sh/):
 
