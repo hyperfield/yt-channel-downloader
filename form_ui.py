@@ -33,28 +33,25 @@ class Ui_MainWindow(object):
         MainWindow.setSizePolicy(sizePolicy)
         self.actionFile = QAction(MainWindow)
         self.actionFile.setObjectName(u"actionFile")
+        self.actionFile.setMenuRole(QAction.ApplicationSpecificRole)
         self.actionExit = QAction(MainWindow)
         self.actionExit.setObjectName(u"actionExit")
-        icon = QIcon()
-        iconThemeName = u"system-log-out"
-        if QIcon.hasThemeIcon(iconThemeName):
-            icon = QIcon.fromTheme(iconThemeName)
-        else:
-            icon.addFile(u".", QSize(), QIcon.Normal, QIcon.Off)
-
+        icon = QIcon(QIcon.fromTheme(u"system-log-out"))
         self.actionExit.setIcon(icon)
+        self.actionExit.setMenuRole(QAction.QuitRole)
         self.actionSettings = QAction(MainWindow)
         self.actionSettings.setObjectName(u"actionSettings")
-        icon1 = QIcon()
-        iconThemeName = u"document-properties"
-        if QIcon.hasThemeIcon(iconThemeName):
-            icon1 = QIcon.fromTheme(iconThemeName)
-        else:
-            icon1.addFile(u".", QSize(), QIcon.Normal, QIcon.Off)
-
+        icon1 = QIcon(QIcon.fromTheme(u"preferences-desktop-multimedia"))
         self.actionSettings.setIcon(icon1)
+        self.actionSettings.setMenuRole(QAction.ApplicationSpecificRole)
         self.actionAbout = QAction(MainWindow)
         self.actionAbout.setObjectName(u"actionAbout")
+        self.actionAbout.setMenuRole(QAction.ApplicationSpecificRole)
+        self.actionYoutube_login = QAction(MainWindow)
+        self.actionYoutube_login.setObjectName(u"actionYoutube_login")
+        icon2 = QIcon()
+        icon2.addFile(u"youtube-icon.png", QSize(), QIcon.Normal, QIcon.Off)
+        self.actionYoutube_login.setIcon(icon2)
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
         sizePolicy.setHeightForWidth(self.centralwidget.sizePolicy().hasHeightForWidth())
@@ -108,7 +105,7 @@ class Ui_MainWindow(object):
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 781, 22))
+        self.menubar.setGeometry(QRect(0, 0, 781, 24))
         self.menuFile = QMenu(self.menubar)
         self.menuFile.setObjectName(u"menuFile")
         self.menuHelp = QMenu(self.menubar)
@@ -121,6 +118,7 @@ class Ui_MainWindow(object):
         self.menubar.addAction(self.menuFile.menuAction())
         self.menubar.addAction(self.menuHelp.menuAction())
         self.menuFile.addAction(self.actionSettings)
+        self.menuFile.addAction(self.actionYoutube_login)
         self.menuFile.addAction(self.actionExit)
         self.menuHelp.addAction(self.actionAbout)
 
@@ -131,7 +129,10 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"YT Channel Downloader", None))
-        self.actionFile.setText(QCoreApplication.translate("MainWindow", u"File", None))
+        self.actionFile.setText(QCoreApplication.translate("MainWindow", u"&File", None))
+#if QT_CONFIG(tooltip)
+        self.actionFile.setToolTip(QCoreApplication.translate("MainWindow", u"File", None))
+#endif // QT_CONFIG(tooltip)
         self.actionExit.setText(QCoreApplication.translate("MainWindow", u"&Exit", None))
 #if QT_CONFIG(shortcut)
         self.actionExit.setShortcut(QCoreApplication.translate("MainWindow", u"Ctrl+Q", None))
@@ -144,6 +145,10 @@ class Ui_MainWindow(object):
         self.actionSettings.setShortcut(QCoreApplication.translate("MainWindow", u"Ctrl+S", None))
 #endif // QT_CONFIG(shortcut)
         self.actionAbout.setText(QCoreApplication.translate("MainWindow", u"About", None))
+        self.actionYoutube_login.setText(QCoreApplication.translate("MainWindow", u"Youtube &login", None))
+#if QT_CONFIG(shortcut)
+        self.actionYoutube_login.setShortcut(QCoreApplication.translate("MainWindow", u"Ctrl+Shift+L", None))
+#endif // QT_CONFIG(shortcut)
 #if QT_CONFIG(tooltip)
         self.chanUrlEdit.setToolTip("")
 #endif // QT_CONFIG(tooltip)
