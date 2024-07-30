@@ -21,5 +21,3 @@ class LoginPromptDialog(QDialog):
         settings = self.settings_manager.settings
         settings['dont_show_login_prompt'] = is_checked
         self.settings_manager.save_settings_to_file(settings)
-        print(f"Checkbox state: {state}")
-        print(f"Settings updated: {settings}")
