@@ -360,13 +360,12 @@ class MainWindow(QMainWindow):
 
         if not self.youtube_login_dialog.logged_in:
             user_settings = self.settings_manager.settings
-            if user_settings.get('dont_show_login_prompt'):
+            if not user_settings.get('dont_show_login_prompt'):
+                login_prompt_dialog = LoginPromptDialog(self)
+                if login_prompt_dialog.exec() == QDialog.Accepted:
+                    self.show_youtube_login_dialog()
+            else:
                 self.show_youtube_login_dialog()
-            login_prompt_dialog = LoginPromptDialog(self)
-            if login_prompt_dialog.exec() == QDialog.Accepted:
-                self.show_youtube_login_dialog()
-        else:
-            self.show_youtube_login_dialog()
 
     def autoAdjustWindowWidth(self):
         # Obtain general screen size
