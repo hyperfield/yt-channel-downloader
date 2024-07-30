@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'form.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.7.2
+## Created by: Qt User Interface Compiler version 6.6.0
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -26,7 +26,7 @@ class Ui_MainWindow(object):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
         MainWindow.resize(781, 638)
-        sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(MainWindow.sizePolicy().hasHeightForWidth())
@@ -41,17 +41,19 @@ class Ui_MainWindow(object):
         self.actionExit.setMenuRole(QAction.QuitRole)
         self.actionSettings = QAction(MainWindow)
         self.actionSettings.setObjectName(u"actionSettings")
-        icon1 = QIcon(QIcon.fromTheme(u"preferences-desktop-multimedia"))
+        icon1 = QIcon(QIcon.fromTheme(u"preferences-desktop-personal"))
         self.actionSettings.setIcon(icon1)
         self.actionSettings.setMenuRole(QAction.ApplicationSpecificRole)
         self.actionAbout = QAction(MainWindow)
         self.actionAbout.setObjectName(u"actionAbout")
+        icon2 = QIcon(QIcon.fromTheme(u"user-available"))
+        self.actionAbout.setIcon(icon2)
         self.actionAbout.setMenuRole(QAction.ApplicationSpecificRole)
         self.actionYoutube_login = QAction(MainWindow)
         self.actionYoutube_login.setObjectName(u"actionYoutube_login")
-        icon2 = QIcon()
-        icon2.addFile(u"youtube-icon.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
-        self.actionYoutube_login.setIcon(icon2)
+        icon3 = QIcon()
+        icon3.addFile(u"youtube-icon.png", QSize(), QIcon.Normal, QIcon.Off)
+        self.actionYoutube_login.setIcon(icon3)
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
         sizePolicy.setHeightForWidth(self.centralwidget.sizePolicy().hasHeightForWidth())
@@ -65,7 +67,7 @@ class Ui_MainWindow(object):
         self.gridLayout.setSizeConstraint(QLayout.SetFixedSize)
         self.chanUrlEdit = QLineEdit(self.gridGroupBox)
         self.chanUrlEdit.setObjectName(u"chanUrlEdit")
-        sizePolicy1 = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        sizePolicy1 = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         sizePolicy1.setHorizontalStretch(0)
         sizePolicy1.setVerticalStretch(0)
         sizePolicy1.setHeightForWidth(self.chanUrlEdit.sizePolicy().hasHeightForWidth())
@@ -105,7 +107,7 @@ class Ui_MainWindow(object):
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 781, 24))
+        self.menubar.setGeometry(QRect(0, 0, 781, 22))
         self.menuFile = QMenu(self.menubar)
         self.menuFile.setObjectName(u"menuFile")
         self.menuHelp = QMenu(self.menubar)

@@ -123,7 +123,7 @@
      <x>0</x>
      <y>0</y>
      <width>781</width>
-     <height>24</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -171,7 +171,7 @@
   </action>
   <action name="actionSettings">
    <property name="icon">
-    <iconset theme="preferences-desktop-multimedia"/>
+    <iconset theme="preferences-desktop-personal"/>
    </property>
    <property name="text">
     <string>&amp;Settings</string>
@@ -187,6 +187,9 @@
    </property>
   </action>
   <action name="actionAbout">
+   <property name="icon">
+    <iconset theme="user-available"/>
+   </property>
    <property name="text">
     <string>About</string>
    </property>
