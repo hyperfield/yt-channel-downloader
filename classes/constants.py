@@ -1,7 +1,7 @@
-DEFAULT_VIDEO_FORMAT = 'mp4'
+DEFAULT_VIDEO_FORMAT = 'Any'
 DEFAULT_AUDIO_FORMAT = 'mp3'
-DEFAULT_AUDIO_QUALITY = 'best'
-DEFAULT_VIDEO_QUALITY = '1080p'
+DEFAULT_AUDIO_QUALITY = 'Best available'
+DEFAULT_VIDEO_QUALITY = '1080p (Full HD)'
 
 settings_map = {
     'preferred_video_quality': {
