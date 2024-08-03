@@ -1,6 +1,6 @@
-from PySide6 import QtWidgets
-from PySide6.QtCore import Qt, QEvent, QPoint, QRect, Signal
-from PySide6 import QtCore, QtGui
+from PyQt6 import QtWidgets
+from PyQt6.QtCore import Qt, QEvent, QPoint, QRect, pyqtSignal as Signal
+from PyQt6 import QtCore, QtGui
 
 
 class CheckBoxDelegate(QtWidgets.QStyledItemDelegate):

@@ -9,7 +9,7 @@ import scrapetube
 import re
 from pytube import YouTube, Playlist
 from urllib import request, error
-from PySide6.QtCore import QObject, Signal
+from PyQt6.QtCore import QObject, pyqtSignal as Signal
 
 from .validators import YouTubeURLValidator
 from .constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID
