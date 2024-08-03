@@ -2,12 +2,12 @@ import http.cookiejar
 import time
 import os
 
-from PySide6.QtWidgets import QMainWindow, QDialog, QDialogButtonBox, QVBoxLayout, QLabel
-from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
-from PySide6.QtCore import QUrl, QDateTime, QTimer, QDateTime
-from PySide6.QtNetwork import QNetworkCookie
-from PySide6.QtCore import Signal
+from PyQt6.QtWidgets import QMainWindow, QDialog, QDialogButtonBox, QVBoxLayout, QLabel
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
+from PyQt6.QtCore import QUrl, QDateTime, QTimer, QDateTime
+from PyQt6.QtNetwork import QNetworkCookie
+from PyQt6.QtCore import pyqtSignal as Signal
 
 from .settings_manager import SettingsManager
 

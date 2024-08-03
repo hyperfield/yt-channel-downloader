@@ -14,13 +14,13 @@ import glob
 from pathlib import Path
 import http.cookiejar
 
-from PySide6.QtCore import Qt, QThread, Signal, Slot
+from PyQt6.QtCore import Qt, QThread, pyqtSignal as Signal, pyqtSlot as Slot
 from ui_form import Ui_MainWindow
-from PySide6 import QtGui, QtCore
-from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QCheckBox
-from PySide6.QtCore import QSemaphore
+from PyQt6 import QtGui, QtCore
+from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QCheckBox
+from PyQt6.QtCore import QSemaphore
 
-import resources    # Qt resources
+import resources_rc    # Qt resources
 from .dialogs import CustomDialog
 from .dialogs import YoutubeLoginDialog
 from .login_prompt_dialog import LoginPromptDialog
@@ -408,9 +408,9 @@ class MainWindow(QMainWindow):
         screen = QApplication.primaryScreen()
         screen_geometry = screen.availableGeometry()
         window_geometry = self.geometry()
-        x_center = (screen_geometry.width() - window_geometry.width()) / 2
-        y_center = (screen_geometry.height() - window_geometry.height()) / 2
-        self.move(x_center, y_center)
+        x_center = (screen_geometry.width() - window_geometry.width()) // 2
+        y_center = (screen_geometry.height() - window_geometry.height()) // 2
+        self.move(int(x_center), int(y_center))
 
     def reinit_model(self):
         self.model.clear()
@@ -422,12 +422,12 @@ class MainWindow(QMainWindow):
 
     def showSettingsDialog(self):
         settings_dialog = SettingsDialog()
-        settings_dialog.exec_()
+        settings_dialog.exec()
 
     def show_about_dialog(self):
         self.about_ui.aboutLabel.setOpenExternalLinks(True)
         self.about_ui.aboutOkButton.clicked.connect(self.about_dialog.accept)
-        self.about_dialog.exec_()
+        self.about_dialog.exec()
 
     @Slot()
     def update_youtube_login_menu(self):

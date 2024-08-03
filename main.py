@@ -4,7 +4,7 @@
 import sys
 import certifi
 import os
-from PySide6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication
 
 from classes.mainwindow import MainWindow
 
