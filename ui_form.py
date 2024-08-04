@@ -104,7 +104,7 @@ class Ui_MainWindow(object):
         self.actionAbout.setObjectName("actionAbout")
         self.actionYoutube_login = QtGui.QAction(parent=MainWindow)
         icon = QtGui.QIcon()
-        icon.addPixmap(QtGui.QPixmap("youtube-icon.png"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
+        icon.addPixmap(QtGui.QPixmap(":/images/youtube-icon.png"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
         self.actionYoutube_login.setIcon(icon)
         self.actionYoutube_login.setObjectName("actionYoutube_login")
         self.menuFile.addAction(self.actionSettings)
