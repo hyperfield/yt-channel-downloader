@@ -1,5 +1,6 @@
 appdirs==1.4.4
 PyQt6
+PyQt6-WebEngine
 pytube==15.0.0
 requests==2.32.3
 scrapetube==2.5.1

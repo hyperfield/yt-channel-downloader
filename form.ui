@@ -200,7 +200,7 @@
   <action name="actionYoutube_login">
    <property name="icon">
     <iconset>
-     <normaloff>youtube-icon.png</normaloff>youtube-icon.png</iconset>
+     <normaloff>:/images/youtube-icon.png</normaloff>:/images/youtube-icon.png</iconset>
    </property>
    <property name="text">
     <string>Youtube &amp;login</string>
