@@ -362,7 +362,7 @@ class MainWindow(QMainWindow):
             user_settings = self.settings_manager.settings
             if not user_settings.get('dont_show_login_prompt'):
                 login_prompt_dialog = LoginPromptDialog(self)
-                if login_prompt_dialog.exec() == QDialog.Accepted:
+                if login_prompt_dialog.exec() == QDialog.DialogCode.Accepted:
                     self.show_youtube_login_dialog()
             else:
                 self.show_youtube_login_dialog()
