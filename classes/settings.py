@@ -30,8 +30,10 @@ class SettingsDialog(QDialog):
         self.ui.pref_aud_quality_dropdown.setEnabled(is_checked)
 
     def browse_directory(self):
-        options = QFileDialog.Options()
-        directory = QFileDialog.getExistingDirectory(self, "Select Directory", "", options=options)
+        dialog = QFileDialog(self)
+        options = dialog.options()
+        directory = dialog.getExistingDirectory(
+            self, "Select Directory", "", options=options)
         if directory:
             self.ui.save_downloads_edit.setText(directory)
 

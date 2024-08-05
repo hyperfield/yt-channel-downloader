@@ -125,7 +125,7 @@ class DownloadThread(QThread):
     """
 
     downloadProgressSignal = Signal(dict)
-    downloadCompleteSignal = Signal(str)
+    downloadCompleteSignal = Signal(int)
 
     def __init__(self, url, index, title, mainWindow, parent=None):
         super().__init__(parent)
@@ -383,7 +383,8 @@ class MainWindow(QMainWindow):
         total_width += self.ui.treeView.verticalScrollBar().width() * 3
         total_width += self.ui.treeView.frameWidth() * 2
         total_width = min(total_width, half_screen_width)
-        self.resize(total_width, self.height())
+
+        self.resize(int(total_width), self.height())
 
     def onSelectAllStateChanged(self, state):
         newValue = state == 2
@@ -440,7 +441,7 @@ class MainWindow(QMainWindow):
         self.ui.downloadSelectedVidsButton.setEnabled(False)
         for row in range(self.model.rowCount()):
             item = self.model.item(row, 0)
-            if item.checkState() == QtCore.Qt.Checked:
+            if item.checkState() == Qt.CheckState.Checked:
                 self.ui.downloadSelectedVidsButton.setEnabled(True)
 
     @Slot(str)
@@ -476,8 +477,8 @@ class MainWindow(QMainWindow):
                 'download_directory', './')
             full_file_path = os.path.join(download_directory, filename)
             if DownloadThread.is_download_complete(full_file_path):
-                item_checkbox.setFlags(QtCore.Qt.ItemIsSelectable
-                                       | QtCore.Qt.ItemIsUserTristate)
+                item_checkbox.setFlags(QtCore.Qt.ItemFlag.ItemIsSelectable
+                                       | QtCore.Qt.ItemFlag.ItemIsUserTristate)
                 item_title.setForeground(QtGui.QBrush(QtGui.QColor('grey')))
                 item_checkbox.setForeground(QtGui.QBrush(QtGui.QColor('grey')))
                 item_link.setForeground(QtGui.QBrush(QtGui.QColor('grey')))
@@ -567,7 +568,7 @@ class MainWindow(QMainWindow):
         self.vid_dl_indexes.clear()
         for row in range(self.model.rowCount()):
             item = self.model.item(row, 0)
-            if item.checkState() == QtCore.Qt.Checked:
+            if item.checkState() == Qt.CheckState.Checked:  # Update here
                 self.vid_dl_indexes.append(row)
         for index in self.vid_dl_indexes:
             progress_item = QtGui.QStandardItem()
@@ -580,7 +581,7 @@ class MainWindow(QMainWindow):
             self.dl_threads.append(dl_thread)
             dl_thread.start()
 
-    @Slot(str, int)
+    @Slot(dict)
     def update_progress(self, progress_data):
         file_index = int(progress_data["index"])
         progress = progress_data["progress"]
