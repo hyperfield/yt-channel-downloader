@@ -40,7 +40,7 @@ class YoutubeLoginDialog(QMainWindow):
         self.settings_manager = SettingsManager()
         self.cookie_jar_path = cookie_jar_path
         self.cookie_jar = http.cookiejar.MozillaCookieJar(self.cookie_jar_path)
-        
+
         self.cookies_loaded = False
         self.logged_in = False
         self.cookie_expirations = {}
@@ -74,7 +74,8 @@ class YoutubeLoginDialog(QMainWindow):
             path=cookie.path(),
             path_specified=bool(cookie.path()),
             secure=cookie.isSecure(),
-            expires=cookie.expirationDate().toSecsSinceEpoch() if cookie.expirationDate().isValid() else None,
+            expires=cookie.expirationDate().toSecsSinceEpoch() if
+            cookie.expirationDate().isValid() else None,
             discard=False,
             comment=None,
             comment_url=None,
@@ -115,7 +116,8 @@ class YoutubeLoginDialog(QMainWindow):
                 if cookie.name in logged_in_cookies:
                     found_logged_in_cookies.add(cookie.name)
 
-            # Set cookies_loaded to True only if all logged-in cookies are found
+            # Set cookies_loaded to True only if all logged-in cookies
+            # are found
             self.cookies_loaded = all(cookie in found_logged_in_cookies
                                       for cookie in logged_in_cookies)
             self.logged_in = self.cookies_loaded
@@ -132,7 +134,7 @@ class YoutubeLoginDialog(QMainWindow):
     def logout(self):
         self.clear_cookies()
         self.profile.clearHttpCache()
-        self.browser.page().triggerAction(QWebEnginePage.ReloadAndBypassCache)
+        self.browser.setUrl(QUrl("about:blank"))
         self.browser.load(QUrl("https://accounts.google.com/signin"))
         self.logged_in = False
 
