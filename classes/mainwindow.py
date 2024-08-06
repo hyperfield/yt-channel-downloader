@@ -402,11 +402,13 @@ class MainWindow(QMainWindow):
                 continue
 
             index = self.model.index(row, 0)
-            self.model.setData(index, newValue, Qt.DisplayRole)
+            self.model.setData(index, newValue, Qt.ItemDataRole.DisplayRole)
 
             # Update the Qt.CheckStateRole accordingly
-            newCheckState = Qt.Checked if newValue else Qt.Unchecked
-            self.model.setData(index, newCheckState, Qt.CheckStateRole)
+            newCheckState = Qt.CheckState.Checked if newValue \
+                else Qt.CheckState.Unchecked
+            self.model.setData(index, newCheckState,
+                               Qt.ItemDataRole.CheckStateRole)
 
     def center_on_screen(self):
         screen = QApplication.primaryScreen()
