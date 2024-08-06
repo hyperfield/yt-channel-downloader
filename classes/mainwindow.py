@@ -12,7 +12,6 @@ import re
 import os
 import glob
 from pathlib import Path
-import http.cookiejar
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal as Signal, pyqtSlot as Slot
 from ui_form import Ui_MainWindow
@@ -339,7 +338,6 @@ class MainWindow(QMainWindow):
             self.youtube_login_dialog = None  # Destroy the current instance
             self.ui.actionYoutube_login.setText("YouTube login")
         else:
-            # If youtube_login_dialog is None, reinitialize it
             if self.youtube_login_dialog is None:
                 config_dir = self.settings_manager.get_config_directory()
                 cookie_jar_path = Path(config_dir) / "youtube_cookies.txt"
@@ -366,6 +364,11 @@ class MainWindow(QMainWindow):
                     self.show_youtube_login_dialog()
             else:
                 self.show_youtube_login_dialog()
+        else:
+            # If already logged in, perform logout
+            self.youtube_login_dialog.logout()
+            self.ui.actionYoutube_login.setText("YouTube login")
+            self.youtube_login_dialog = None
 
     def autoAdjustWindowWidth(self):
         # Obtain general screen size
