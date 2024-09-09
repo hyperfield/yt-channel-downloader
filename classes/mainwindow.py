@@ -1,283 +1,32 @@
 # Author: hyperfield
-# Email: info@quicknode.net
-# Date: October 13, 2023
+# Email: inbox@quicknode.net
+# Last update: September 6, 2024
 # Project: YT Channel Downloader
 # Description: This module contains the classes MainWindow, GetListThread
 # and DownloadThread.
 # License: MIT License
 
 from urllib import error
-import yt_dlp
-import re
 import os
-import glob
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal as Signal, pyqtSlot as Slot
-from ui_form import Ui_MainWindow
+from PyQt6.QtCore import Qt, pyqtSlot as Slot
+from ui.ui_form import Ui_MainWindow
 from PyQt6 import QtGui, QtCore
 from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QCheckBox
 from PyQt6.QtCore import QSemaphore
 
-import resources_rc    # Qt resources
+import assets.resources_rc as resources_rc    # Qt resources
+from .get_list_thread import GetListThread
+from .download_thread import DownloadThread
 from .dialogs import CustomDialog
 from .dialogs import YoutubeLoginDialog
 from .login_prompt_dialog import LoginPromptDialog
-from .checkbox import CheckBoxDelegate
+from .delegates import CheckBoxDelegate
 from .YTChannel import YTChannel
 from .settings import SettingsDialog
-from ui_about import Ui_aboutDialog
+from ui.ui_about import Ui_aboutDialog
 from .settings_manager import SettingsManager
-from .utils import get_video_format_details
-from .constants import settings_map
-
-
-class GetListThread(QThread):
-    """
-    A thread class for fetching a list of videos from a YouTube channel or
-    a single video.
-
-    This class inherits from QThread and is used to retrieve either all
-    videos from a given YouTube channel or a single video, based on the
-    provided channel ID or video URL. The retrieval process is done in
-    a separate thread to avoid blocking the main application.
-
-    Attributes:
-    finished (Signal): A signal that is emitted when the video list
-                       retrieval is complete.
-                       The signal sends a list of videos.
-
-    Parameters:
-    channel_id (str): The unique identifier for a YouTube channel.
-                      If this is None, the class will fetch a single
-                      video using channel_url.
-    yt_channel (YTChannel): An instance of the YTChannel class that
-                            provides the functionality to fetch
-                            video details from YouTube.
-    channel_url (str, optional): The URL of a single YouTube video.
-                                 This is used only if channel_id is
-                                 None. Defaults to None.
-    parent (QObject, optional): The parent object of the thread.
-                                Defaults to None.
-    """
-    finished = Signal(list)
-
-    def __init__(self, channel_id, yt_channel, channel_url=None, parent=None):
-        """
-        Initializes the GetListThread with the necessary attributes.
-
-        Parameters:
-        channel_id (str): The unique identifier for a YouTube channel.
-        yt_channel (YTChannel): An instance of the YTChannel class.
-        channel_url (str, optional): The URL of a single YouTube video.
-        Defaults to None.
-        parent (QObject, optional): The parent object of the thread.
-        Defaults to None.
-        """
-        super().__init__(parent)
-        self.channel_id = channel_id
-        self.yt_channel = yt_channel
-        self.channel_url = channel_url
-
-    def run(self):
-        """
-        The main execution method for the thread.
-
-        Depending on whether a channel_id or channel_url is provided, this
-        method fetches either all videos from a YouTube channel or a single
-        video. Once the data is fetched, it emits the 'finished' signal
-        with the video list.
-        """
-        if not self.channel_id:
-            video_list = self.yt_channel.get_single_video(self.channel_url)
-            self.finished.emit(video_list)
-        elif self.channel_id == "playlist":
-            video_list = self.yt_channel.get_videos_from_playlist(
-                self.channel_url)
-            self.finished.emit(video_list)
-        else:
-            video_list = self.yt_channel.get_all_videos_in_channel(
-                self.channel_id)
-            self.finished.emit(video_list)
-
-
-class DownloadThread(QThread):
-    """
-    A QThread subclass that handles downloading videos from YouTube with
-    specificformats and qualities.
-
-    Attributes:
-        downloadProgressSignal (Signal): Signal emitted during the download
-        process with progress details.
-        downloadCompleteSignal (Signal): Signal emitted once the download
-        is complete.
-
-    Args:
-        url (str): The URL of the video to be downloaded.
-        index (int): The index identifier for the download, used for managing
-        multiple downloads.
-        title (str): The title of the video, used for naming the downloaded
-        file.
-        mainWindow (MainWindow): Reference to the main window of the
-        applicationfor UI interactions and semaphore access.
-        parent (QObject, optional): The parent QObject. Defaults to None.
-    """
-
-    downloadProgressSignal = Signal(dict)
-    downloadCompleteSignal = Signal(int)
-
-    def __init__(self, url, index, title, mainWindow, parent=None):
-        super().__init__(parent)
-        self.url = url
-        self.index = index
-        self.title = title
-        self.mainWindow = mainWindow
-        self.settings_manager = SettingsManager()
-        self.user_settings = self.settings_manager.settings
-
-    def run(self):
-        """
-        Executes the download process in a separate thread. Configures download
-        options based on user preferences, fetches the video, and emits signals
-        to update the UI on progress and completion.
-        """
-
-        self.mainWindow.download_semaphore.acquire()
-        sanitized_title = self.sanitize_filename(self.title)
-        download_directory = self.user_settings.get('download_directory')
-
-        ydl_opts = {
-            'outtmpl':
-                os.path.join(download_directory, f'{sanitized_title}.%(ext)s'),
-            'progress_hooks': [self.dl_hook],
-        }
-
-        if self.mainWindow.youtube_login_dialog and self.mainWindow.youtube_login_dialog.logged_in:
-            cookie_file_path = self.mainWindow.youtube_login_dialog.cookie_jar_path
-            ydl_opts['cookiefile'] = cookie_file_path
-        else:
-            cookie_file_path = None
-
-        video_format = settings_map['preferred_video_format'].get(
-            self.user_settings.get('preferred_video_format', 'Any'), 'Any')
-        video_quality = settings_map['preferred_video_quality'].get(
-            self.user_settings.get('preferred_video_quality',
-                                   'bestvideo'), 'Any')
-
-        closest_format_id = get_video_format_details(
-            self.url, video_quality, video_format, cookie_file_path)
-
-        if closest_format_id:
-            ydl_opts['format'] = f"{closest_format_id}+bestaudio"
-        elif video_quality:
-            ydl_opts['format'] = video_quality
-        else:
-            ydl_opts['format'] = 'bestvideo+bestaudio'
-
-        if self.user_settings.get('audio_only'):
-            audio_format = settings_map['preferred_audio_format'].get(
-                self.user_settings.get('preferred_audio_format', 'Any'), 'Any')
-            audio_quality = settings_map['preferred_audio_quality'].get(
-                self.user_settings.get('preferred_audio_quality',
-                                       'Best available'), 'bestaudio')
-            if audio_format and audio_format != 'Any':
-                audio_filter = f"[ext={audio_format}]"
-                ydl_opts['postprocessors'] = [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': audio_format
-                }]
-            else:
-                audio_filter = ''
-
-            ydl_opts['format'] = \
-                f"{audio_quality}{audio_filter}/bestaudio/best"
-
-            proxy_type = self.user_settings.get('proxy_server_type', None)
-            proxy_addr = self.user_settings.get('proxy_server_addr', None)
-            proxy_port = self.user_settings.get('proxy_server_port', None)
-
-            if proxy_type and proxy_addr and proxy_port:
-                ydl_opts['proxy'] = f"{proxy_type}://{proxy_addr}:{proxy_port}"
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([self.url])
-        self.downloadCompleteSignal.emit(self.index)
-        self.mainWindow.download_semaphore.release()
-
-    def dl_hook(self, d):
-        """
-        Callback function used by yt-dlp to handle download progress updates.
-
-        Args:
-            d (dict): A dictionary containing status information about the
-            ongoing download.
-        """
-        if d['status'] == 'downloading':
-            progress_str = d['_percent_str']
-            ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-            progress_str = ansi_escape.sub('', progress_str)
-            progress = float(progress_str.strip('%'))
-            self.downloadProgressSignal.emit(
-                {"index": str(self.index), "progress": f"{progress} %"}
-                )
-
-    @staticmethod
-    def sanitize_filename(filename):
-        """
-        Sanitizes the filename by removing illegal characters and checking against reserved filenames.
-
-        Args:
-            filename (str): The initial filename based on the video title.
-
-        Returns:
-            str: A sanitized filename safe for use in file systems.
-        """
-        filename = filename.strip()
-        filename = filename.replace(' ', '_')
-        # Remove or replace characters that are illegal in Windows filenames,
-        # and potentially problematic for glob patterns (like square brackets)
-        filename = re.sub(r'[\\/*?:"<>|\[\]]', '', filename)
-        filename = filename[:250]
-
-        # Check for Windows reserved filenames
-        reserved_filenames = {
-            "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5",
-            "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4",
-            "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
-        }
-        if filename.upper() in reserved_filenames:
-            filename += "_"
-
-        return filename
-
-    @staticmethod
-    def is_download_complete(filepath):
-        """
-        Checks if the download for a given file is complete by looking for
-        temporary `.part` or `.ytdl` files.
-
-        Args:
-            filepath (str): The path to the file without the extension.
-
-        Returns:
-            bool: True if the download is complete, False otherwise.
-        """
-
-        part_files = glob.glob(f"{filepath}*.part")
-        ytdl_files = glob.glob(f"{filepath}*.ytdl")
-
-        # If any partially downloaded files are found,
-        # the download is incomplete
-        if part_files or ytdl_files:
-            return False
-
-        matching_files = glob.glob(f"{filepath}.*")
-
-        # Otherwise only completely downloaded files would be found
-        if not matching_files:
-            return False
-
-        return True
 
 
 class MainWindow(QMainWindow):

@@ -15,6 +15,7 @@ settings_map = {
         '240p': '240p',
         '144p': '144p'
     },
+
     'preferred_audio_quality': {
         'Best available': 'bestaudio',
         '320 kbps': '320k',
@@ -25,6 +26,7 @@ settings_map = {
         '64 kbps': '64k',
         '32 kbps': '32k',
     },
+
     'preferred_video_format': {
         'Any': None,
         'mp4': 'mp4',
@@ -35,6 +37,7 @@ settings_map = {
         'flv': 'flv',
         '3gp': '3gp',
     },
+
     'preferred_audio_format': {
         'Any': None,
         'mp3': 'mp3',

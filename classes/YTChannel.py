@@ -12,7 +12,7 @@ from urllib import request, error
 from PyQt6.QtCore import QObject, pyqtSignal as Signal
 
 from .validators import YouTubeURLValidator
-from .constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID
+from config.constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID
 
 
 class YTChannel(QObject):

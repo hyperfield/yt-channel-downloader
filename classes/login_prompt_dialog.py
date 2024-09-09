@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QDialog
-from ui_login_prompt import Ui_LoginPromptDialog
+from ui.ui_login_prompt import Ui_LoginPromptDialog
 
 from .settings_manager import SettingsManager
 
