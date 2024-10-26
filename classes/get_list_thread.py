@@ -57,14 +57,17 @@ class GetListThread(QThread):
         video. Once the data is fetched, it emits the 'finished' signal
         with the video list.
         """
+        video_list = []
+        
         if not self.channel_id:
             video_list = self.yt_channel.get_single_video(self.channel_url)
-            self.finished.emit(video_list)
         elif self.channel_id == "playlist":
-            video_list = self.yt_channel.get_videos_from_playlist(
-                self.channel_url)
-            self.finished.emit(video_list)
+            video_list = self.yt_channel.get_videos_from_playlist(self.channel_url)
         else:
-            video_list = self.yt_channel.get_all_videos_in_channel(
-                self.channel_id)
-            self.finished.emit(video_list)
+            video_list = self.yt_channel.get_all_videos_in_channel(self.channel_id)
+        
+        # Ensure that an empty list doesn't crash the app
+        if video_list is None:
+            video_list = []
+        
+        self.finished.emit(video_list)

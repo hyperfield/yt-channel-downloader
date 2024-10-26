@@ -1,13 +1,15 @@
 # Author: hyperfield
 # Email: info@quicknode.net
-# Date: March 10, 2024
+# Last updated: Oct 24, 2024
 # Project: YT Channel Downloader
 # Description: This module contains the classes YTChannel.
 # License: MIT License
 
 import scrapetube
+import yt_dlp
+from pytube import Playlist
+from pytube.exceptions import PytubeError
 import re
-from pytube import YouTube, Playlist
 from urllib import request, error
 from PyQt6.QtCore import QObject, pyqtSignal as Signal
 
@@ -65,6 +67,29 @@ class YTChannel(QObject):
             print(e.__dict__)
             raise ValueError
 
+    def retrieve_video_metadata(self, video_url):
+        ydl_opts = {
+            'quiet': True,
+            'extract_flat': True,  # Only extract metadata
+            'noplaylist': True,    # Ensure it's not extracting a playlist
+            'skip_download': True, # Skip the download step entirely
+            'extractor_args': {
+                'youtube': {
+                    'skip': ['signature']
+                }
+            }
+        }
+        
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                video_info = ydl.extract_info(video_url, download=False)
+            vid_title = video_info.get('title', 'Unknown Title')
+            return [vid_title, video_url]
+        except yt_dlp.utils.DownloadError as e:
+            print(f"Error fetching video metadata: {e}")
+            self.showError.emit(f"Failed to fetch video metadata: {e}")
+            return None
+
     def get_all_videos_in_channel(self, channel_id):
         chan_video_entries = scrapetube.get_channel(channel_id)
         for entry in chan_video_entries:
@@ -75,31 +100,34 @@ class YTChannel(QObject):
 
     def get_videos_from_playlist(self, playlist_url):
         if YouTubeURLValidator.playlist_exists(playlist_url):
-            playlist = Playlist(playlist_url)
-            for video_url in playlist.video_urls:
-                try:
-                    yt = YouTube(video_url)
-                    vid_title = yt.title
-                    self.video_titles_links.append([vid_title, video_url])
+            try:
+                playlist = Playlist(playlist_url)
+                video_titles_links = []
 
-                except Exception as e:
-                    # Handle potential exceptions (e.g., VideoUnavailable)
-                    print(f"Error fetching video details: {e}")
+                for video_url in playlist.video_urls:
+                    video_data = self.retrieve_video_metadata(video_url)
+                    if video_data:
+                        video_titles_links.append(video_data)
 
-            return self.video_titles_links
+                return video_titles_links
+
+            except (PytubeError, Exception) as e:
+                print(f"Error fetching playlist details: {e}")
+                self.showError.emit(f"Failed to fetch playlist details: {e}")
+                return []
 
         self.showError.emit("The URL is incorrect or unreachable.")
-        return
+        return []
+
 
     def get_single_video(self, video_url):
-        validation_result, formatted_url_or_id =\
-            YouTubeURLValidator.is_valid(video_url)
+        validation_result, formatted_url_or_id = YouTubeURLValidator.is_valid(video_url)
 
         if validation_result:
-            yt = YouTube(formatted_url_or_id)
-            vid_title = yt.title
-            self.video_titles_links.append([vid_title, video_url])
+            video_data = self.retrieve_video_metadata(formatted_url_or_id)
+            if video_data:
+                self.video_titles_links.append(video_data)
             return self.video_titles_links
 
         self.showError.emit("The URL is incorrect or unreachable.")
-        return
+        return None

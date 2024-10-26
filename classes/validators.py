@@ -6,29 +6,30 @@
 # License: MIT License
 
 import re
-from pytube import YouTube, Playlist
-from pytube.exceptions import VideoUnavailable, PytubeError
+import yt_dlp
+from pytube import Playlist
+from pytube.exceptions import PytubeError
 from urllib.error import HTTPError
 
 
 class YouTubeURLValidator:
     @staticmethod
     def check_existence(video_id):
-        """Check if a YouTube video exists and is available."""
+        """Check if a YouTube video exists and is available using yt-dlp."""
         try:
-            yt = YouTube(f"https://www.youtube.com/watch?v={video_id}")
-            yt.check_availability()
+            ydl_opts = {'quiet': True}
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
             return True
-        except VideoUnavailable:
+        except yt_dlp.utils.DownloadError:
             return False
 
     @staticmethod
     def playlist_exists(playlist_url):
         try:
             playlist = Playlist(playlist_url)
-            if playlist.video_urls:
-                first_video = playlist.videos[0]
-                _ = first_video.title
+            # Try accessing the first video's title to ensure it exists
+            if playlist.videos[0]:
                 return True
             else:
                 print("Playlist seems to exist but has no videos.")

@@ -72,9 +72,9 @@ class DownloadThread(QThread):
         video_quality = settings_map['preferred_video_quality'].get(
             self.user_settings.get('preferred_video_quality',
                                    'bestvideo'), 'Any')
-
-        closest_format_id = get_video_format_details(
-            self.url, video_quality, video_format, cookie_file_path)
+        
+        closest_format_id = get_video_format_details(self.url, video_quality,
+                                                     video_format, cookie_file_path)
 
         if closest_format_id:
             ydl_opts['format'] = f"{closest_format_id}+bestaudio"

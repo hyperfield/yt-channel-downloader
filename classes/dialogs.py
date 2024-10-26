@@ -19,7 +19,7 @@ class CustomDialog(QDialog):
     def __init__(self, title, message):
         super().__init__()
         self.setWindowTitle(title)
-        QBtn = QDialogButtonBox.Ok
+        QBtn = QDialogButtonBox.StandardButton.Ok
         self.buttonBox = QDialogButtonBox(QBtn)
         self.buttonBox.accepted.connect(self.accept)
         self.layout = QVBoxLayout()
