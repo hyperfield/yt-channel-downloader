@@ -1,5 +1,6 @@
 from PyQt6.QtWidgets import QDialog
 from PyQt6.QtWidgets import QFileDialog
+from PyQt6.QtCore import Qt
 from ui.ui_settings import Ui_Settings
 
 from .settings_manager import SettingsManager
@@ -8,16 +9,45 @@ from .settings_manager import SettingsManager
 class SettingsDialog(QDialog):
     def __init__(self, parent=None):
         super(SettingsDialog, self).__init__(parent)
+        
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.setWindowFlags(Qt.WindowType.Window)
+        
+        self.setStyleSheet("""
+            SettingsDialog {
+                background-color: #f0f0f0;
+                border-radius: 10px;
+                box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.2);
+            }
+            QGroupBox { 
+                border: 1px solid #d3d3d3; 
+                padding: 10px; 
+                margin-top: 10px; 
+                border-radius: 5px;
+            }
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border-radius: 5px;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+
         self.settings_manager = SettingsManager()
         self.ui = Ui_Settings()
         self.ui.setupUi(self)
+        
         self.ui.browse_btn.clicked.connect(self.browse_directory)
         self.ui.close_button.clicked.connect(self.close)
-        self.ui.proxy_server_type.currentIndexChanged.connect(
-            self.toggle_proxy_fields)
+        self.ui.proxy_server_type.currentIndexChanged.connect(self.toggle_proxy_fields)
         self.ui.save_button.clicked.connect(self.save_settings)
         self.ui.check_audio_only.stateChanged.connect(self.toggle_video_fields)
+        
         self.default_directory = self.settings_manager.set_default_directory()
+        
         self.populate_ui_from_settings()
         self.toggle_proxy_fields()
         self.toggle_video_fields()
