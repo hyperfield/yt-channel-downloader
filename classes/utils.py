@@ -1,8 +1,7 @@
 import yt_dlp
 
 
-def find_best_format_by_resolution(
-        formats, target_resolution, target_ext="Any"):
+def find_best_format_by_resolution(formats, target_resolution, target_ext="Any"):
     """
     Finds the best video format from a list of formats based on the target
     resolution and an optional target container extension.
@@ -11,13 +10,12 @@ def find_best_format_by_resolution(
     - formats (list of dicts): A list of format dictionaries as returned by
       yt_dlp.
     - target_resolution (str): The desired video resolution as a string
-      (e.g., '1080p').
-      If 'bestvideo' is specified, the function selects the highest available
-      resolution.
+      (e.g., '1080p'). If 'bestvideo' is specified, the function selects the
+      highest available resolution.
     - target_ext (str): The desired video container extension
       (e.g., 'mp4', 'webm').
-      If 'Any' is specified, the container extension is not considered
-      in the selection.
+      If 'Any' is specified, the container extension is not considered in
+      the selection.
 
     Returns:
     - str: The format_id of the closest matching format based on the specified
@@ -25,72 +23,107 @@ def find_best_format_by_resolution(
       Returns None if no suitable format is found.
     """
 
-    filtered_formats = [f for f in formats if f.get('vcodec') != 'none' and
-                        f.get('ext') == target_ext
-                        if target_ext != "Any"]
-
-    if not filtered_formats:
-        filtered_formats = [f for f in formats if f.get('vcodec') != 'none']
-
-    closest_format = None
+    # Filter formats based on extension and presence of video
+    filtered_formats = filter_formats(formats, target_ext)
 
     if target_resolution == "bestvideo":
-        closest_format = max(filtered_formats,
-                             key=lambda x: x.get('height', 0))
-        return closest_format['format_id']
+        return find_highest_resolution(filtered_formats)
 
-    min_diff = float('inf')
-    target_height = int(target_resolution[:-1])
-
-    for format in filtered_formats:
-        height = format.get('height')
-        width = format.get('width')
-        if (height and width) and (height > width):
-            height, width = width, height
-
-        diff = abs(height - target_height)
-        if diff < min_diff:
-            min_diff = diff
-            closest_format = format
-
-    return closest_format['format_id']
+    # Attempt to find the closest resolution, defaulting to the next available one
+    return find_closest_resolution_with_fallback(filtered_formats, target_resolution)
 
 
-def get_video_format_details(url, target_resolution='bestvideo',
-                             target_container="Any", cookie_file_path=None):
-    """
-    Retrieves video format details for a given URL using yt_dlp,
-    filtering by resolution and container format.
 
-    Parameters:
-    - url (str): The URL of the video to analyze.
-    - target_resolution (str): The target resolution to filter
-      by (e.g., '1080p').
-      Use 'bestvideo' to select the highest available resolution.
-    - target_container (str): The container format to filter by
-      (e.g., 'mp4', 'webm').
-      Use 'Any' to ignore container format in the selection.
-    - cookie_file_path (str, optional): The path to the cookie file
-      to use for authentication. Required for private or age-restricted
-      videos.
+def filter_formats(formats, target_ext):
+    """Filters formats by the given container extension and ensures they contain video."""
+    if target_ext != "Any":
+        filtered_formats = [f for f in formats if f.get('vcodec') != 'none' and f.get('ext') == target_ext]
+    else:
+        filtered_formats = [f for f in formats if f.get('vcodec') != 'none']
+    
+    return filtered_formats
 
-    Returns:
-    - str: The format_id of the video that best matches the criteria.
-      Returns None if no suitable format is found or if an error occurs
-      during video retrieval.
-    """
-    ydl_opts = {'noplaylist': True}
 
-    if cookie_file_path:
-        ydl_opts['cookiefile'] = cookie_file_path
-
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            video_info = ydl.extract_info(url, download=False)
-            return find_best_format_by_resolution(video_info['formats'],
-                                                  target_resolution,
-                                                  target_container)
-    except yt_dlp.utils.DownloadError as e:
-        # Handle download errors, such as authentication failures
-        print(f"Failed to extract video information: {e}")
+def find_highest_resolution(formats):
+    """Finds the format with the highest resolution from a list of formats."""
+    if not formats:
         return None
+
+    highest_format = max(formats, key=lambda x: x.get('height', 0))
+    return highest_format['format_id']
+
+
+# def find_closest_resolution(formats, target_resolution):
+#     """Finds the format closest to the target resolution from a list of
+#     formats."""
+#     if not formats:
+#         return None
+
+#     target_height = int(target_resolution[:-1])
+#     min_diff = float('inf')
+#     closest_format = None
+
+#     for format in formats:
+#         height = format.get('height')
+#         width = format.get('width')
+#         if height and width and height > width:
+#             # Swap height and width if dimensions are incorrect
+#             height, width = width, height
+
+#         diff = abs(height - target_height)
+#         if diff < min_diff:
+#             min_diff = diff
+#             closest_format = format
+
+#     return closest_format['format_id'] if closest_format else None
+
+
+def find_closest_resolution_with_fallback(formats, target_resolution):
+    """
+    Finds the format closest to the target resolution. If the exact resolution
+    is not available, defaults to the next available resolution.
+    """
+    if not formats:
+        return None
+
+    target_height = int(target_resolution[:-1])
+    available_resolutions = sorted([f.get('height') for f in formats if f.get('height')])
+
+    # First, check if the target resolution is available
+    if target_height in available_resolutions:
+        for format in formats:
+            if format.get('height') == target_height:
+                return format['format_id']
+
+    # Find the next closest resolution, either higher or lower
+    closest_resolution = min(available_resolutions, key=lambda x: abs(x - target_height))
+    for format in formats:
+        if format.get('height') == closest_resolution:
+            return format['format_id']
+
+    return None
+
+
+def get_video_format_details(url, target_resolution, target_ext, cookie_file_path=None):
+    ydl_opts = {
+        'quiet': True,
+        'dump_single_json': True,
+        'cookiefile': cookie_file_path,
+        'noplaylist': True,
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        try:
+            info = ydl.extract_info(url, download=False)
+            formats = info.get('formats', [])
+            
+            if target_ext is None:
+                closest_format_id = find_best_format_by_resolution(formats, target_resolution)
+            else:
+                closest_format_id = find_best_format_by_resolution(formats, target_resolution, target_ext)
+
+            return closest_format_id
+
+        except yt_dlp.utils.DownloadError as e:
+            print(f"Error extracting info: {e}")
+            return None
