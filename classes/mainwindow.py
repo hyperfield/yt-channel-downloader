@@ -32,8 +32,32 @@ from .settings_manager import SettingsManager
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
-        # Limit to 3 simultaneous downloads
-        self.download_semaphore = QSemaphore(3)
+
+        self.setStyleSheet("""
+            MainWindow {
+                background-color: #f0f0f0;
+                border-radius: 10px;
+                box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.2);
+            }
+            QGroupBox { 
+                border: 1px solid #d3d3d3; 
+                padding: 10px; 
+                margin-top: 10px; 
+                border-radius: 5px;
+            }
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border-radius: 5px;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+
+        # Limit to 4 simultaneous downloads
+        self.download_semaphore = QSemaphore(4)
         icon_path = Path(__file__).resolve().parent.parent / "icon.png"
         self.setWindowIcon(QtGui.QIcon(str(icon_path)))
         self.ui = Ui_MainWindow()
