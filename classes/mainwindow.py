@@ -15,6 +15,9 @@ from ui.ui_form import Ui_MainWindow
 from PyQt6 import QtGui, QtCore
 from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QCheckBox
 from PyQt6.QtCore import QSemaphore
+from PyQt6.QtGui import QFont
+from PyQt6.QtCore import QUrl
+from PyQt6.QtGui import QDesktopServices
 
 import assets.resources_rc as resources_rc    # Qt resources
 from .get_list_thread import GetListThread
@@ -30,73 +33,182 @@ from .settings_manager import SettingsManager
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    """Main application window for the YouTube Channel Downloader.
 
+    This class manages the primary UI components, their styling, signal
+    connections, and interactions with other modules, such as Settings and
+    YouTube login.
+
+    Attributes:
+        download_semaphore (QSemaphore): Controls the maximum number of
+                                         simultaneous downloads.
+        ui (Ui_MainWindow): Main UI layout.
+        model (QStandardItemModel): Data model for displaying downloadable
+                                    videos in a tree view.
+        about_dialog (QDialog): Dialog window for the "About" information.
+        settings_manager (SettingsManager): Manages user settings.
+        user_settings (dict): Stores user-defined settings.
+        selectAllCheckBox (QCheckBox): Checkbox for selecting all videos in
+                                       the list.
+        yt_chan_vids_titles_links (list): List of YouTube channel video title
+                                          and link data.
+        vid_dl_indexes (list): List of indexes of videos to download.
+        dl_threads (list): List of download threads.
+        dl_path_correspondences (dict): Map between video download paths and
+                                        video data.
+    """
+
+    def __init__(self, parent=None):
+        """Initializes the main window and its components.
+
+        Args:
+            parent (QWidget, optional): Parent widget, defaults to None.
+        """
+        super().__init__(parent)
+        self.init_styles()
+
+        # Limit to 4 simultaneous downloads
+        # TODO: Make this controllable in the Settings
+        self.download_semaphore = QSemaphore(4)
+
+        self.set_icon()
+        self.center_on_screen()
+        self.setup_ui()
+
+        self.setup_about_dialog()
+        self.connect_signals()
+        self.initialize_settings()
+        self.setup_select_all_checkbox()
+        self.initialize_youtube_login()
+        self.init_download_structs()
+
+        self.yt_chan_vids_titles_links = []
+        self.vid_dl_indexes = []
+        self.dl_threads = []
+        self.dl_path_correspondences = {}
+
+    def init_styles(self):
+        """Applies global styles and element-specific styles for the main
+        window."""
         self.setStyleSheet("""
+            * { font-family: "Arial"; font-size: 12pt; }
             MainWindow {
                 background-color: #f0f0f0;
                 border-radius: 10px;
-                box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.2);
+                font-family: Arial;
+                font-size: 14pt;
             }
-            QGroupBox { 
-                border: 1px solid #d3d3d3; 
-                padding: 10px; 
-                margin-top: 10px; 
+            QLabel {
+                font-family: Arial;
+                font-size: 14pt;
+            }
+            QGroupBox {
+                border: 1px solid #d3d3d3;
+                padding: 10px;
+                margin-top: 10px;
                 border-radius: 5px;
             }
             QPushButton {
-                background-color: #4CAF50;
+                background-color: #0066ff;
                 color: white;
                 border-radius: 5px;
                 padding: 5px 10px;
             }
             QPushButton:hover {
-                background-color: #45a049;
+                background-color: #0000b3;
             }
         """)
 
-        # Limit to 4 simultaneous downloads
-        self.download_semaphore = QSemaphore(4)
+    def set_icon(self):
+        """Sets the application icon."""
         icon_path = Path(__file__).resolve().parent.parent / "icon.png"
         self.setWindowIcon(QtGui.QIcon(str(icon_path)))
-        self.ui = Ui_MainWindow()
-        self.center_on_screen()
-        self.ui.setupUi(self)
 
+    def setup_ui(self):
+        """Initializes main UI components and layout."""
+        self.ui = Ui_MainWindow()
+        self.ui.setupUi(self)
+        self.model = QtGui.QStandardItemModel()
+        self.setup_buttons()
+        self.setup_tree_view_delegate()
+        self.ui.actionDonate.triggered.connect(self.open_donate_url)
+
+    def open_donate_url(self):
+        """Opens the donation URL in the default web browser."""
+        QDesktopServices.openUrl(QUrl("https://liberapay.com/hyperfield/donate"))
+
+    def setup_button(self, button, callback):
+        """Configures a button with the specified callback and font.
+
+        Args:
+            button (QPushButton): Button widget to set up.
+            callback (function): Function to connect to button's clicked
+            signal.
+        """
+        button.clicked.connect(callback)
+        font = QFont("Arial", 12)
+        font.setBold(True)
+        button.setFont(font)
+
+    def setup_buttons(self):
+        """Sets up specific buttons used in the main window."""
+        self.setup_button(self.ui.downloadSelectedVidsButton, self.dl_vids)
+        self.setup_button(self.ui.getVidListButton, self.show_vid_list)
+
+    def setup_tree_view_delegate(self):
+        """Sets up a delegate for managing custom items in the tree view."""
+        cb_delegate = CheckBoxDelegate()
+        self.ui.treeView.setItemDelegateForColumn(0, cb_delegate)
+
+    def set_bold_font(self, widget, size):
+        """Applies a bold font to a specific widget.
+
+        Args:
+            widget (QWidget): The widget to apply the font to.
+            size (int): The font size to set.
+        """
+        font = QFont("Arial", size)
+        font.setBold(True)
+        widget.setFont(font)
+
+    def setup_about_dialog(self):
+        """Initializes and sets up the About dialog."""
         self.about_dialog = QDialog()
         self.about_ui = Ui_aboutDialog()
         self.about_ui.setupUi(self.about_dialog)
-        self.ui.actionAbout.triggered.connect(self.show_about_dialog)
 
+    def connect_signals(self):
+        """Connects various UI signals to their respective slots."""
+        self.ui.actionAbout.triggered.connect(self.show_about_dialog)
         self.ui.actionSettings.triggered.connect(self.showSettingsDialog)
-        dlVidsButton = self.ui.downloadSelectedVidsButton
-        dlVidsButton.clicked.connect(self.dl_vids)
+        self.ui.actionExit.triggered.connect(self.exit)
+        self.model.itemChanged.connect(self.update_download_button_state)
+        self.update_download_button_state()
+
+    def initialize_settings(self):
+        """Initializes user settings from the settings manager."""
+        self.settings_manager = SettingsManager()
+        self.user_settings = self.settings_manager.settings
+
+    def setup_select_all_checkbox(self):
+        """Sets up the Select All checkbox and adds it to the layout."""
+        self.select_all_checkBox = QCheckBox("Select All", self)
+        self.select_all_checkBox.setVisible(False)
+        self.ui.verticalLayout.addWidget(self.select_all_checkBox)
+        self.select_all_checkBox.stateChanged.connect(
+            self.onSelectAllStateChanged)
+
+    def init_download_structs(self):
+        """Initializes download-related structures."""
         self.yt_chan_vids_titles_links = []
         self.vid_dl_indexes = []
         self.dl_threads = []
         self.dl_path_correspondences = {}
-        self.model = QtGui.QStandardItemModel()
-        self.ui.actionExit.triggered.connect(self.exit)
-        self.ui.getVidListButton.clicked.connect(self.show_vid_list)
-        cb_delegate = CheckBoxDelegate()
-        self.ui.treeView.setItemDelegateForColumn(0, cb_delegate)
-        self.model.itemChanged.connect(self.update_download_button_state)
-        self.update_download_button_state()
 
-        self.settings_manager = SettingsManager()
-        self.user_settings = self.settings_manager.settings
-
-        self.selectAllCheckBox = QCheckBox("Select All", self)
-        self.selectAllCheckBox.setVisible(False)
-        self.ui.verticalLayout.addWidget(self.selectAllCheckBox)
-        self.selectAllCheckBox.stateChanged.connect(
-            self.onSelectAllStateChanged)
-
-        self.youtube_login_dialog = None  # Initialize to None
+    def initialize_youtube_login(self):
+        self.youtube_login_dialog = None
         self.ui.actionYoutube_login.triggered.connect(
             self.handle_youtube_login)
-
         self.check_youtube_login_status()
 
     def check_youtube_login_status(self):
@@ -197,7 +309,7 @@ class MainWindow(QMainWindow):
         self.model.setHorizontalHeaderLabels(['Download?', 'Title',
                                               'Link', 'Progress'])
         self.ui.treeView.setModel(self.model)
-        self.selectAllCheckBox.setVisible(False)
+        self.select_all_checkBox.setVisible(False)
 
     def showSettingsDialog(self):
         settings_dialog = SettingsDialog()
@@ -277,7 +389,7 @@ class MainWindow(QMainWindow):
         }
         """)
         if self.model.rowCount() > 0:
-            self.selectAllCheckBox.setVisible(True)
+            self.select_all_checkBox.setVisible(True)
             self.autoAdjustWindowWidth()
 
     @Slot()

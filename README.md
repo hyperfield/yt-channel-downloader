@@ -24,6 +24,13 @@
 
 ## Change Log
 
+### What's New in version 0.4.1
+
+- **Bug Fixes**: Due to some updates on YouTube, certain functionality didn't work. The "Any" format selection didn't work. These have been fixed.
+- **Improved exception handling**: Some parts of the code needed exception handling.
+- **Improved interface**: Better and bigger fonts and buttons.
+- **Added the "Donate" item to the Help menu**: In the hope that some will support the author, which motivates faster improvement of the app.
+
 ### What's New in version 0.4.0
 
 - **YouTube Login and Logout**: You can now log in to your YouTube account directly within the application to download private or age-restricted content. You can log out of your YouTube account with a single click. This action clears the stored cookies and resets the session. The cookies are stored within the app's config directory.

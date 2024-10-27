@@ -6,9 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>764</width>
-    <height>512</height>
+    <width>954</width>
+    <height>582</height>
    </rect>
+  </property>
+  <property name="font">
+   <font>
+    <family>Serif</family>
+    <pointsize>12</pointsize>
+   </font>
   </property>
   <property name="windowTitle">
    <string>Settings</string>
@@ -16,8 +22,8 @@
   <widget class="QPushButton" name="save_button">
    <property name="geometry">
     <rect>
-     <x>570</x>
-     <y>471</y>
+     <x>330</x>
+     <y>510</y>
      <width>80</width>
      <height>31</height>
     </rect>
@@ -29,8 +35,8 @@
   <widget class="QPushButton" name="close_button">
    <property name="geometry">
     <rect>
-     <x>670</x>
-     <y>471</y>
+     <x>500</x>
+     <y>510</y>
      <width>80</width>
      <height>31</height>
     </rect>
@@ -44,7 +50,7 @@
     <rect>
      <x>20</x>
      <y>180</y>
-     <width>391</width>
+     <width>431</width>
      <height>51</height>
     </rect>
    </property>
@@ -112,7 +118,7 @@
     <rect>
      <x>20</x>
      <y>110</y>
-     <width>391</width>
+     <width>431</width>
      <height>51</height>
     </rect>
    </property>
@@ -175,7 +181,7 @@
     <rect>
      <x>20</x>
      <y>320</y>
-     <width>391</width>
+     <width>431</width>
      <height>51</height>
     </rect>
    </property>
@@ -238,7 +244,7 @@
     <rect>
      <x>20</x>
      <y>250</y>
-     <width>391</width>
+     <width>431</width>
      <height>51</height>
     </rect>
    </property>
@@ -301,7 +307,7 @@
     <rect>
      <x>20</x>
      <y>390</y>
-     <width>601</width>
+     <width>711</width>
      <height>72</height>
     </rect>
    </property>
@@ -404,10 +410,10 @@
   <widget class="QWidget" name="layoutWidget_7">
    <property name="geometry">
     <rect>
-     <x>440</x>
+     <x>520</x>
      <y>120</y>
-     <width>278</width>
-     <height>94</height>
+     <width>414</width>
+     <height>125</height>
     </rect>
    </property>
    <layout class="QVBoxLayout" name="verticalLayout">
