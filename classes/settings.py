@@ -14,25 +14,29 @@ class SettingsDialog(QDialog):
         self.setWindowFlags(Qt.WindowType.Window)
         
         self.setStyleSheet("""
+            * {
+                font-family: "Arial";
+                font-size: 14pt;
+            }
             SettingsDialog {
                 background-color: #f0f0f0;
                 border-radius: 10px;
                 box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.2);
             }
-            QGroupBox { 
+            QGroupBox {
                 border: 1px solid #d3d3d3; 
-                padding: 10px; 
-                margin-top: 10px; 
+                padding: 10px;
+                margin-top: 10px;
                 border-radius: 5px;
             }
             QPushButton {
-                background-color: #4CAF50;
+                background-color: #0066ff;
                 color: white;
                 border-radius: 5px;
                 padding: 5px 10px;
             }
             QPushButton:hover {
-                background-color: #45a049;
+                background-color: #0000b3;
             }
         """)
 

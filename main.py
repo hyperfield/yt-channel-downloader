@@ -2,8 +2,8 @@
 
 # This Python file uses the following encoding: utf-8
 import sys
-import certifi
 import os
+import certifi
 from PyQt6.QtWidgets import QApplication
 
 from classes.mainwindow import MainWindow
@@ -13,7 +13,7 @@ os.environ['SSL_CERT_FILE'] = certifi.where()
 
 # Important:
 # You need to run the following command to generate a Python ui file, e.g.
-#     pyside6-uic form.ui -o ui_form.py, or
+#     pyuic6 form.ui -o ui_form.py
 
 
 def main():

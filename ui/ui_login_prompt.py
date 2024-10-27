@@ -12,7 +12,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 class Ui_LoginPromptDialog(object):
     def setupUi(self, LoginPromptDialog):
         LoginPromptDialog.setObjectName("LoginPromptDialog")
-        LoginPromptDialog.resize(400, 200)
+        LoginPromptDialog.resize(435, 270)
         self.verticalLayout = QtWidgets.QVBoxLayout(LoginPromptDialog)
         self.verticalLayout.setObjectName("verticalLayout")
         self.label = QtWidgets.QLabel(parent=LoginPromptDialog)
