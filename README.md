@@ -24,6 +24,10 @@
 
 ## Change Log
 
+### What's New in version 0.4.2
+- **Shorts support**: Downloading YouTube shorts now works.
+- **Improved exception handling**: Imrpoved handling of network and download errors, timeouts.
+
 ### What's New in version 0.4.1
 
 - **Bug Fixes**: Due to some updates on YouTube, certain functionality didn't work. The "Any" format selection didn't work. These have been fixed.

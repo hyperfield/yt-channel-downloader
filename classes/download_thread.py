@@ -2,6 +2,7 @@ import glob
 import os
 import re
 import yt_dlp
+import unicodedata
 
 from PyQt6.QtCore import QThread, pyqtSignal as Signal
 
@@ -40,78 +41,109 @@ class DownloadThread(QThread):
         self.url = url
         self.index = index
         self.title = title
-        self.mainWindow = mainWindow
+        self.main_window = mainWindow
         self.settings_manager = SettingsManager()
         self.user_settings = self.settings_manager.settings
 
     def run(self):
         """
-        Executes the download process in a separate thread. Configures download
-        options based on user preferences, fetches the video, and emits signals
-        to update the UI on progress and completion.
+        Executes the download process in a separate thread with exception handling.
+        Configures download options based on user preferences, fetches the video,
+        and emits signals to update the UI on progress and completion.
         """
+        self.main_window.download_semaphore.acquire()
+        try:
+            sanitized_title = self.sanitize_filename(self.title)
+            download_directory = self.user_settings.get('download_directory')
 
-        self.mainWindow.download_semaphore.acquire()
-        sanitized_title = self.sanitize_filename(self.title)
-        download_directory = self.user_settings.get('download_directory')
+            ydl_opts = {
+                'outtmpl': os.path.join(download_directory, f'{sanitized_title}.%(ext)s'),
+                'progress_hooks': [self.dl_hook],
+            }
 
-        ydl_opts = {
-            'outtmpl':
-                os.path.join(download_directory, f'{sanitized_title}.%(ext)s'),
-            'progress_hooks': [self.dl_hook],
-        }
-
-        if self.mainWindow.youtube_login_dialog and self.mainWindow.youtube_login_dialog.logged_in:
-            cookie_file_path = self.mainWindow.youtube_login_dialog.cookie_jar_path
-            ydl_opts['cookiefile'] = cookie_file_path
-        else:
-            cookie_file_path = None
-
-        video_format = settings_map['preferred_video_format'].get(
-            self.user_settings.get('preferred_video_format', 'Any'), 'Any')
-        video_quality = settings_map['preferred_video_quality'].get(
-            self.user_settings.get('preferred_video_quality',
-                                   'bestvideo'), 'Any')
-        
-        closest_format_id = get_video_format_details(self.url, video_quality,
-                                                     video_format, cookie_file_path)
-
-        if closest_format_id:
-            ydl_opts['format'] = f"{closest_format_id}+bestaudio"
-        elif video_quality:
-            ydl_opts['format'] = video_quality
-        else:
-            ydl_opts['format'] = 'bestvideo+bestaudio'
-
-        if self.user_settings.get('audio_only'):
-            audio_format = settings_map['preferred_audio_format'].get(
-                self.user_settings.get('preferred_audio_format', 'Any'), 'Any')
-            audio_quality = settings_map['preferred_audio_quality'].get(
-                self.user_settings.get('preferred_audio_quality',
-                                       'Best available'), 'bestaudio')
-            if audio_format and audio_format != 'Any':
-                audio_filter = f"[ext={audio_format}]"
-                ydl_opts['postprocessors'] = [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': audio_format
-                }]
+            # Cookie settings for logged-in users
+            if self.main_window.youtube_login_dialog and \
+                    self.main_window.youtube_login_dialog.logged_in:
+                cookie_file_path = self.main_window.youtube_login_dialog.\
+                    cookie_jar_path
+                ydl_opts['cookiefile'] = cookie_file_path
             else:
-                audio_filter = ''
+                cookie_file_path = None
 
-            ydl_opts['format'] = \
-                f"{audio_quality}{audio_filter}/bestaudio/best"
+            # Set video format and quality preferences
+            video_format = settings_map['preferred_video_format'].get(
+                self.user_settings.get('preferred_video_format', 'Any'), 'Any')
+            video_quality = settings_map['preferred_video_quality'].get(
+                self.user_settings.get('preferred_video_quality', 'bestvideo'),
+                'Any')
 
-            proxy_type = self.user_settings.get('proxy_server_type', None)
-            proxy_addr = self.user_settings.get('proxy_server_addr', None)
-            proxy_port = self.user_settings.get('proxy_server_port', None)
+            closest_format_id = get_video_format_details(self.url,
+                                                         video_quality,
+                                                         video_format,
+                                                         cookie_file_path)
 
-            if proxy_type and proxy_addr and proxy_port:
-                ydl_opts['proxy'] = f"{proxy_type}://{proxy_addr}:{proxy_port}"
+            if closest_format_id:
+                ydl_opts['format'] = f"{closest_format_id}+bestaudio"
+            elif video_quality:
+                ydl_opts['format'] = video_quality
+            else:
+                ydl_opts['format'] = 'bestvideo+bestaudio'
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([self.url])
-        self.downloadCompleteSignal.emit(self.index)
-        self.mainWindow.download_semaphore.release()
+            # Set audio-only download options if enabled
+            if self.user_settings.get('audio_only'):
+                audio_format = settings_map['preferred_audio_format'].get(
+                    self.user_settings.get('preferred_audio_format', 'Any'),
+                    'Any')
+                audio_quality = settings_map['preferred_audio_quality'].get(
+                    self.user_settings.get('preferred_audio_quality',
+                                           'Best available'), 'bestaudio')
+                if audio_format and audio_format != 'Any':
+                    audio_filter = f"[ext={audio_format}]"
+                    ydl_opts['postprocessors'] = [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': audio_format
+                    }]
+                else:
+                    audio_filter = ''
+                ydl_opts['format'] = \
+                    f"{audio_quality}{audio_filter}/bestaudio/best"
+
+                # Set proxy if needed
+                proxy_type = self.user_settings.get('proxy_server_type', None)
+                proxy_addr = self.user_settings.get('proxy_server_addr', None)
+                proxy_port = self.user_settings.get('proxy_server_port', None)
+
+                if proxy_type and proxy_addr and proxy_port:
+                    ydl_opts['proxy'] = f"{proxy_type}://{proxy_addr}:{proxy_port}"
+
+            # Attempt to download the video with yt-dlp
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([self.url])
+
+            # Emit signal on successful download
+            self.downloadCompleteSignal.emit(self.index)
+
+        except yt_dlp.utils.DownloadError as e:
+            # Handle yt-dlp-specific download errors
+            print(f"Download error for {self.url}: {e}")
+            self.downloadProgressSignal.emit({"index": str(self.index),
+                                              "error": "Download error"})
+
+        except (ConnectionError, TimeoutError) as e:
+            # Handle network-related errors
+            print(f"Network error for {self.url}: {e}")
+            self.downloadProgressSignal.emit({"index": str(self.index),
+                                              "error": "Network error"})
+
+        except Exception as e:
+            # Handle any other unforeseen errors
+            print(f"An unexpected error occurred for {self.url}: {e}")
+            self.downloadProgressSignal.emit({"index": str(self.index),
+                                              "error": "Unexpected error"})
+
+        finally:
+            # Release semaphore regardless of outcome
+            self.main_window.download_semaphore.release()
 
     def dl_hook(self, d):
         """
@@ -133,7 +165,8 @@ class DownloadThread(QThread):
     @staticmethod
     def sanitize_filename(filename):
         """
-        Sanitizes the filename by removing illegal characters and checking against reserved filenames.
+        Sanitizes the filename by removing illegal characters, emoji, hashtags, and
+        other symbols unsuitable for file names. Also checks against reserved filenames.
 
         Args:
             filename (str): The initial filename based on the video title.
@@ -141,14 +174,25 @@ class DownloadThread(QThread):
         Returns:
             str: A sanitized filename safe for use in file systems.
         """
+        # Remove leading and trailing whitespace
         filename = filename.strip()
+
+        # Normalize Unicode characters to decompose accents and remove emojis
+        filename = unicodedata.normalize("NFKD", filename)
+
+        # Remove emoji and other non-ASCII characters
+        filename = ''.join(c for c in filename if not
+                           unicodedata.category(c).startswith("So"))
+
+        # Replace spaces with underscores
         filename = filename.replace(' ', '_')
-        # Remove or replace characters that are illegal in Windows filenames,
-        # and potentially problematic for glob patterns (like square brackets)
-        filename = re.sub(r'[\\/*?:"<>|\[\]]', '', filename)
+
+        # Remove characters that are illegal in Windows filenames and hashtags
+        filename = re.sub(r'[\\/*?:"<>|\[\]#]', '', filename)
+        
         filename = filename[:250]
 
-        # Check for Windows reserved filenames
+        # Check for Windows reserved filenames and modify if necessary
         reserved_filenames = {
             "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5",
             "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4",

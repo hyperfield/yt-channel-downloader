@@ -44,21 +44,36 @@ class YouTubeURLValidator:
     @staticmethod
     def is_valid(url_or_video_id):
         """Validate the URL or video ID."""
+        # Pattern for regular YouTube videos
         url_pattern = r'(https?://)?(www\.)?(youtube\.com|youtu\.?be)/watch\?v=([0-9A-Za-z_-]{11})'
+        
+        # Pattern for YouTube Shorts
+        shorts_pattern = r'(https?://)?(www\.)?youtube\.com/shorts/([0-9A-Za-z_-]{11})'
+        
+        # Pattern for a direct video ID
         video_id_pattern = r'^[0-9A-Za-z_-]{11}$'
 
+        # Check if the URL is a regular video
         url_match = re.match(url_pattern, url_or_video_id)
         if url_match:
             video_id = url_match.group(4)
             if YouTubeURLValidator.check_existence(video_id):
                 return True, url_or_video_id
-            else:
-                return False, None
+        
+        # Check if the URL is a YouTube Shorts video
+        shorts_match = re.match(shorts_pattern, url_or_video_id)
+        if shorts_match:
+            video_id = shorts_match.group(3)
+            if YouTubeURLValidator.check_existence(video_id):
+                # Convert Shorts URL to standard watch URL
+                full_url = f"https://www.youtube.com/watch?v={video_id}"
+                return True, full_url
+
+        # Check if it's a direct video ID
         elif re.match(video_id_pattern, url_or_video_id):
             if YouTubeURLValidator.check_existence(url_or_video_id):
                 full_url = f"https://www.youtube.com/watch?v={url_or_video_id}"
                 return True, full_url
-            else:
-                return False, None
-        else:
-            return False, None
+        
+        # If no matches
+        return False, None
