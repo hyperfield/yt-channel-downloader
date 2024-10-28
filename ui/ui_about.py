@@ -14,7 +14,7 @@ class Ui_aboutDialog(object):
         aboutDialog.setObjectName("aboutDialog")
         aboutDialog.resize(489, 328)
         font = QtGui.QFont()
-        font.setFamily("Serif")
+        font.setFamily("Arial")
         font.setPointSize(12)
         aboutDialog.setFont(font)
         self.aboutLabel = QtWidgets.QLabel(parent=aboutDialog)

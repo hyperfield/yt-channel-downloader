@@ -13,6 +13,9 @@ class Ui_LoginPromptDialog(object):
     def setupUi(self, LoginPromptDialog):
         LoginPromptDialog.setObjectName("LoginPromptDialog")
         LoginPromptDialog.resize(435, 270)
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        LoginPromptDialog.setFont(font)
         self.verticalLayout = QtWidgets.QVBoxLayout(LoginPromptDialog)
         self.verticalLayout.setObjectName("verticalLayout")
         self.label = QtWidgets.QLabel(parent=LoginPromptDialog)

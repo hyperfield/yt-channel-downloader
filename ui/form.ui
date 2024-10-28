@@ -70,6 +70,13 @@
            <height>40</height>
           </size>
          </property>
+         <property name="font">
+          <font>
+           <family>Courier New</family>
+           <pointsize>12</pointsize>
+           <bold>true</bold>
+          </font>
+         </property>
          <property name="text">
           <string>Download</string>
          </property>
@@ -97,7 +104,7 @@
          </property>
          <property name="font">
           <font>
-           <family>Hack</family>
+           <family>Arial</family>
            <pointsize>13</pointsize>
           </font>
          </property>
@@ -138,6 +145,13 @@
            <height>40</height>
           </size>
          </property>
+         <property name="font">
+          <font>
+           <family>Courier New</family>
+           <pointsize>12</pointsize>
+           <bold>true</bold>
+          </font>
+         </property>
          <property name="text">
           <string>Fetch</string>
          </property>
@@ -156,7 +170,7 @@
       </property>
       <property name="font">
        <font>
-        <family>Serif</family>
+        <family>Arial</family>
         <pointsize>13</pointsize>
        </font>
       </property>
@@ -216,6 +230,11 @@
    <property name="text">
     <string>&amp;Exit</string>
    </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
+   </property>
    <property name="shortcut">
     <string>Ctrl+Q</string>
    </property>
@@ -233,6 +252,11 @@
    <property name="toolTip">
     <string>Settings</string>
    </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
+   </property>
    <property name="shortcut">
     <string>Ctrl+S</string>
    </property>
@@ -247,6 +271,11 @@
    <property name="text">
     <string>About</string>
    </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
+   </property>
    <property name="menuRole">
     <enum>QAction::MenuRole::ApplicationSpecificRole</enum>
    </property>
@@ -258,6 +287,11 @@
    </property>
    <property name="text">
     <string>Youtube &amp;login</string>
+   </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+L</string>
@@ -272,6 +306,11 @@
    </property>
    <property name="toolTip">
     <string>Donate to the author</string>
+   </property>
+   <property name="font">
+    <font>
+     <family>Arial</family>
+    </font>
    </property>
   </action>
  </widget>
