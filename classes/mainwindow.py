@@ -13,7 +13,7 @@ from pathlib import Path
 from PyQt6.QtCore import Qt, pyqtSlot as Slot
 from ui.ui_form import Ui_MainWindow
 from PyQt6 import QtGui, QtCore
-from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QCheckBox
+from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QCheckBox, QMessageBox
 from PyQt6.QtCore import QSemaphore
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import QUrl
@@ -76,16 +76,11 @@ class MainWindow(QMainWindow):
         self.setup_ui()
 
         self.setup_about_dialog()
+        self.init_download_structs()
         self.connect_signals()
         self.initialize_settings()
         self.setup_select_all_checkbox()
         self.initialize_youtube_login()
-        self.init_download_structs()
-
-        self.yt_chan_vids_titles_links = []
-        self.vid_dl_indexes = []
-        self.dl_threads = []
-        self.dl_path_correspondences = {}
 
     def init_styles(self):
         """Applies global styles and element-specific styles for the main
@@ -198,6 +193,40 @@ class MainWindow(QMainWindow):
         self.model.itemChanged.connect(self.update_download_button_state)
         self.update_download_button_state()
 
+        for download_thread in self.dl_threads:
+            download_thread.downloadProgressSignal.connect(
+                self.handle_download_error)
+            download_thread.downloadCompleteSignal.connect(
+                self.show_download_complete)
+
+    def handle_download_error(self, data):
+        """Handles download error notifications from DownloadThread."""
+        index = int(data["index"])
+        error_type = data.get("error", "Unexpected error")
+
+        if error_type == "Download error":
+            self.show_download_error(index)
+        elif error_type == "Network error":
+            self.show_network_error(index)
+        else:
+            self.show_unexpected_error(index)
+
+    def show_download_error(self, index):
+        """Displays a dialog for download-specific errors."""
+        QMessageBox.critical(self, "Download Error", f"An error occurred while downloading item {index}. Please check the URL and try again.")
+
+    def show_network_error(self, index):
+        """Displays a dialog for network-related errors."""
+        QMessageBox.warning(self, "Network Error", f"Network issue encountered while downloading item {index}. Check your internet connection and try again.")
+
+    def show_unexpected_error(self, index):
+        """Displays a dialog for unexpected errors."""
+        QMessageBox.warning(self, "Unexpected Error", f"An unexpected error occurred while downloading item {index}. Please try again later.")
+
+    def show_download_complete(self, index):
+        """Displays a dialog when a download completes successfully."""
+        QMessageBox.information(self, "Download Complete", f"Download completed successfully for item {index}!")
+
     def initialize_settings(self):
         """Initializes user settings from the settings manager."""
         self.settings_manager = SettingsManager()
@@ -205,10 +234,10 @@ class MainWindow(QMainWindow):
 
     def setup_select_all_checkbox(self):
         """Sets up the Select All checkbox and adds it to the layout."""
-        self.select_all_checkBox = QCheckBox("Select All", self)
-        self.select_all_checkBox.setVisible(False)
-        self.ui.verticalLayout.addWidget(self.select_all_checkBox)
-        self.select_all_checkBox.stateChanged.connect(
+        self.select_all_checkbox = QCheckBox("Select All", self)
+        self.select_all_checkbox.setVisible(False)
+        self.ui.verticalLayout.addWidget(self.select_all_checkbox)
+        self.select_all_checkbox.stateChanged.connect(
             self.onSelectAllStateChanged)
 
     def init_download_structs(self):
@@ -288,7 +317,7 @@ class MainWindow(QMainWindow):
         self.resize(int(total_width), self.height())
 
     def onSelectAllStateChanged(self, state):
-        newValue = state == 2
+        new_value = state == 2
 
         for row in range(self.model.rowCount()):
             item_title_index = self.model.index(row, 1)
@@ -300,12 +329,12 @@ class MainWindow(QMainWindow):
                 continue
 
             index = self.model.index(row, 0)
-            self.model.setData(index, newValue, Qt.ItemDataRole.DisplayRole)
+            self.model.setData(index, new_value, Qt.ItemDataRole.DisplayRole)
 
             # Update the Qt.CheckStateRole accordingly
-            newCheckState = Qt.CheckState.Checked if newValue \
+            new_check_state = Qt.CheckState.Checked if new_value \
                 else Qt.CheckState.Unchecked
-            self.model.setData(index, newCheckState,
+            self.model.setData(index, new_check_state,
                                Qt.ItemDataRole.CheckStateRole)
 
     def center_on_screen(self):
@@ -318,11 +347,11 @@ class MainWindow(QMainWindow):
 
     def reinit_model(self):
         self.model.clear()
-        self.rootItem = self.model.invisibleRootItem()
+        self.root_item = self.model.invisibleRootItem()
         self.model.setHorizontalHeaderLabels(['Download?', 'Title',
                                               'Link', 'Progress'])
         self.ui.treeView.setModel(self.model)
-        self.select_all_checkBox.setVisible(False)
+        self.select_all_checkbox.setVisible(False)
 
     def showSettingsDialog(self):
         settings_dialog = SettingsDialog()
@@ -363,7 +392,7 @@ class MainWindow(QMainWindow):
     def get_vid_list(self, channel_id, yt_channel):
         self.yt_chan_vids_titles_links.clear()
         self.yt_chan_vids_titles_links = \
-            yt_channel.get_all_videos_in_channel(channel_id)
+            yt_channel.fetch_all_videos_in_channel(channel_id)
 
     def populate_window_list(self):
         self.reinit_model()
@@ -386,7 +415,7 @@ class MainWindow(QMainWindow):
                 item_checkbox.setForeground(QtGui.QBrush(QtGui.QColor('grey')))
                 item_link.setForeground(QtGui.QBrush(QtGui.QColor('grey')))
                 item[3].setText("Complete")
-            self.rootItem.appendRow(item)
+            self.root_item.appendRow(item)
             self.dl_path_correspondences[item_title_text] = full_file_path
         self.ui.treeView.expandAll()
         self.ui.treeView.show()
@@ -402,7 +431,7 @@ class MainWindow(QMainWindow):
         }
         """)
         if self.model.rowCount() > 0:
-            self.select_all_checkBox.setVisible(True)
+            self.select_all_checkbox.setVisible(True)
             self.autoAdjustWindowWidth()
 
     @Slot()
@@ -423,7 +452,11 @@ class MainWindow(QMainWindow):
                 self.enable_get_vid_list_button)
             self.get_list_thread.start()
 
-        elif yt_channel.is_video_url(channel_url):
+        elif yt_channel.is_video_url(channel_url) or \
+                yt_channel.is_short_video_url(channel_url):
+            if yt_channel.is_short_video_url(channel_url):
+                self.get_list_thread = GetListThread(
+                    "short", yt_channel, channel_url)
             # Debug exception
             self.get_list_thread = GetListThread(channel_id, yt_channel,
                                                  channel_url)

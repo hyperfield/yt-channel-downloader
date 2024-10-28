@@ -39,6 +39,10 @@ class YTChannel(QObject):
         video_with_playlist_pattern = r'youtube\.com/watch\?.*v=.*&list=[0-9A-Za-z_-]+'
         return re.search(video_with_playlist_pattern, url) is not None
 
+    def is_short_video_url(self, url):
+        """Check if the URL is related to a YouTube Shorts video."""
+        return 'youtube.com/shorts/' in url
+
     def get_channel_id(self, url):
         if "channel/" in url:
             split_url = url.split("/")
@@ -47,7 +51,7 @@ class YTChannel(QObject):
                     self.channelId = split_url[i+1]
                     return self.channelId
         try:
-            html = request.urlopen(url).read().__str__()
+            html = request.urlopen(url, timeout=10).read().__str__()
             channelId_first_index = html.find("externalId") + KEYWORD_LEN + \
                 OFFSET_TO_CHANNEL_ID
             channelId_last_index = channelId_first_index
@@ -70,9 +74,10 @@ class YTChannel(QObject):
     def retrieve_video_metadata(self, video_url):
         ydl_opts = {
             'quiet': True,
-            'extract_flat': True,  # Only extract metadata
-            'noplaylist': True,    # Ensure it's not extracting a playlist
-            'skip_download': True, # Skip the download step entirely
+            'extract_flat': True,   # Only extract metadata
+            'noplaylist': True,     # Ensure it's not extracting a playlist
+            'skip_download': True,  # Skip the download step entirely
+            'socket_timeout': 10,
             'extractor_args': {
                 'youtube': {
                     'skip': ['signature']
@@ -90,15 +95,18 @@ class YTChannel(QObject):
             self.showError.emit(f"Failed to fetch video metadata: {e}")
             return None
 
-    def get_all_videos_in_channel(self, channel_id):
-        chan_video_entries = scrapetube.get_channel(channel_id)
-        for entry in chan_video_entries:
-            vid_title = entry['title']['runs'][0]['text']
-            video_url = self.base_video_url + entry['videoId']
-            self.video_titles_links.append([vid_title, video_url])
-        return self.video_titles_links
+    def fetch_all_videos_in_channel(self, channel_id):
+        try:
+            chan_video_entries = scrapetube.get_channel(channel_id)
+            for entry in chan_video_entries:
+                vid_title = entry['title']['runs'][0]['text']
+                video_url = self.base_video_url + entry['videoId']
+                self.video_titles_links.append([vid_title, video_url])
+            return self.video_titles_links
+        except TimeoutError:
+            self.showError.emit("Failed to fetch channel videos: Timeout reached")
 
-    def get_videos_from_playlist(self, playlist_url):
+    def fetch_videos_from_playlist(self, playlist_url):
         if YouTubeURLValidator.playlist_exists(playlist_url):
             try:
                 playlist = Playlist(playlist_url)
@@ -119,9 +127,9 @@ class YTChannel(QObject):
         self.showError.emit("The URL is incorrect or unreachable.")
         return []
 
-
     def get_single_video(self, video_url):
-        validation_result, formatted_url_or_id = YouTubeURLValidator.is_valid(video_url)
+        validation_result, formatted_url_or_id = YouTubeURLValidator.is_valid(
+            video_url)
 
         if validation_result:
             video_data = self.retrieve_video_metadata(formatted_url_or_id)
