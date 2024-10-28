@@ -10,6 +10,11 @@
     <height>270</height>
    </rect>
   </property>
+  <property name="font">
+   <font>
+    <family>Arial</family>
+   </font>
+  </property>
   <property name="windowTitle">
    <string>Login Prompt</string>
   </property>

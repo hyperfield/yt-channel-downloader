@@ -12,7 +12,7 @@
   </property>
   <property name="font">
    <font>
-    <family>Serif</family>
+    <family>Arial</family>
     <pointsize>12</pointsize>
    </font>
   </property>
@@ -28,6 +28,13 @@
      <height>31</height>
     </rect>
    </property>
+   <property name="font">
+    <font>
+     <family>Courier New</family>
+     <pointsize>12</pointsize>
+     <bold>true</bold>
+    </font>
+   </property>
    <property name="text">
     <string>Save</string>
    </property>
@@ -41,6 +48,13 @@
      <height>31</height>
     </rect>
    </property>
+   <property name="font">
+    <font>
+     <family>Courier New</family>
+     <pointsize>12</pointsize>
+     <bold>true</bold>
+    </font>
+   </property>
    <property name="text">
     <string>Close</string>
    </property>
@@ -50,7 +64,7 @@
     <rect>
      <x>20</x>
      <y>180</y>
-     <width>431</width>
+     <width>451</width>
      <height>51</height>
     </rect>
    </property>
@@ -64,6 +78,12 @@
     </item>
     <item>
      <widget class="QComboBox" name="pref_vid_quality_dropdown">
+      <property name="font">
+       <font>
+        <family>Courier New</family>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <item>
        <property name="text">
         <string>144p</string>
@@ -118,7 +138,7 @@
     <rect>
      <x>20</x>
      <y>110</y>
-     <width>431</width>
+     <width>451</width>
      <height>51</height>
     </rect>
    </property>
@@ -132,6 +152,12 @@
     </item>
     <item>
      <widget class="QComboBox" name="pref_vid_format_dropdown">
+      <property name="font">
+       <font>
+        <family>Courier New</family>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <item>
        <property name="text">
         <string>Any</string>
@@ -181,7 +207,7 @@
     <rect>
      <x>20</x>
      <y>320</y>
-     <width>431</width>
+     <width>451</width>
      <height>51</height>
     </rect>
    </property>
@@ -195,6 +221,12 @@
     </item>
     <item>
      <widget class="QComboBox" name="pref_aud_quality_dropdown">
+      <property name="font">
+       <font>
+        <family>Courier New</family>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <item>
        <property name="text">
         <string>32 kbps</string>
@@ -244,7 +276,7 @@
     <rect>
      <x>20</x>
      <y>250</y>
-     <width>431</width>
+     <width>451</width>
      <height>51</height>
     </rect>
    </property>
@@ -258,6 +290,12 @@
     </item>
     <item>
      <widget class="QComboBox" name="pref_aud_format_dropdown">
+      <property name="font">
+       <font>
+        <family>Courier New</family>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <item>
        <property name="text">
         <string>Any</string>
@@ -321,6 +359,12 @@
     </item>
     <item>
      <widget class="QComboBox" name="proxy_server_type">
+      <property name="font">
+       <font>
+        <family>Courier New</family>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
       <item>
        <property name="text">
         <string>None</string>
@@ -351,7 +395,14 @@
      </widget>
     </item>
     <item>
-     <widget class="QLineEdit" name="proxy_server_addr"/>
+     <widget class="QLineEdit" name="proxy_server_addr">
+      <property name="font">
+       <font>
+        <family>Courier New</family>
+        <pointsize>12</pointsize>
+       </font>
+      </property>
+     </widget>
     </item>
     <item>
      <widget class="QLabel" name="proxy_port_label">
@@ -373,6 +424,12 @@
         <width>70</width>
         <height>16777215</height>
        </size>
+      </property>
+      <property name="font">
+       <font>
+        <family>Courier New</family>
+        <pointsize>12</pointsize>
+       </font>
       </property>
      </widget>
     </item>
@@ -400,6 +457,13 @@
     </item>
     <item>
      <widget class="QPushButton" name="browse_btn">
+      <property name="font">
+       <font>
+        <family>Courier New</family>
+        <pointsize>12</pointsize>
+        <bold>true</bold>
+       </font>
+      </property>
       <property name="text">
        <string>Browse</string>
       </property>

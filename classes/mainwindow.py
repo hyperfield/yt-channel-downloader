@@ -102,6 +102,11 @@ class MainWindow(QMainWindow):
                 font-family: Arial;
                 font-size: 14pt;
             }
+            QLineEdit, QComboBox {
+                border: 1px solid #A0A0A0;
+                padding: 4px;
+                border-radius: 4px;
+            }
             QGroupBox {
                 border: 1px solid #d3d3d3;
                 padding: 10px;
@@ -111,11 +116,19 @@ class MainWindow(QMainWindow):
             QPushButton {
                 background-color: #0066ff;
                 color: white;
-                border-radius: 5px;
-                padding: 5px 10px;
+                border-radius: 4px;
+                padding: 6px 12px;
             }
             QPushButton:hover {
                 background-color: #0000b3;
+            }
+            QTreeView {
+                border: 1px solid #A0A0A0;
+                padding: 4px;
+                background-color: #FFFFFF;
+            }
+            QTreeView::item {
+                padding: 5px;
             }
         """)
 
