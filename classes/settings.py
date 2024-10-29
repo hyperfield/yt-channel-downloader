@@ -1,9 +1,9 @@
+from ui.ui_settings import Ui_Settings
+from classes.settings_manager import SettingsManager
+
 from PyQt6.QtWidgets import QDialog
 from PyQt6.QtWidgets import QFileDialog
 from PyQt6.QtCore import Qt
-from ui.ui_settings import Ui_Settings
-
-from .settings_manager import SettingsManager
 
 
 class SettingsDialog(QDialog):

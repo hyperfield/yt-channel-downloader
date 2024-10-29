@@ -1,8 +1,9 @@
 import json
-from appdirs import user_config_dir
 import os
 import platform
 from pathlib import Path
+
+from appdirs import user_config_dir
 
 from config.constants import DEFAULT_VIDEO_FORMAT, DEFAULT_AUDIO_FORMAT, \
     DEFAULT_VIDEO_QUALITY, DEFAULT_AUDIO_QUALITY

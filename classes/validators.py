@@ -6,10 +6,10 @@
 # License: MIT License
 
 import re
+from urllib.error import HTTPError
 import yt_dlp
 from pytube import Playlist
 from pytube.exceptions import PytubeError
-from urllib.error import HTTPError
 
 
 class YouTubeURLValidator:
