@@ -1,7 +1,7 @@
-from PyQt6.QtWidgets import QDialog
 from ui.ui_login_prompt import Ui_LoginPromptDialog
-
 from .settings_manager import SettingsManager
+
+from PyQt6.QtWidgets import QDialog
 
 
 class LoginPromptDialog(QDialog):

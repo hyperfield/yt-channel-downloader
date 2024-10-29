@@ -5,16 +5,17 @@
 # Description: This module contains the classes YTChannel.
 # License: MIT License
 
+import re
+from urllib import request, error
+
+from classes.validators import YouTubeURLValidator
+from config.constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID
+
 import scrapetube
 import yt_dlp
 from pytube import Playlist
 from pytube.exceptions import PytubeError
-import re
-from urllib import request, error
 from PyQt6.QtCore import QObject, pyqtSignal as Signal
-
-from .validators import YouTubeURLValidator
-from config.constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID
 
 
 class YTChannel(QObject):

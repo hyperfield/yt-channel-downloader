@@ -1,14 +1,15 @@
 import glob
 import os
 import re
-import yt_dlp
 import unicodedata
 
-from PyQt6.QtCore import QThread, pyqtSignal as Signal
-
-from .utils import get_video_format_details
-from .settings_manager import SettingsManager
+from classes.utils import get_video_format_details
+from classes.settings_manager import SettingsManager
 from config.constants import settings_map
+
+import yt_dlp
+
+from PyQt6.QtCore import QThread, pyqtSignal as Signal
 
 
 class DownloadThread(QThread):
@@ -189,7 +190,7 @@ class DownloadThread(QThread):
 
         # Remove characters that are illegal in Windows filenames and hashtags
         filename = re.sub(r'[\\/*?:"<>|\[\]#]', '', filename)
-        
+
         filename = filename[:250]
 
         # Check for Windows reserved filenames and modify if necessary

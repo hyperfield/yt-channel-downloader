@@ -11,7 +11,6 @@ import os
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, pyqtSlot as Slot
-from ui.ui_form import Ui_MainWindow
 from PyQt6 import QtGui, QtCore
 from PyQt6.QtWidgets import QHeaderView
 from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QCheckBox, QMessageBox
@@ -22,17 +21,18 @@ from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QDesktopServices
 
 import assets.resources_rc as resources_rc    # Qt resources
-from .get_list_thread import GetListThread
-from .download_thread import DownloadThread
-from .dialogs import CustomDialog
-from .dialogs import YoutubeLoginDialog
-from .login_prompt_dialog import LoginPromptDialog
-from .delegates import CheckBoxDelegate
-from .YTChannel import YTChannel
-from .settings import SettingsDialog
+from ui.ui_form import Ui_MainWindow
 from ui.ui_about import Ui_aboutDialog
-from .settings_manager import SettingsManager
-from .enums import ColumnIndexes
+from classes.settings_manager import SettingsManager
+from classes.enums import ColumnIndexes
+from classes.get_list_thread import GetListThread
+from classes.download_thread import DownloadThread
+from classes.dialogs import CustomDialog
+from classes.dialogs import YoutubeLoginDialog
+from classes.login_prompt_dialog import LoginPromptDialog
+from classes.delegates import CheckBoxDelegate
+from classes.YTChannel import YTChannel
+from classes.settings import SettingsDialog
 
 
 class MainWindow(QMainWindow):
