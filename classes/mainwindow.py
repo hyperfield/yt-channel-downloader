@@ -13,9 +13,11 @@ from pathlib import Path
 from PyQt6.QtCore import Qt, pyqtSlot as Slot
 from ui.ui_form import Ui_MainWindow
 from PyQt6 import QtGui, QtCore
+from PyQt6.QtWidgets import QHeaderView
 from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QCheckBox, QMessageBox
 from PyQt6.QtCore import QSemaphore
 from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QDesktopServices
 
@@ -30,6 +32,7 @@ from .YTChannel import YTChannel
 from .settings import SettingsDialog
 from ui.ui_about import Ui_aboutDialog
 from .settings_manager import SettingsManager
+from .enums import ColumnIndexes
 
 
 class MainWindow(QMainWindow):
@@ -65,6 +68,7 @@ class MainWindow(QMainWindow):
             parent (QWidget, optional): Parent widget, defaults to None.
         """
         super().__init__(parent)
+        self.window_resize_needed = True
         self.init_styles()
 
         # Limit to 4 simultaneous downloads
@@ -166,7 +170,8 @@ class MainWindow(QMainWindow):
     def setup_tree_view_delegate(self):
         """Sets up a delegate for managing custom items in the tree view."""
         cb_delegate = CheckBoxDelegate()
-        self.ui.treeView.setItemDelegateForColumn(0, cb_delegate)
+        self.ui.treeView.setItemDelegateForColumn(ColumnIndexes.DOWNLOAD,
+                                                  cb_delegate)
 
     def set_bold_font(self, widget, size):
         """Applies a bold font to a specific widget.
@@ -297,24 +302,27 @@ class MainWindow(QMainWindow):
             self.ui.actionYoutube_login.setText("YouTube login")
             self.youtube_login_dialog = None
 
-    def autoAdjustWindowWidth(self):
-        # Obtain general screen size
+    def autoAdjustWindowSize(self):
         screen = QApplication.primaryScreen()
         screen_size = screen.size()
-        half_screen_width = screen_size.width() / 2
+        full_screen_width = screen_size.width()
+        max_height = round(screen_size.height() * 2 / 3)
 
-        # Calculate total width needed by the treeView
-        # according to populated contents
-        total_width = self.ui.treeView.viewport().sizeHint().width()
+        # Calculate total width
+        total_width = 0
         for column in range(self.model.columnCount()):
             total_width += self.ui.treeView.columnWidth(column)
+        total_width = min(total_width, full_screen_width)
 
-        # Adjust the width for layout margins, scrollbars, etc.
-        total_width += self.ui.treeView.verticalScrollBar().width() * 3
-        total_width += self.ui.treeView.frameWidth() * 2
-        total_width = min(total_width, half_screen_width)
+        # Calculate total height of treeView contents
+        content_height = self.ui.treeView.sizeHintForRow(0) \
+            * self.model.rowCount()
+        content_height += self.ui.treeView.header().height()
+        total_height = min(content_height, max_height)
 
-        self.resize(int(total_width), self.height())
+        # Resize window only if necessary
+        if total_width >= self.width() or total_height != self.height():
+            self.resize(round(total_width), total_height)
 
     def onSelectAllStateChanged(self, state):
         new_value = state == 2
@@ -348,9 +356,30 @@ class MainWindow(QMainWindow):
     def reinit_model(self):
         self.model.clear()
         self.root_item = self.model.invisibleRootItem()
-        self.model.setHorizontalHeaderLabels(['Download?', 'Title',
-                                              'Link', 'Progress'])
+        self.model.setHorizontalHeaderLabels(
+            ['Download?', 'Title', 'Link', 'Progress'])
         self.ui.treeView.setModel(self.model)
+
+        # Set proportional widths
+        header = self.ui.treeView.header()
+        header.setSectionResizeMode(ColumnIndexes.DOWNLOAD,
+                                    QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(ColumnIndexes.TITLE,
+                                    QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(ColumnIndexes.LINK,
+                                    QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(ColumnIndexes.PROGRESS,
+                                    QHeaderView.ResizeMode.ResizeToContents)
+
+        # Set relative stretch factors (adjust as needed)
+        # To control each section individually
+        header.setStretchLastSection(False)
+
+        # Ensure "Progress" column stays narrow
+        font_metrics = QFontMetrics(self.ui.treeView.font())
+        max_text_width = font_metrics.horizontalAdvance("100%") + 10
+        self.ui.treeView.setColumnWidth(3, max_text_width)
+
         self.select_all_checkbox.setVisible(False)
 
     def showSettingsDialog(self):
@@ -420,11 +449,12 @@ class MainWindow(QMainWindow):
         self.ui.treeView.expandAll()
         self.ui.treeView.show()
         cb_delegate = CheckBoxDelegate()
-        self.ui.treeView.setItemDelegateForColumn(0, cb_delegate)
-        self.ui.treeView.resizeColumnToContents(0)
-        self.ui.treeView.resizeColumnToContents(1)
-        self.ui.treeView.resizeColumnToContents(2)
-        self.ui.treeView.resizeColumnToContents(3)
+        self.ui.treeView.setItemDelegateForColumn(ColumnIndexes.DOWNLOAD,
+                                                  cb_delegate)
+        self.ui.treeView.resizeColumnToContents(ColumnIndexes.DOWNLOAD)
+        self.ui.treeView.resizeColumnToContents(ColumnIndexes.TITLE)
+        self.ui.treeView.resizeColumnToContents(ColumnIndexes.LINK)
+        self.ui.treeView.resizeColumnToContents(ColumnIndexes.PROGRESS)
         self.ui.treeView.setStyleSheet("""
         QTreeView::indicator:disabled {
             background-color: gray;
@@ -432,10 +462,13 @@ class MainWindow(QMainWindow):
         """)
         if self.model.rowCount() > 0:
             self.select_all_checkbox.setVisible(True)
-            self.autoAdjustWindowWidth()
+            if self.window_resize_needed:
+                self.autoAdjustWindowSize()
+                self.window_resize_needed = False
 
     @Slot()
     def show_vid_list(self):
+        self.window_resize_needed = True
         self.ui.getVidListButton.setEnabled(False)
         channel_url = self.ui.chanUrlEdit.text()
         yt_channel = YTChannel()
