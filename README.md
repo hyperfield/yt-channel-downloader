@@ -1,6 +1,6 @@
 # YT Channel Downloader
 
-[![Version](https://badgen.net/badge/version/0.4.2/green)](#) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LibraPay/orange)](https://liberapay.com/hyperfield/donate)
+[![Version](https://badgen.net/badge/version/0.4.5/green)](#) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LibraPay/orange)](https://liberapay.com/hyperfield/donate)
 
 **YT Channel Downloader** is an intuitive desktop application built to simplify the process of downloading YouTube media content. Leveraging the robustness of [yt-dlp](https://github.com/yt-dlp/yt-dlp), [scrapetube](https://github.com/dermasmid/scrapetube), and [pytube](https://github.com/pytube/pytube), and enriched with a modern PyQt 6 GUI, this tool offers a seamless experience to download your favorite content.
 
@@ -24,9 +24,13 @@
 
 ## Change Log
 
+### What's New in version 0.4.5
+- **Fetch progress dialog**: Added an indefinite progress bar dialog window that displays the elapsed time in seconds and has a Cancel button.
+- **Some refactoring**: Added numerous Python docstrings, introduced a new class, and reformatted the code for improved cleanliness and readability.
+
 ### What's New in version 0.4.2
 - **Shorts support**: Downloading YouTube shorts now works.
-- **Improved exception handling**: Imrpoved handling of network and download errors, timeouts.
+- **Improved exception handling**: Improved handling of network and download errors, timeouts.
 
 ### What's New in version 0.4.1
 

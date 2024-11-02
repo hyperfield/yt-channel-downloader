@@ -53,3 +53,4 @@ settings_map = {
 KEYWORD = "externalId"
 KEYWORD_LEN = len(KEYWORD)
 OFFSET_TO_CHANNEL_ID = 3
+MS_PER_SECOND = 1000

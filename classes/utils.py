@@ -29,18 +29,19 @@ def find_best_format_by_resolution(formats, target_resolution, target_ext="Any")
     if target_resolution == "bestvideo":
         return find_highest_resolution(filtered_formats)
 
-    # Attempt to find the closest resolution, defaulting to the next available one
-    return find_closest_resolution_with_fallback(filtered_formats, target_resolution)
-
+    # Attempt to find the closest resolution, defaulting to the next available
+    return find_closest_resolution_with_fallback(filtered_formats,
+                                                 target_resolution)
 
 
 def filter_formats(formats, target_ext):
-    """Filters formats by the given container extension and ensures they contain video."""
+    """Filters formats by the given container extension and ensures they
+    contain video."""
     if target_ext != "Any":
         filtered_formats = [f for f in formats if f.get('vcodec') != 'none' and f.get('ext') == target_ext]
     else:
         filtered_formats = [f for f in formats if f.get('vcodec') != 'none']
-    
+
     return filtered_formats
 
 
@@ -51,31 +52,6 @@ def find_highest_resolution(formats):
 
     highest_format = max(formats, key=lambda x: x.get('height', 0))
     return highest_format['format_id']
-
-
-# def find_closest_resolution(formats, target_resolution):
-#     """Finds the format closest to the target resolution from a list of
-#     formats."""
-#     if not formats:
-#         return None
-
-#     target_height = int(target_resolution[:-1])
-#     min_diff = float('inf')
-#     closest_format = None
-
-#     for format in formats:
-#         height = format.get('height')
-#         width = format.get('width')
-#         if height and width and height > width:
-#             # Swap height and width if dimensions are incorrect
-#             height, width = width, height
-
-#         diff = abs(height - target_height)
-#         if diff < min_diff:
-#             min_diff = diff
-#             closest_format = format
-
-#     return closest_format['format_id'] if closest_format else None
 
 
 def find_closest_resolution_with_fallback(formats, target_resolution):
@@ -116,11 +92,13 @@ def get_video_format_details(url, target_resolution, target_ext, cookie_file_pat
         try:
             info = ydl.extract_info(url, download=False)
             formats = info.get('formats', [])
-            
+
             if target_ext is None:
-                closest_format_id = find_best_format_by_resolution(formats, target_resolution)
+                closest_format_id = find_best_format_by_resolution(
+                    formats, target_resolution)
             else:
-                closest_format_id = find_best_format_by_resolution(formats, target_resolution, target_ext)
+                closest_format_id = find_best_format_by_resolution(
+                    formats, target_resolution, target_ext)
 
             return closest_format_id
 

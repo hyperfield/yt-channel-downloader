@@ -5,6 +5,8 @@ import sys
 import os
 import certifi
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QApplication
 
 from classes.mainwindow import MainWindow
 
@@ -20,6 +22,7 @@ def main():
     app = QApplication(sys.argv)
     widget = MainWindow()
     widget.reinit_model()
+    widget.center_on_screen()
     widget.show()
     sys.exit(app.exec())
 
