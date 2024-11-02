@@ -114,7 +114,6 @@ class MainWindow(QMainWindow):
             QTreeView {
                 border: 1px solid #A0A0A0;
                 padding: 4px;
-                background-color: #FFFFFF;
             }
             QTreeView::item {
                 padding: 5px;
