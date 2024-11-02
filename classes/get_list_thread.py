@@ -30,6 +30,7 @@ class GetListThread(QThread):
                                 Defaults to None.
     """
     finished = Signal(list)
+    cancelled = Signal()
 
     def __init__(self, channel_id, yt_channel, channel_url=None, parent=None):
         """
@@ -47,6 +48,7 @@ class GetListThread(QThread):
         self.channel_id = channel_id
         self.yt_channel = yt_channel
         self.channel_url = channel_url
+        self._is_cancelled = False
 
     def run(self):
         """
@@ -72,4 +74,10 @@ class GetListThread(QThread):
         if video_list is None:
             video_list = []
 
-        self.finished.emit(video_list)
+        if not self._is_cancelled:
+            self.finished.emit(video_list)
+        else:
+            self.cancelled.emit()
+
+    def cancel(self):
+        self._is_cancelled = True
