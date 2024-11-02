@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 
-# This Python file uses the following encoding: utf-8
+# Author: hyperfield
+# Email: inbox@quicknode.net
+# Last update: November 2, 2024
+# Project: YT Channel Downloader
+# Description: This module contains the classes MainWindow, GetListThread
+# and DownloadThread.
+# License: MIT License
+
 import sys
 import os
 import certifi

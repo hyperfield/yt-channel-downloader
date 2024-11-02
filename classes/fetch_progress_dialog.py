@@ -1,3 +1,11 @@
+# Author: hyperfield
+# Email: inbox@quicknode.net
+# Last update: November 2, 2024
+# Project: YT Channel Downloader
+# Description: This module contains the classes MainWindow, GetListThread
+# and DownloadThread.
+# License: MIT License
+
 """
 This module defines a `FetchProgressDialog` class that represents a dialog
 for tracking the progress of fetching a list of items from a YouTube channel.
