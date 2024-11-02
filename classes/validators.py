@@ -1,8 +1,9 @@
 # Author: hyperfield
-# Email: info@quicknode.net
-# Date: March 10, 2024
+# Email: inbox@quicknode.net
+# Last update: November 2, 2024
 # Project: YT Channel Downloader
-# Description: This module contains the classes YTChannel.
+# Description: This module contains the classes MainWindow, GetListThread
+# and DownloadThread.
 # License: MIT License
 
 import re

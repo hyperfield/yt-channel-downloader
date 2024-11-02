@@ -1,6 +1,6 @@
 # Author: hyperfield
 # Email: inbox@quicknode.net
-# Last update: September 6, 2024
+# Last update: November 2, 2024
 # Project: YT Channel Downloader
 # Description: This module contains the classes MainWindow, GetListThread
 # and DownloadThread.
@@ -96,12 +96,6 @@ class MainWindow(QMainWindow):
         window."""
         self.setStyleSheet("""
             * { font-family: "Arial"; font-size: 12pt; }
-            MainWindow {
-                background-color: #f0f0f0;
-                border-radius: 10px;
-                font-family: Arial;
-                font-size: 14pt;
-            }
             QLabel {
                 font-family: Arial;
                 font-size: 14pt;
@@ -116,15 +110,6 @@ class MainWindow(QMainWindow):
                 padding: 10px;
                 margin-top: 10px;
                 border-radius: 5px;
-            }
-            QPushButton {
-                background-color: #0066ff;
-                color: white;
-                border-radius: 4px;
-                padding: 6px 12px;
-            }
-            QPushButton:hover {
-                background-color: #0000b3;
             }
             QTreeView {
                 border: 1px solid #A0A0A0;
