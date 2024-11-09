@@ -129,9 +129,13 @@ On Arch Linux:
 
     cd yt-channel-downloader
 
-##### Optional: create a virtual environment
+##### Create a virtual environment
 
     python3 -m venv .venv
+
+##### Activate the virtual environment
+
+    .venv/Scripts/activate
 
 ##### Install requirements (optional: in a virtual environment)
 
@@ -203,7 +207,7 @@ You can also now launch `Git Bash` from Start Menu.
 
     cd yt-channel-downloader
 
-##### Optional: Create a virtual environment
+##### Create a virtual environment
 
     python -m venv .venv
 
