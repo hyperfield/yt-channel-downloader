@@ -468,6 +468,13 @@
    </property>
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
+     <widget class="QCheckBox" name="check_download_thumbnails">
+      <property name="text">
+       <string>Download thumbnails</string>
+      </property>
+     </widget>
+    </item>
+    <item>
      <widget class="QCheckBox" name="check_audio_only">
       <property name="text">
        <string>Only the associated audio tracks</string>

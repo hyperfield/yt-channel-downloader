@@ -26,6 +26,9 @@
 
 ## Change Log
 
+## PENDING
+- **Thumbnail downloads**: Added checkbox in Settings to enable thumbnail downloads for each video link.
+
 ### What's New in version 0.4.5
 - **Fetch progress dialog**: Added an indefinite progress bar dialog window that displays the elapsed time in seconds and has a Cancel button.
 - **Some refactoring**: Added numerous Python docstrings, introduced a new class, and reformatted the code for improved cleanliness and readability.
@@ -80,7 +83,8 @@
 - **Playlist Downloads**: Download all or some videos from a playlist URL.
 - **Channel Downloads**: Download all or some videos from a channel URL.
 - **Single Video or Audio Downloads**: Type in a single video link and download it.
-- **Private and Age-Restricted Videos**: Download media on behalf of your Youtube account. 
+- **Thumbnail Downloads**: Download thumbnails for each of your videos.
+- **Private and Age-Restricted Videos**: Download media on behalf of your Youtube account.
 
 ### Coming Soon
 

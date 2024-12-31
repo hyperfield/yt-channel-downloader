@@ -64,10 +64,12 @@ class DownloadThread(QThread):
         try:
             sanitized_title = self.sanitize_filename(self.title)
             download_directory = self.user_settings.get('download_directory')
+            write_thumbnails = self.user_settings.get('download_thumbnails')
 
             ydl_opts = {
                 'outtmpl': os.path.join(download_directory, f'{sanitized_title}.%(ext)s'),
                 'progress_hooks': [self.dl_hook],
+                'writeallthumbnails': write_thumbnails,
             }
 
             # Cookie settings for logged-in users
