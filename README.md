@@ -1,6 +1,6 @@
 # YT Channel Downloader
 
-[![Version](https://badgen.net/badge/version/0.4.5/green)](#) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LibraPay/orange)](https://liberapay.com/hyperfield/donate)
+[![Version](https://badgen.net/badge/version/0.4.6/green)](#) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LibraPay/orange)](https://liberapay.com/hyperfield/donate)
 
 [![Download YT Channel Downloader](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
 
@@ -25,6 +25,9 @@
 - [Donation](#donation)
 
 ## Change Log
+
+### What's New in version 0.4.6
+- **Thumbnail downloads**: Added checkbox in Settings to enable thumbnail downloads for each video link. (Contributed by [dsasmblr](https://github.com/dsasmblr)).
 
 ### What's New in version 0.4.5
 - **Fetch progress dialog**: Added an indefinite progress bar dialog window that displays the elapsed time in seconds and has a Cancel button.
@@ -80,7 +83,8 @@
 - **Playlist Downloads**: Download all or some videos from a playlist URL.
 - **Channel Downloads**: Download all or some videos from a channel URL.
 - **Single Video or Audio Downloads**: Type in a single video link and download it.
-- **Private and Age-Restricted Videos**: Download media on behalf of your Youtube account. 
+- **Thumbnail Downloads**: Download thumbnails for each of your videos.
+- **Private and Age-Restricted Videos**: Download media on behalf of your Youtube account.
 
 ### Coming Soon
 

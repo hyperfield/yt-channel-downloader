@@ -58,6 +58,7 @@ class SettingsManager:
             'proxy_server_type': '',
             'proxy_server_addr': '',
             'proxy_server_port': '',
+            'download_thumbnail': False,
             'audio_only': False,
             'dont_show_login_prompt': False
         }
