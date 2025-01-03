@@ -96,6 +96,8 @@ class SettingsDialog(QDialog):
         self.ui.proxy_server_addr.setText(user_settings.get('proxy_server_addr'))
         self.ui.proxy_server_port.setText(user_settings.get('proxy_server_port'))
         self.ui.check_audio_only.setChecked(user_settings.get('audio_only'))
+        self.ui.check_download_thumbnails.setChecked(user_settings.get('download_thumbnail', False))
+
 
     def set_dropdown_index(self, dropdown, value):
         index = dropdown.findText(value)
@@ -112,6 +114,7 @@ class SettingsDialog(QDialog):
             'proxy_server_type': self.ui.proxy_server_type.currentText(),
             'proxy_server_addr': self.ui.proxy_server_addr.text(),
             'proxy_server_port': self.ui.proxy_server_port.text(),
+            'download_thumbnail': self.ui.check_download_thumbnails.isChecked(),
             'audio_only': self.ui.check_audio_only.isChecked(),
         }
         self.update_settings(new_settings)
