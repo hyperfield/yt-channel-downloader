@@ -5,6 +5,9 @@
 TODO.txt
 .DS_Store
 
+# Shell scripts
+*.sh
+
 # Code
 *.code-workspace
 
