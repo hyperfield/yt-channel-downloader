@@ -1,6 +1,6 @@
 # YT Channel Downloader
 
-[![Version](https://badgen.net/badge/version/0.4.5/green)](#) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LibraPay/orange)](https://liberapay.com/hyperfield/donate)
+[![Version](https://badgen.net/badge/version/0.4.6/green)](#) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LibraPay/orange)](https://liberapay.com/hyperfield/donate)
 
 [![Download YT Channel Downloader](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
 
@@ -26,8 +26,8 @@
 
 ## Change Log
 
-## PENDING
-- **Thumbnail downloads**: Added checkbox in Settings to enable thumbnail downloads for each video link.
+### What's New in version 0.4.6
+- **Thumbnail downloads**: Added checkbox in Settings to enable thumbnail downloads for each video link. (Contributed by [dsasmblr](https://github.com/dsasmblr)).
 
 ### What's New in version 0.4.5
 - **Fetch progress dialog**: Added an indefinite progress bar dialog window that displays the elapsed time in seconds and has a Cancel button.
