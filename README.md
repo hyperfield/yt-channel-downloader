@@ -129,7 +129,7 @@ On Arch Linux:
 
 ##### Clone the repository
 
-    git clone <https://github.com/hyperfield/yt-channel-downloader.git>
+    git clone <https://github.com/hyperfield/yt-channel-downloader.git
 
 ##### Navigate into the directory
 
@@ -141,7 +141,7 @@ On Arch Linux:
 
 ##### Activate the virtual environment
 
-    .venv/Scripts/activate
+    source .venv/Scripts/activate
 
 ##### Install requirements (optional: in a virtual environment)
 
@@ -199,19 +199,7 @@ to check if it's on your system.
 
 #### How to install YT Channel Downloader
 
-First, you need `git`. Download the `git-scm` package for Windows from [git-scm.com](https://git-scm.com/downloads) and install it. Verify the installation in `cmd` or `powershell` with
 
-    git --version
-
-You can also now launch `Git Bash` from Start Menu.
-
-##### Clone the repository
-
-    git clone https://github.com/hyperfield/yt-channel-downloader.git
-
-##### Navigate into the directory
-
-    cd yt-channel-downloader
 
 ##### Create a virtual environment
 
