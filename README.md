@@ -141,7 +141,7 @@ On Arch Linux:
 
 ##### Activate the virtual environment
 
-    source .venv/Scripts/activate
+    source .venv/bin/activate
 
 ##### Install requirements (optional: in a virtual environment)
 
