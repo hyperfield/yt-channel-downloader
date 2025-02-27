@@ -3,5 +3,5 @@ pytube
 requests==2.32.3
 scrapetube
 yt-dlp
-PyQt6==6.7.1
+PyQt6
 PyQt6-WebEngine
