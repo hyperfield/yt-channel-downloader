@@ -1,6 +1,6 @@
-# YT Channel Downloader
+scripts# YT Channel Downloader
 
-[![Version](https://badgen.net/badge/version/0.4.6/green)](#) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LibraPay/orange)](https://liberapay.com/hyperfield/donate) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dt/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dd/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
+[![Version](https://badgen.net/badge/version/0.4.6/green)](#) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LibraPay/orange)](https://liberapay.com/hyperfield/donate) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dt/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dw/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
 
 [![Download YT Channel Downloader](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
 
@@ -27,13 +27,16 @@
 ## Change Log
 
 ### What's New in version 0.4.6
-- **Thumbnail downloads**: Added checkbox in Settings to enable thumbnail downloads for each video link. (Contributed by [dsasmblr](https://github.com/dsasmblr)).
+
+- **Thumbnail downloads**: Added checkbox in Settings to enable thumbnail downloads for each video link. (Contributed by [dsasmblr](https://github.com/dsasmblr).
 
 ### What's New in version 0.4.5
+
 - **Fetch progress dialog**: Added an indefinite progress bar dialog window that displays the elapsed time in seconds and has a Cancel button.
 - **Some refactoring**: Added numerous Python docstrings, introduced a new class, and reformatted the code for improved cleanliness and readability.
 
 ### What's New in version 0.4.2
+
 - **Shorts support**: Downloading YouTube shorts now works.
 - **Improved exception handling**: Improved handling of network and download errors, timeouts.
 
@@ -141,7 +144,7 @@ On Arch Linux:
 
 ##### Activate the virtual environment
 
-    source .venv/bin/activate
+    .venv/Scripts/activate
 
 ##### Install requirements (optional: in a virtual environment)
 
@@ -260,3 +263,7 @@ If you like this application and feel like you can donate a little bit to suppor
 **Bitcoin**: bc1pglp2m26kqatgm6z8vtuhk66jd74ghv948wtyhtgtj6wh30nzz6csjajv00
 
 **Ethereum**: 0x9CEf6B928BF9fFd894ca83db1B822820917ca89a
+
+**Tron**: TGq2z17jq8UruCNyyD5GU3weuyJSyM2zBp
+
+**Binance Smart Chain**: 0x863F8f3fC38b7540110462884809621e2B9EE399
