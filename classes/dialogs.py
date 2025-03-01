@@ -1,11 +1,19 @@
+# Author: hyperfield
+# Email: inbox@quicknode.net
+# Last update: November 2, 2024
+# Project: YT Channel Downloader
+# Description: This module contains the classes MainWindow, GetListThread
+# and DownloadThread.
+# License: MIT License
+
 import http.cookiejar
 import time
-import os
 
-from PyQt6.QtWidgets import QMainWindow, QDialog, QDialogButtonBox, QVBoxLayout, QLabel
+from PyQt6.QtWidgets import QMainWindow, QDialog, QDialogButtonBox, \
+    QVBoxLayout, QLabel
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
-from PyQt6.QtCore import QUrl, QDateTime, QTimer, QDateTime
+from PyQt6.QtWebEngineCore import QWebEngineProfile
+from PyQt6.QtCore import QUrl, QDateTime, QTimer
 from PyQt6.QtNetwork import QNetworkCookie
 from PyQt6.QtCore import pyqtSignal as Signal
 
@@ -19,7 +27,7 @@ class CustomDialog(QDialog):
     def __init__(self, title, message):
         super().__init__()
         self.setWindowTitle(title)
-        QBtn = QDialogButtonBox.Ok
+        QBtn = QDialogButtonBox.StandardButton.Ok
         self.buttonBox = QDialogButtonBox(QBtn)
         self.buttonBox.accepted.connect(self.accept)
         self.layout = QVBoxLayout()

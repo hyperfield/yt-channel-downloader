@@ -1,7 +1,7 @@
 appdirs==1.4.4
-pytube==15.0.0
+pytube
 requests==2.32.3
-scrapetube==2.5.1
-yt-dlp==2024.7.16
-PyQt6==6.7.1
-PyQt6-WebEngine==6.7.0
+scrapetube
+yt-dlp
+PyQt6
+PyQt6-WebEngine
