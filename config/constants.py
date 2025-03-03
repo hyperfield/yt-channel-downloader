@@ -1,3 +1,11 @@
+# Author: hyperfield
+# Email: inbox@quicknode.net
+# Last update: November 2, 2024
+# Project: YT Channel Downloader
+# Description: This module contains the classes MainWindow, GetListThread
+# and DownloadThread.
+# License: MIT License
+
 DEFAULT_VIDEO_FORMAT = 'Any'
 DEFAULT_AUDIO_FORMAT = 'mp3'
 DEFAULT_AUDIO_QUALITY = 'Best available'
@@ -15,6 +23,7 @@ settings_map = {
         '240p': '240p',
         '144p': '144p'
     },
+
     'preferred_audio_quality': {
         'Best available': 'bestaudio',
         '320 kbps': '320k',
@@ -25,6 +34,7 @@ settings_map = {
         '64 kbps': '64k',
         '32 kbps': '32k',
     },
+
     'preferred_video_format': {
         'Any': None,
         'mp4': 'mp4',
@@ -35,6 +45,7 @@ settings_map = {
         'flv': 'flv',
         '3gp': '3gp',
     },
+
     'preferred_audio_format': {
         'Any': None,
         'mp3': 'mp3',
@@ -50,3 +61,4 @@ settings_map = {
 KEYWORD = "externalId"
 KEYWORD_LEN = len(KEYWORD)
 OFFSET_TO_CHANNEL_ID = 3
+MS_PER_SECOND = 1000

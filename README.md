@@ -1,6 +1,8 @@
-# YT Channel Downloader
+scripts# YT Channel Downloader
 
-[![Version](https://badgen.net/badge/version/0.4.0)](#) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://liberapay.com/assets/widgets/donate.svg)](https://liberapay.com/hyperfield/donate)
+[![Version](https://badgen.net/badge/version/0.4.6/green)](#) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LibraPay/orange)](https://liberapay.com/hyperfield/donate) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dt/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dw/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
+
+[![Download YT Channel Downloader](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
 
 **YT Channel Downloader** is an intuitive desktop application built to simplify the process of downloading YouTube media content. Leveraging the robustness of [yt-dlp](https://github.com/yt-dlp/yt-dlp), [scrapetube](https://github.com/dermasmid/scrapetube), and [pytube](https://github.com/pytube/pytube), and enriched with a modern PyQt 6 GUI, this tool offers a seamless experience to download your favorite content.
 
@@ -23,6 +25,27 @@
 - [Donation](#donation)
 
 ## Change Log
+
+### What's New in version 0.4.6
+
+- **Thumbnail downloads**: Added checkbox in Settings to enable thumbnail downloads for each video link. (Contributed by [dsasmblr](https://github.com/dsasmblr).
+
+### What's New in version 0.4.5
+
+- **Fetch progress dialog**: Added an indefinite progress bar dialog window that displays the elapsed time in seconds and has a Cancel button.
+- **Some refactoring**: Added numerous Python docstrings, introduced a new class, and reformatted the code for improved cleanliness and readability.
+
+### What's New in version 0.4.2
+
+- **Shorts support**: Downloading YouTube shorts now works.
+- **Improved exception handling**: Improved handling of network and download errors, timeouts.
+
+### What's New in version 0.4.1
+
+- **Bug Fixes**: Due to some updates on YouTube, certain functionality didn't work. The "Any" format selection didn't work. These have been fixed.
+- **Improved exception handling**: Some parts of the code needed exception handling.
+- **Improved interface**: Better and bigger fonts and buttons.
+- **Added the "Donate" item to the Help menu**: In the hope that some will support the author, which motivates faster improvement of the app.
 
 ### What's New in version 0.4.0
 
@@ -63,7 +86,8 @@
 - **Playlist Downloads**: Download all or some videos from a playlist URL.
 - **Channel Downloads**: Download all or some videos from a channel URL.
 - **Single Video or Audio Downloads**: Type in a single video link and download it.
-- **Private and Age-Restricted Videos**: Download media on behalf of your Youtube account. 
+- **Thumbnail Downloads**: Download thumbnails for each of your videos.
+- **Private and Age-Restricted Videos**: Download media on behalf of your Youtube account.
 
 ### Coming Soon
 
@@ -108,15 +132,19 @@ On Arch Linux:
 
 ##### Clone the repository
 
-    git clone <https://github.com/hyperfield/yt-channel-downloader.git>
+    git clone <https://github.com/hyperfield/yt-channel-downloader.git
 
 ##### Navigate into the directory
 
     cd yt-channel-downloader
 
-##### Optional: create a virtual environment
+##### Create a virtual environment
 
     python3 -m venv .venv
+
+##### Activate the virtual environment
+
+    .venv/Scripts/activate
 
 ##### Install requirements (optional: in a virtual environment)
 
@@ -174,21 +202,9 @@ to check if it's on your system.
 
 #### How to install YT Channel Downloader
 
-First, you need `git`. Download the `git-scm` package for Windows from [git-scm.com](https://git-scm.com/downloads) and install it. Verify the installation in `cmd` or `powershell` with
 
-    git --version
 
-You can also now launch `Git Bash` from Start Menu.
-
-##### Clone the repository
-
-    git clone https://github.com/hyperfield/yt-channel-downloader.git
-
-##### Navigate into the directory
-
-    cd yt-channel-downloader
-
-##### Optional: Create a virtual environment
+##### Create a virtual environment
 
     python -m venv .venv
 
@@ -247,3 +263,7 @@ If you like this application and feel like you can donate a little bit to suppor
 **Bitcoin**: bc1pglp2m26kqatgm6z8vtuhk66jd74ghv948wtyhtgtj6wh30nzz6csjajv00
 
 **Ethereum**: 0x9CEf6B928BF9fFd894ca83db1B822820917ca89a
+
+**Tron**: TGq2z17jq8UruCNyyD5GU3weuyJSyM2zBp
+
+**Binance Smart Chain**: 0x863F8f3fC38b7540110462884809621e2B9EE399

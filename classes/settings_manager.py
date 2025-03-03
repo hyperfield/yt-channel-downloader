@@ -1,10 +1,11 @@
 import json
-from appdirs import user_config_dir
 import os
 import platform
 from pathlib import Path
 
-from .constants import DEFAULT_VIDEO_FORMAT, DEFAULT_AUDIO_FORMAT, \
+from appdirs import user_config_dir
+
+from config.constants import DEFAULT_VIDEO_FORMAT, DEFAULT_AUDIO_FORMAT, \
     DEFAULT_VIDEO_QUALITY, DEFAULT_AUDIO_QUALITY
 
 
@@ -57,6 +58,7 @@ class SettingsManager:
             'proxy_server_type': '',
             'proxy_server_addr': '',
             'proxy_server_port': '',
+            'download_thumbnail': False,
             'audio_only': False,
             'dont_show_login_prompt': False
         }
