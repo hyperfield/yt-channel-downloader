@@ -12,11 +12,9 @@ import sys
 import os
 import certifi
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication
 
+from classes.ffmpeg_checker import FFmpegChecker
 from classes.mainwindow import MainWindow
-
 
 os.environ['SSL_CERT_FILE'] = certifi.where()
 
@@ -26,6 +24,10 @@ os.environ['SSL_CERT_FILE'] = certifi.where()
 
 
 def main():
+    if not FFmpegChecker.is_ffmpeg_installed():
+        FFmpegChecker.show_ffmpeg_error_dialog()
+        sys.exit(1)
+
     app = QApplication(sys.argv)
     widget = MainWindow()
     widget.reinit_model()
