@@ -16,6 +16,7 @@ from PyQt6.QtWebEngineCore import QWebEngineProfile
 from PyQt6.QtCore import QUrl, QDateTime, QTimer
 from PyQt6.QtNetwork import QNetworkCookie
 from PyQt6.QtCore import pyqtSignal as Signal
+from PyQt6.QtCore import Qt
 
 from .settings_manager import SettingsManager
 
@@ -24,14 +25,28 @@ URL_YOUTUBE = "https://www.youtube.com/"
 
 
 class CustomDialog(QDialog):
-    def __init__(self, title, message):
+    def __init__(self, title, message, icon=None):
         super().__init__()
         self.setWindowTitle(title)
+
         QBtn = QDialogButtonBox.StandardButton.Ok
         self.buttonBox = QDialogButtonBox(QBtn)
         self.buttonBox.accepted.connect(self.accept)
+
         self.layout = QVBoxLayout()
+
+        if icon:
+            icon_label = QLabel()
+            icon_label.setPixmap(icon.pixmap(32, 32))
+            self.layout.addWidget(icon_label)
+
         dlg_message = QLabel(message)
+        dlg_message.setTextFormat(Qt.TextFormat.RichText)
+        # Allow link clicking
+        dlg_message.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        # Open links in default web browser
+        dlg_message.setOpenExternalLinks(True)
+
         self.layout.addWidget(dlg_message)
         self.layout.addWidget(self.buttonBox)
         self.setLayout(self.layout)
