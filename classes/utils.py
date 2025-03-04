@@ -1,11 +1,3 @@
-# Author: hyperfield
-# Email: inbox@quicknode.net
-# Last update: November 2, 2024
-# Project: YT Channel Downloader
-# Description: This module contains the classes MainWindow, GetListThread
-# and DownloadThread.
-# License: MIT License
-
 import yt_dlp
 
 
