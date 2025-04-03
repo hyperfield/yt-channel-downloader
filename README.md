@@ -148,7 +148,7 @@ On Arch Linux:
 
 ##### Activate the virtual environment
 
-**Note**: there is no such script on my machine (Ubuntu 22.04) as `activate`. The workaround for me was to simply prepend `./.venv/bin/` to my path like so: `export PATH=./.venv/bin:$PATH`. This way, I can run the scripts in the virtual environment without relying on that script it.
+**Note**: there is no such script on my machine (Ubuntu 22.04) as `activate`. The workaround for me was to simply prepend `./.venv/bin/` to my path like so: `export PATH=./.venv/bin:$PATH`. This way, I can run the scripts in the virtual environment without relying on that missing `activate` script.
 
 `.venv/Scripts/activate`
 
