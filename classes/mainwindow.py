@@ -688,10 +688,12 @@ class MainWindow(QMainWindow):
                                 and its current progress percentage.
         """
         file_index = int(progress_data["index"])
-        progress = progress_data["progress"]
-        progress_item = QtGui.QStandardItem(str(progress))
-        self.model.setItem(int(file_index), 3, progress_item)
-        self.ui.treeView.viewport().update()
+
+        if "progress" in progress_data:
+            progress = progress_data["progress"]
+            progress_item = QtGui.QStandardItem(str(progress))
+            self.model.setItem(int(file_index), 3, progress_item)
+            self.ui.treeView.viewport().update()
 
     def exit(self):
         """
