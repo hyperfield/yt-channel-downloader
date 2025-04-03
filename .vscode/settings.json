@@ -10,5 +10,6 @@
         "venv",
         "verstretch",
         "vsizetype"
-    ]
+    ],
+    "cmake.ignoreCMakeListsMissing": true
 }
