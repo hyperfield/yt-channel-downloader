@@ -148,11 +148,15 @@ On Arch Linux:
 
 ##### Activate the virtual environment
 
-    .venv/Scripts/activate
+**Note**: there is no such script on my machine (Ubuntu 22.04) as `activate`. The workaround for me was to simply prepend `./.venv/bin/` to my path like so: `export PATH=./.venv/bin:$PATH`. This way, I can run the scripts in the virtual environment without relying on that script it.
+
+`.venv/Scripts/activate`
 
 ##### Install requirements (optional: in a virtual environment)
 
-    pip install -r requirements.txt
+`pip install -r requirements.txt`
+
+(or `./.venv/bin/pip install -r requirements.txt` if `activate is not there`)
 
 ##### Run the program
 
@@ -169,6 +173,8 @@ and then
 To deactivate the virtual environment after usage, type
 
     deactivate
+
+Alternatively, if your Python `venv` does not have an `activate` script, the shell script `start` at the root of the project should run the program in the correct virtual environment. You can run it like this: `./start`.
 
 ### Windows
 
