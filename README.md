@@ -162,16 +162,22 @@ On Arch Linux:
 
 *Either of*:
 
-> python3 main.py
+```
+./.venv/bin/python3 main.py
+``` 
 
 *or*:
 
-> chmod +x main.py
-> ./main.py
+```
+chmod +x main.py
+./.venv/bin/python main.py
+```
 
 *or*:
 
-> ./start
+```
+./start
+```
 
 To deactivate the virtual environment after usage, type
 
