@@ -78,7 +78,7 @@
           </font>
          </property>
          <property name="text">
-          <string>Download</string>
+          <string>Download Selected</string>
          </property>
         </widget>
        </item>
