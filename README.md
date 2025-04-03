@@ -156,19 +156,22 @@ On Arch Linux:
 
 `pip install -r requirements.txt`
 
-(or `./.venv/bin/pip install -r requirements.txt` if `activate is not there`)
+(or `./.venv/bin/pip install -r requirements.txt` if `activate` is not there)
 
 ##### Run the program
 
-    python3 main.py
+*Either of*:
 
-or
+> python3 main.py
 
-    chmod +x main.py
+*or*:
 
-and then
+> chmod +x main.py
+> ./main.py
 
-    ./main.py
+*or*:
+
+> ./start
 
 To deactivate the virtual environment after usage, type
 
