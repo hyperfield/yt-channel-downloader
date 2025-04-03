@@ -1,5 +1,13 @@
 {
     "idf.pythonInstallPath": "/home/djfm/.pyenv/shims/python",
     "cmake.options.statusBarVisibility": "visible",
-    "cmake.buildDirectory": "${workspaceFolder}/builds/${buildKit}/${buildType}"
+    "cmake.buildDirectory": "${workspaceFolder}/builds/${buildKit}/${buildType}",
+    "cSpell.words": [
+        "horstretch",
+        "hsizetype",
+        "sizepolicy",
+        "venv",
+        "verstretch",
+        "vsizetype"
+    ]
 }
