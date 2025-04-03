@@ -4,3 +4,13 @@
 # It sets up the necessary environment variables and paths for the project to run correctly.
 # It is recommended to run this script in a clean environment to avoid any conflicts with existing configurations.
 # Usage: . ./load-env
+
+echo "Creating virtual Python environment... yuck..."
+python -m venv .venv
+
+./.venv/bin/activate
+echo "Installing dependencies..."
+pip install -r requirements.txt
+
+echo "Starting main program..."
+./start
