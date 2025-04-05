@@ -204,6 +204,9 @@ class MainWindow(QMainWindow):
             self.show_network_error(index)
         else:
             self.show_unexpected_error(index)
+  
+        if self.dl_threads.count() == 0:
+            self.dl_vids()
 
     def show_download_error(self, index):
         """Displays a dialog for download-specific errors."""
