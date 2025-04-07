@@ -679,7 +679,21 @@ class MainWindow(QMainWindow):
             dl_thread.downloadCompleteSignal.connect(self.populate_window_list)
             dl_thread.downloadProgressSignal.connect(self.update_progress)
             self.dl_threads.append(dl_thread)
-            dl_thread.start()
+            try:
+                dl_thread.start()
+            except RuntimeError as e:
+                if self.dl_threads.count() == 0:
+                    self.display_error_dialog(
+                        "Trying to restart threads after a crash..."
+                    )
+                    self.dl_vids()
+                    break
+                raise RuntimeError(
+                    "Failed to start download thread. Please check your "
+                    "system resources.",
+                    e
+                )
+                
 
     @Slot(dict)
     def update_progress(self, progress_data):
