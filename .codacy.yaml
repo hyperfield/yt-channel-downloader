@@ -1,0 +1,5 @@
+exclude_paths:
+  - ui/form_ui.py
+  - ui/settings_ui.py
+  - ui/login_prompt_ui.py
+  - ui/about_ui.py
