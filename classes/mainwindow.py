@@ -204,6 +204,9 @@ class MainWindow(QMainWindow):
             self.show_network_error(index)
         else:
             self.show_unexpected_error(index)
+  
+        if self.dl_threads.count() == 0:
+            self.dl_vids()
 
     def show_download_error(self, index):
         """Displays a dialog for download-specific errors."""
@@ -676,7 +679,21 @@ class MainWindow(QMainWindow):
             dl_thread.downloadCompleteSignal.connect(self.populate_window_list)
             dl_thread.downloadProgressSignal.connect(self.update_progress)
             self.dl_threads.append(dl_thread)
-            dl_thread.start()
+            try:
+                dl_thread.start()
+            except RuntimeError as e:
+                if self.dl_threads.count() == 0:
+                    self.display_error_dialog(
+                        "Trying to restart threads after a crash..."
+                    )
+                    self.dl_vids()
+                    break
+                raise RuntimeError(
+                    "Failed to start download thread. Please check your "
+                    "system resources.",
+                    e
+                )
+                
 
     @Slot(dict)
     def update_progress(self, progress_data):
@@ -688,10 +705,12 @@ class MainWindow(QMainWindow):
                                 and its current progress percentage.
         """
         file_index = int(progress_data["index"])
-        progress = progress_data["progress"]
-        progress_item = QtGui.QStandardItem(str(progress))
-        self.model.setItem(int(file_index), 3, progress_item)
-        self.ui.treeView.viewport().update()
+
+        if "progress" in progress_data:
+            progress = progress_data["progress"]
+            progress_item = QtGui.QStandardItem(str(progress))
+            self.model.setItem(int(file_index), 3, progress_item)
+            self.ui.treeView.viewport().update()
 
     def exit(self):
         """

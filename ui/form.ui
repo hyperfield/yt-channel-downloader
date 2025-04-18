@@ -54,7 +54,7 @@
       </property>
       <layout class="QGridLayout" name="gridLayout">
        <property name="sizeConstraint">
-        <enum>QLayout::SizeConstraint::SetMinAndMaxSize</enum>
+        <enum>QLayout::SetDefaultConstraint</enum>
        </property>
        <item row="0" column="2">
         <widget class="QPushButton" name="downloadSelectedVidsButton">
@@ -74,6 +74,7 @@
           <font>
            <family>Courier New</family>
            <pointsize>12</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -109,7 +110,7 @@
           </font>
          </property>
          <property name="focusPolicy">
-          <enum>Qt::FocusPolicy::ClickFocus</enum>
+          <enum>Qt::NoFocus</enum>
          </property>
          <property name="toolTip">
           <string/>
@@ -149,6 +150,7 @@
           <font>
            <family>Courier New</family>
            <pointsize>12</pointsize>
+           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -175,13 +177,13 @@
        </font>
       </property>
       <property name="layoutDirection">
-       <enum>Qt::LayoutDirection::LeftToRight</enum>
+       <enum>Qt::LeftToRight</enum>
       </property>
       <property name="inputMethodHints">
-       <set>Qt::InputMethodHint::ImhNone</set>
+       <set>Qt::ImhNone</set>
       </property>
       <property name="sizeAdjustPolicy">
-       <enum>QAbstractScrollArea::SizeAdjustPolicy::AdjustToContents</enum>
+       <enum>QAbstractScrollArea::AdjustIgnored</enum>
       </property>
      </widget>
     </item>
@@ -193,7 +195,7 @@
      <x>0</x>
      <y>0</y>
      <width>1200</width>
-     <height>26</height>
+     <height>24</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -223,12 +225,13 @@
     <string>File</string>
    </property>
    <property name="menuRole">
-    <enum>QAction::MenuRole::ApplicationSpecificRole</enum>
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
   <action name="actionExit">
    <property name="icon">
-    <iconset theme="system-log-out"/>
+    <iconset theme="system-log-out">
+     <normaloff>.</normaloff>.</iconset>
    </property>
    <property name="text">
     <string>&amp;Exit</string>
@@ -242,12 +245,13 @@
     <string>Ctrl+Q</string>
    </property>
    <property name="menuRole">
-    <enum>QAction::MenuRole::QuitRole</enum>
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
   <action name="actionSettings">
    <property name="icon">
-    <iconset theme="preferences-desktop-personal"/>
+    <iconset theme="preferences-desktop-personal">
+     <normaloff>.</normaloff>.</iconset>
    </property>
    <property name="text">
     <string>&amp;Settings</string>
@@ -264,12 +268,13 @@
     <string>Ctrl+S</string>
    </property>
    <property name="menuRole">
-    <enum>QAction::MenuRole::ApplicationSpecificRole</enum>
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
   <action name="actionAbout">
    <property name="icon">
-    <iconset theme="user-available"/>
+    <iconset theme="user-available">
+     <normaloff>.</normaloff>.</iconset>
    </property>
    <property name="text">
     <string>About</string>
@@ -280,7 +285,7 @@
     </font>
    </property>
    <property name="menuRole">
-    <enum>QAction::MenuRole::ApplicationSpecificRole</enum>
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
   <action name="actionYoutube_login">
@@ -302,7 +307,8 @@
   </action>
   <action name="actionDonate">
    <property name="icon">
-    <iconset theme="face-smile"/>
+    <iconset theme="face-smile">
+     <normaloff>.</normaloff>.</iconset>
    </property>
    <property name="text">
     <string>Donate</string>
