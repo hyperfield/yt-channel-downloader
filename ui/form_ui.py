@@ -1,4 +1,4 @@
-# Form implementation generated from reading ui file '/home/djfm/Applications/yt-channel-downloader/ui/form.ui'
+# Form implementation generated from reading ui file '/home/inte/projects/yt-channel-downloader/ui/form.ui'
 #
 # Created by: PyQt6 UI code generator 6.8.1
 #
