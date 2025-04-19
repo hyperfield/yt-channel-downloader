@@ -74,7 +74,6 @@
           <font>
            <family>Courier New</family>
            <pointsize>12</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -110,7 +109,7 @@
           </font>
          </property>
          <property name="focusPolicy">
-          <enum>Qt::NoFocus</enum>
+          <enum>Qt::StrongFocus</enum>
          </property>
          <property name="toolTip">
           <string/>
@@ -150,7 +149,6 @@
           <font>
            <family>Courier New</family>
            <pointsize>12</pointsize>
-           <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -195,7 +193,7 @@
      <x>0</x>
      <y>0</y>
      <width>1200</width>
-     <height>24</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -230,8 +228,7 @@
   </action>
   <action name="actionExit">
    <property name="icon">
-    <iconset theme="system-log-out">
-     <normaloff>.</normaloff>.</iconset>
+    <iconset theme="system-log-out"/>
    </property>
    <property name="text">
     <string>&amp;Exit</string>
@@ -250,8 +247,7 @@
   </action>
   <action name="actionSettings">
    <property name="icon">
-    <iconset theme="preferences-desktop-personal">
-     <normaloff>.</normaloff>.</iconset>
+    <iconset theme="preferences-desktop-personal"/>
    </property>
    <property name="text">
     <string>&amp;Settings</string>
@@ -273,8 +269,7 @@
   </action>
   <action name="actionAbout">
    <property name="icon">
-    <iconset theme="user-available">
-     <normaloff>.</normaloff>.</iconset>
+    <iconset theme="user-available"/>
    </property>
    <property name="text">
     <string>About</string>
@@ -307,8 +302,7 @@
   </action>
   <action name="actionDonate">
    <property name="icon">
-    <iconset theme="face-smile">
-     <normaloff>.</normaloff>.</iconset>
+    <iconset theme="face-smile"/>
    </property>
    <property name="text">
     <string>Donate</string>
