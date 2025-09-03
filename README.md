@@ -143,7 +143,7 @@ On Arch Linux:
 
 ##### Clone the repository
 
-    git clone <https://github.com/hyperfield/yt-channel-downloader.git
+    git clone https://github.com/hyperfield/yt-channel-downloader.git
 
 ##### Navigate into the directory
 
