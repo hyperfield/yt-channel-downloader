@@ -189,5 +189,5 @@ class Ui_MainWindow(object):
         self.actionAbout.setText(_translate("MainWindow", "About"))
         self.actionYoutube_login.setText(_translate("MainWindow", "Youtube &login"))
         self.actionYoutube_login.setShortcut(_translate("MainWindow", "Ctrl+Shift+L"))
-        self.actionDonate.setText(_translate("MainWindow", "Donate"))
-        self.actionDonate.setToolTip(_translate("MainWindow", "Donate to the author"))
+        self.actionDonate.setText(_translate("MainWindow", "Support the Project"))
+        self.actionDonate.setToolTip(_translate("MainWindow", "Support the Project"))

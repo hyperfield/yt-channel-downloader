@@ -305,7 +305,7 @@
     <iconset theme="face-smile"/>
    </property>
    <property name="text">
-    <string>Donate</string>
+    <string>Support the Project</string>
    </property>
    <property name="toolTip">
     <string>Donate to the author</string>

@@ -1,6 +1,6 @@
-scripts# YT Channel Downloader
+# YT Channel Downloader
 
-[![Version](https://badgen.net/badge/version/0.4.10/green)](#) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/d941f316b7ba45a4aa9114f029ca4a0b)](https://app.codacy.com/gh/hyperfield/yt-channel-downloader/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LiberaPay/orange)](https://liberapay.com/hyperfield/donate) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dt/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dw/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
+[![Version](https://badgen.net/badge/version/0.4.11/green)](#) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/d941f316b7ba45a4aa9114f029ca4a0b)](https://app.codacy.com/gh/hyperfield/yt-channel-downloader/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LiberaPay/orange)](https://liberapay.com/hyperfield/donate) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dt/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dw/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
 
 [![Download YT Channel Downloader](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
 
@@ -25,6 +25,11 @@ scripts# YT Channel Downloader
 - [Donation](#donation)
 
 ## Change Log
+
+### What's New in version 0.4.11
+
+- **Fixed URL fetching bug**: short YouTube URLs are now fetched.
+- **Cleanup**: a minor cleanup in some source files.
 
 ### What's New in version 0.4.10
 
@@ -155,7 +160,7 @@ On Arch Linux:
 
 ##### Activate the virtual environment
 
-    .venv/Scripts/activate
+    .venv/bin/activate
 
 ##### Install requirements (optional: in a virtual environment)
 
