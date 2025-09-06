@@ -1,9 +1,7 @@
 # Author: hyperfield
 # Email: inbox@quicknode.net
-# Last update: November 2, 2024
 # Project: YT Channel Downloader
-# Description: This module contains the classes MainWindow, GetListThread
-# and DownloadThread.
+# Description: This module contains the class YTChannel.
 # License: MIT License
 
 import re
@@ -30,7 +28,8 @@ class YTChannel(QObject):
         self.video_titles_links = []
 
     def is_video_url(self, url):
-        return 'youtube.com/watch?v=' in url or len(url) == 11
+        return 'youtube.com/watch?v=' in url or 'youtu.be/' in url \
+            or len(url) == 11
 
     def is_playlist_url(self, url):
         """Check if the URL is related to a YouTube playlist."""
@@ -86,7 +85,7 @@ class YTChannel(QObject):
                 }
             }
         }
-        
+
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 video_info = ydl.extract_info(video_url, download=False)

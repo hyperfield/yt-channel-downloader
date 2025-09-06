@@ -1,9 +1,8 @@
 # Author: hyperfield
 # Email: inbox@quicknode.net
-# Last update: November 2, 2024
 # Project: YT Channel Downloader
-# Description: This module contains the classes MainWindow, GetListThread
-# and DownloadThread.
+# Description: This module contains the classes CustomDialog
+# and YoutubeLoginDialog.
 # License: MIT License
 
 import http.cookiejar
