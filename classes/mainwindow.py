@@ -12,7 +12,8 @@ from pathlib import Path
 from PyQt6.QtCore import Qt, pyqtSlot as Slot
 from PyQt6 import QtGui, QtCore
 from PyQt6.QtWidgets import QHeaderView
-from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QCheckBox, QMessageBox
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QDialog, QCheckBox,
+                             QMessageBox, QPushButton, QHBoxLayout)
 from PyQt6.QtCore import QSemaphore
 from PyQt6.QtGui import QFont
 from PyQt6.QtGui import QFontMetrics
@@ -128,6 +129,19 @@ class MainWindow(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.model = QtGui.QStandardItemModel()
+        self.cancelDownloadsButton = QPushButton("Cancel downloads", self)
+        self.cancelDownloadsButton.setObjectName("cancelDownloadsButton")
+        self.cancelDownloadsButton.setMinimumSize(QtCore.QSize(120, 32))
+        cancel_font = QFont("Arial", 10)
+        cancel_font.setBold(False)
+        self.cancelDownloadsButton.setFont(cancel_font)
+        self.cancelDownloadsButton.setVisible(False)
+        self.cancelDownloadsButton.setEnabled(False)
+        self.cancelDownloadsButton.clicked.connect(self.cancel_active_downloads)
+        self.bottomButtonLayout = QHBoxLayout()
+        self.bottomButtonLayout.addStretch()
+        self.bottomButtonLayout.addWidget(self.cancelDownloadsButton)
+        self.ui.verticalLayout.addLayout(self.bottomButtonLayout)
         self.setup_buttons()
         self.setup_tree_view_delegate()
         self.ui.actionDonate.triggered.connect(self.open_donate_url)
@@ -185,12 +199,6 @@ class MainWindow(QMainWindow):
         self.model.itemChanged.connect(self.update_download_button_state)
         self.update_download_button_state()
 
-        for download_thread in self.dl_threads:
-            download_thread.downloadProgressSignal.connect(
-                self.handle_download_error)
-            download_thread.downloadCompleteSignal.connect(
-                self.show_download_complete)
-
     def handle_download_error(self, data):
         """Handles download error notifications from DownloadThread."""
         index = int(data["index"])
@@ -200,11 +208,8 @@ class MainWindow(QMainWindow):
             self.show_download_error(index)
         elif error_type == "Network error":
             self.show_network_error(index)
-        else:
+        elif error_type not in ("Cancelled",):
             self.show_unexpected_error(index)
-  
-        if self.dl_threads.count() == 0:
-            self.dl_vids()
 
     def show_download_error(self, index):
         """Displays a dialog for download-specific errors."""
@@ -221,6 +226,45 @@ class MainWindow(QMainWindow):
     def show_download_complete(self, index):
         """Displays a dialog when a download completes successfully."""
         QMessageBox.information(self, "Download Complete", f"Download completed successfully for item {index}!")
+
+    def update_cancel_button_state(self):
+        """Enable the cancel button only when there are active downloads."""
+        has_threads = bool(self.active_download_threads)
+        any_running = any(
+            thread.isRunning() for thread in self.active_download_threads.values()
+        )
+        self.cancelDownloadsButton.setVisible(has_threads)
+        self.cancelDownloadsButton.setEnabled(any_running)
+
+    def cancel_active_downloads(self):
+        """Request cancellation for all active download threads."""
+        if not self.active_download_threads:
+            return
+        for index, thread in list(self.active_download_threads.items()):
+            if thread.isRunning():
+                thread.cancel()
+                progress_item = QtGui.QStandardItem("Cancelling...")
+                self.model.setItem(index, 3, progress_item)
+        self.ui.treeView.viewport().update()
+        self.update_cancel_button_state()
+
+    def cleanup_download_thread(self, index):
+        """Remove finished or cancelled download threads from tracking."""
+        thread = self.active_download_threads.pop(index, None)
+        if thread and thread in self.dl_threads:
+            self.dl_threads.remove(thread)
+        self.update_cancel_button_state()
+        self.update_download_button_state()
+
+    def on_download_complete(self, index):
+        """Update UI after a download thread reports completion."""
+        progress_item = QtGui.QStandardItem("Completed")
+        self.model.setItem(index, 3, progress_item)
+        selection_item = self.model.item(index, 0)
+        if selection_item is not None:
+            selection_item.setCheckState(Qt.CheckState.Unchecked)
+        self.cleanup_download_thread(index)
+        self.ui.treeView.viewport().update()
 
     def initialize_settings(self):
         """Initializes user settings from the settings manager."""
@@ -240,6 +284,7 @@ class MainWindow(QMainWindow):
         self.vid_dl_indexes = []
         self.dl_threads = []
         self.dl_path_correspondences = {}
+        self.active_download_threads = {}
 
     def initialize_youtube_login(self):
         """Hook up menu action and restore previously saved browser config."""
@@ -649,19 +694,27 @@ class MainWindow(QMainWindow):
             item = self.model.item(row, 0)
             if item.checkState() == Qt.CheckState.Checked:
                 self.vid_dl_indexes.append(row)
+        if not self.vid_dl_indexes:
+            QMessageBox.information(
+                self,
+                "No videos selected",
+                "Please select at least one video before starting downloads."
+            )
+            return
         for index in self.vid_dl_indexes:
             progress_item = QtGui.QStandardItem()
             self.model.setItem(index, 3, progress_item)
             link = self.model.item(index, 2).text()
             title = self.model.item(index, 1).text()
             dl_thread = DownloadThread(link, index, title, self)
-            dl_thread.downloadCompleteSignal.connect(self.populate_window_list)
+            dl_thread.downloadCompleteSignal.connect(self.on_download_complete)
             dl_thread.downloadProgressSignal.connect(self.update_progress)
             self.dl_threads.append(dl_thread)
+            self.active_download_threads[index] = dl_thread
             try:
                 dl_thread.start()
             except RuntimeError as e:
-                if self.dl_threads.count() == 0:
+                if len(self.dl_threads) == 0:
                     self.display_error_dialog(
                         "Trying to restart threads after a crash..."
                     )
@@ -672,6 +725,7 @@ class MainWindow(QMainWindow):
                     "system resources.",
                     e
                 )
+        self.update_cancel_button_state()
                 
 
     @Slot(dict)
@@ -689,6 +743,14 @@ class MainWindow(QMainWindow):
             progress = progress_data["progress"]
             progress_item = QtGui.QStandardItem(str(progress))
             self.model.setItem(int(file_index), 3, progress_item)
+            self.ui.treeView.viewport().update()
+        elif "error" in progress_data:
+            error_message = progress_data["error"]
+            if error_message != "Cancelled":
+                self.handle_download_error(progress_data)
+            progress_item = QtGui.QStandardItem(error_message)
+            self.model.setItem(file_index, 3, progress_item)
+            self.cleanup_download_thread(file_index)
             self.ui.treeView.viewport().update()
 
     def exit(self):
