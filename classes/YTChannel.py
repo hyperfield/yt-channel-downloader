@@ -7,7 +7,7 @@
 import re
 from urllib import request, error
 
-from classes.validators import YouTubeURLValidator
+from classes.validators import YouTubeURLValidator, extract_single_media, is_supported_media_url
 from config.constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID
 
 import scrapetube
@@ -117,6 +117,11 @@ class YTChannel(QObject):
         except TimeoutError:
             self.logger.error("Timeout while fetching channel videos for %s", channel_id)
             self.showError.emit("Failed to fetch channel videos: Timeout reached")
+            return []
+        except Exception as exc:  # noqa: BLE001
+            self.logger.exception("Unexpected error fetching channel videos for %s: %s", channel_id, exc)
+            self.showError.emit("Failed to fetch channel videos: unexpected error")
+            return []
 
     def fetch_videos_from_playlist(self, playlist_url):
         if YouTubeURLValidator.playlist_exists(playlist_url):
@@ -148,6 +153,12 @@ class YTChannel(QObject):
             video_data = self.retrieve_video_metadata(formatted_url_or_id)
             if video_data:
                 self.video_titles_links.append(video_data)
+            return self.video_titles_links
+
+        # Attempt generic extraction via yt-dlp for non-YouTube URLs
+        generic = extract_single_media(video_url, auth_params)
+        if generic:
+            self.video_titles_links.append([generic['title'], generic['url']])
             return self.video_titles_links
 
         self.showError.emit("The URL is incorrect or unreachable.")

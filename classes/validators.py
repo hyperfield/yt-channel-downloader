@@ -110,3 +110,43 @@ class YouTubeURLValidator:
         # If no matches
         logger.warning("URL validation failed for input: %s", url_or_video_id)
         return False, None
+
+
+def extract_single_media(url, auth_opts=None):
+    """
+    Extract single media metadata for any yt-dlp supported URL.
+
+    Returns:
+        dict | None: Metadata dict containing title and url if successful.
+    """
+    ydl_opts = {
+        'quiet': True,
+        'skip_download': True,
+        'noplaylist': True,
+    }
+    if auth_opts:
+        ydl_opts.update(auth_opts)
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if info.get('_type') == 'playlist':
+                entries = info.get('entries') or []
+                first = next((entry for entry in entries if entry), None)
+                if not first:
+                    logger.warning("Playlist has no entries for URL: %s", url)
+                    return None
+                info = first
+            title = info.get('title') or 'Unknown Title'
+            final_url = info.get('webpage_url') or info.get('url') or url
+            return {'title': title, 'url': final_url}
+    except yt_dlp.utils.DownloadError as exc:
+        logger.debug("yt-dlp failed to extract metadata for %s: %s", url, exc)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Unexpected error while extracting metadata for %s: %s", url, exc)
+    return None
+
+
+def is_supported_media_url(url, auth_opts=None):
+    """Check whether the provided URL is supported by yt-dlp."""
+    return extract_single_media(url, auth_opts=auth_opts) is not None

@@ -93,23 +93,53 @@ class DownloadThread(QThread):
             video_quality = settings_map['preferred_video_quality'].get(
                 self.user_settings.get('preferred_video_quality', 'bestvideo'),
                 'Any')
+            if video_format == 'Any':
+                video_format = None
+            if video_quality in ('Any', None):
+                video_quality = 'bestvideo'
 
-            closest_format_id = get_video_format_details(
+            selected_format = get_video_format_details(
                 self.url,
                 video_quality,
                 video_format,
                 auth_opts,
             )
 
-            if closest_format_id:
-                ydl_opts['format'] = f"{closest_format_id}+bestaudio"
-            elif video_quality:
-                ydl_opts['format'] = video_quality
+            selected_ext = None
+            if selected_format:
+                format_id = selected_format.get('format_id')
+                selected_ext = selected_format.get('ext')
+                if format_id:
+                    ydl_opts['format'] = f"{format_id}+bestaudio"
             else:
-                ydl_opts['format'] = 'bestvideo+bestaudio'
+                logger.warning(
+                    "No direct format found for preferences (index=%s, desired=%s, quality=%s)."
+                    " Falling back to yt-dlp defaults.",
+                    self.index,
+                    video_format or 'Any',
+                    video_quality or 'best',
+                )
+
+            if 'format' not in ydl_opts:
+                if video_quality:
+                    ydl_opts['format'] = video_quality
+                else:
+                    ydl_opts['format'] = 'bestvideo+bestaudio'
+
+            desired_container = video_format
+            if desired_container:
+                if selected_ext != desired_container:
+                    ydl_opts['merge_output_format'] = desired_container
+                    logger.info(
+                        "Will remux download %s to %s (available=%s)",
+                        self.index,
+                        desired_container,
+                        selected_ext,
+                    )
 
             # Set audio-only download options if enabled
             if self.user_settings.get('audio_only'):
+                ydl_opts.pop('merge_output_format', None)
                 audio_format = settings_map['preferred_audio_format'].get(
                     self.user_settings.get('preferred_audio_format', 'Any'),
                     'Any')
