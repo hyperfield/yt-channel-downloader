@@ -25,14 +25,14 @@ from ui.ui_about import Ui_aboutDialog
 from classes.settings_manager import SettingsManager
 from classes.enums import ColumnIndexes
 from classes.download_thread import DownloadThread
-from classes.dialogs import CustomDialog
-from classes.dialogs import YoutubeLoginDialog
+from classes.dialogs import CustomDialog, YoutubeCookiesDialog
 from classes.fetch_progress_dialog import FetchProgressDialog
 from classes.login_prompt_dialog import LoginPromptDialog
 from classes.delegates import CheckBoxDelegate
 from classes.YTChannel import YTChannel
 from classes.videoitem import VideoItem
 from classes.settings import SettingsDialog
+from classes.youtube_auth import YoutubeAuthManager
 
 
 class MainWindow(QMainWindow):
@@ -69,7 +69,7 @@ class MainWindow(QMainWindow):
         """
         super().__init__(parent)
         self.window_resize_needed = True
-        self.youtube_login_dialog = None
+        self.youtube_auth_manager = None
         self.yt_chan_vids_titles_links = []
 
         self.init_styles()
@@ -242,83 +242,64 @@ class MainWindow(QMainWindow):
         self.dl_path_correspondences = {}
 
     def initialize_youtube_login(self):
-        """Initialize YouTube login functionality by connecting the login
-        action to the login handler and checking the login status.
-
-        This method sets up a YouTube login dialog and associates the
-        'Youtube_login' action with the handler function. It also verifies
-        the current YouTube login state, updating the login menu item
-        accordingly.
-        """
-        self.youtube_login_dialog = None
-        self.ui.actionYoutube_login.triggered.connect(
-            self.handle_youtube_login)
-        self.check_youtube_login_status()
-
-    def check_youtube_login_status(self):
-        """Check the status of the YouTube login by verifying the presence
-        of a saved cookie.
-
-        Initializes the YouTube login dialog using a cookie stored in the
-        configuration directory and updates the YouTube login menu item to
-        reflect the current login status.
-        """
-        config_dir = self.settings_manager.get_config_directory()
-        cookie_jar_path = Path(config_dir) / "youtube_cookies.txt"
-        self.youtube_login_dialog = YoutubeLoginDialog(cookie_jar_path)
+        """Hook up menu action and restore previously saved browser config."""
+        self.youtube_auth_manager = YoutubeAuthManager(self.settings_manager, self)
+        self.ui.actionYoutube_login.triggered.connect(self.handle_youtube_login)
+        self.youtube_auth_manager.login_state_changed.connect(
+            self.update_youtube_login_menu)
+        self.youtube_auth_manager.login_completed.connect(
+            self.on_youtube_login_completed)
         self.update_youtube_login_menu()
 
-    def show_youtube_login_dialog(self):
-        """Show the YouTube login dialog, toggling between login and logout.
-
-        Displays the YouTube login dialog to prompt the user to log in or,
-        if already logged in, logs out and resets the login status. This
-        method dynamically updates the text of the 'Youtube_login' action
-        to match the login state.
-        """
-        if self.youtube_login_dialog and self.youtube_login_dialog.logged_in:
-            self.youtube_login_dialog.logout()
-            self.youtube_login_dialog = None  # Destroy the current instance
-            self.ui.actionYoutube_login.setText("YouTube login")
-        else:
-            if self.youtube_login_dialog is None:
-                config_dir = self.settings_manager.get_config_directory()
-                cookie_jar_path = Path(config_dir) / "youtube_cookies.txt"
-                self.youtube_login_dialog = YoutubeLoginDialog(cookie_jar_path)
-                self.youtube_login_dialog.logged_in_signal.connect(
-                    self.update_youtube_login_menu)
-
-            self.youtube_login_dialog.show()
-
     def handle_youtube_login(self):
-        """Handle the YouTube login process, displaying a login prompt if
-        necessary.
-
-        Initiates the YouTube login dialog if not already active. If the user
-        has not disabled the pre-login dialog then it will appear. This method
-        also facilitates logout if the user is currently logged in.
-        """
-        if not self.youtube_login_dialog:
-            config_dir = self.settings_manager.get_config_directory()
-            cookie_jar_path = Path(config_dir) / "youtube_cookies.txt"
-            self.youtube_login_dialog = YoutubeLoginDialog(cookie_jar_path)
-
-        self.youtube_login_dialog.logged_in_signal.connect(
-                self.update_youtube_login_menu)
-
-        if not self.youtube_login_dialog.logged_in:
+        """Configure or clear yt-dlp's cookies-from-browser authentication."""
+        if not self.youtube_auth_manager.is_configured:
             user_settings = self.settings_manager.settings
             if not user_settings.get('dont_show_login_prompt'):
                 login_prompt_dialog = LoginPromptDialog(self)
-                if login_prompt_dialog.exec() == QDialog.DialogCode.Accepted:
-                    self.show_youtube_login_dialog()
-            else:
-                self.show_youtube_login_dialog()
+                if login_prompt_dialog.exec() != QDialog.DialogCode.Accepted:
+                    return
+
+            dialog = YoutubeCookiesDialog(
+                self,
+                config=self.youtube_auth_manager.browser_config
+            )
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                config = dialog.get_config()
+                self.youtube_auth_manager.configure(config)
         else:
-            # If already logged in, perform logout
-            self.youtube_login_dialog.logout()
-            self.ui.actionYoutube_login.setText("YouTube login")
-            self.youtube_login_dialog = None
+            confirmation = QMessageBox.question(
+                self,
+                "Clear YouTube login",
+                "This will forget the configured browser profile. Actual browser cookies remain untouched. Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if confirmation == QMessageBox.StandardButton.Yes:
+                self.youtube_auth_manager.clear()
+                QMessageBox.information(
+                    self,
+                    "YouTube login",
+                    "The saved browser configuration was removed."
+                )
+
+    def on_youtube_login_completed(self, success, message):
+        """Show feedback after attempting to configure browser cookies."""
+        if success:
+            QMessageBox.information(
+                self,
+                "YouTube login",
+                "Browser cookies are ready. yt-dlp will use them for private downloads."
+            )
+        else:
+            details = message or (
+                "yt-dlp could not read login cookies from the selected browser profile."
+            )
+            QMessageBox.warning(
+                self,
+                "YouTube login failed",
+                details
+            )
 
     def auto_adjust_window_size(self):
         """Dynamically adjusts the main window size based on screen and model
@@ -453,12 +434,12 @@ class MainWindow(QMainWindow):
     def update_youtube_login_menu(self):
         """Update the text of the YouTube login menu item based on login state.
 
-        Checks the login state of the YouTube login dialog and updates the text
-        of the 'Youtube_login' menu action to either 'YouTube login' or
-        'YouTube logout.'
+        Checks whether browser cookies are configured and updates the
+        'Youtube_login' menu action to either 'YouTube login' or
+        'Clear YouTube login.'
         """
-        if self.youtube_login_dialog and self.youtube_login_dialog.logged_in:
-            self.ui.actionYoutube_login.setText("YouTube logout")
+        if self.youtube_auth_manager and self.youtube_auth_manager.is_configured:
+            self.ui.actionYoutube_login.setText("Clear YouTube login")
         else:
             self.ui.actionYoutube_login.setText("YouTube login")
 
@@ -601,7 +582,7 @@ class MainWindow(QMainWindow):
 
     def _prepare_yt_channel(self):
         """Prepares and returns a YTChannel instance."""
-        yt_channel = YTChannel()
+        yt_channel = YTChannel(main_window=self)
         yt_channel.showError.connect(self.display_error_dialog)
         return yt_channel
 

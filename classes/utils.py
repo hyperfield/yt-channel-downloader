@@ -80,13 +80,14 @@ def find_closest_resolution_with_fallback(formats, target_resolution):
     return None
 
 
-def get_video_format_details(url, target_resolution, target_ext, cookie_file_path=None):
+def get_video_format_details(url, target_resolution, target_ext, auth_opts=None):
     ydl_opts = {
         'quiet': True,
         'dump_single_json': True,
-        'cookiefile': cookie_file_path,
         'noplaylist': True,
     }
+    if auth_opts:
+        ydl_opts.update(auth_opts)
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
