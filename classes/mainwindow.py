@@ -34,6 +34,7 @@ from classes.YTChannel import YTChannel
 from classes.videoitem import VideoItem
 from classes.settings import SettingsDialog
 from classes.youtube_auth import YoutubeAuthManager
+from classes.validators import is_supported_media_url
 from classes.logger import get_logger
 
 
@@ -506,9 +507,9 @@ class MainWindow(QMainWindow):
         'Clear YouTube login.'
         """
         if self.youtube_auth_manager and self.youtube_auth_manager.is_configured:
-            self.ui.actionYoutube_login.setText("Clear YouTube login")
+            self.ui.actionYoutube_login.setText("Clear Login")
         else:
-            self.ui.actionYoutube_login.setText("YouTube login")
+            self.ui.actionYoutube_login.setText("Use Browser Cookies for Login")
 
     def update_download_button_state(self):
         """Enable or disable the download button based on item selection.
@@ -626,6 +627,12 @@ class MainWindow(QMainWindow):
 
         fetch_dialog.exec()
 
+    def _get_auth_options(self):
+        """Return auth options for yt-dlp calls if configured."""
+        if self.youtube_auth_manager and self.youtube_auth_manager.is_configured:
+            return self.youtube_auth_manager.get_yt_dlp_options()
+        return {}
+
     @Slot()
     def show_vid_list(self):
         """Fetches and displays a single video, a playlist or a channel based
@@ -648,8 +655,20 @@ class MainWindow(QMainWindow):
             self._start_fetch_dialog(fetch_type, yt_channel, channel_url,
                                      self.handle_single_video)
         else:
-            logger.debug("Attempting to fetch channel data")
-            self._handle_channel_fetch(yt_channel, channel_url)
+            auth_opts = self._get_auth_options()
+            if is_supported_media_url(channel_url, auth_opts):
+                logger.debug("URL supported by generic extractor; treating as single media")
+                self._start_fetch_dialog(None, yt_channel, channel_url,
+                                         self.handle_single_video)
+            elif "youtube.com" in channel_url or "youtu.be" in channel_url:
+                logger.debug("Attempting to fetch channel data")
+                self._handle_channel_fetch(yt_channel, channel_url)
+            else:
+                logger.warning("Unsupported URL submitted: %s", channel_url)
+                self.display_error_dialog(
+                    "The URL is incorrect or unsupported."
+                )
+                self.enable_get_vid_list_button()
 
     def _prepare_yt_channel(self):
         """Prepares and returns a YTChannel instance."""
@@ -675,9 +694,16 @@ class MainWindow(QMainWindow):
             logger.debug("Resolved channel ID: %s", channel_id)
             self._start_fetch_dialog(channel_id, yt_channel,
                                      finish_handler=self.handle_video_list)
-        except (ValueError, error.URLError):
-            logger.warning("Failed to resolve channel from URL: %s", channel_url)
+        except (ValueError, error.URLError) as exc:
+            logger.warning("Failed to resolve channel from URL %s: %s", channel_url, exc)
             self.display_error_dialog("Please check your URL")
+            self.enable_get_vid_list_button()
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Unexpected error fetching channel for %s: %s", channel_url, exc)
+            self.display_error_dialog(
+                "Failed to fetch channel details. Please try another URL."
+            )
+            self.enable_get_vid_list_button()
 
     @Slot(list)
     def handle_video_list(self, video_list):

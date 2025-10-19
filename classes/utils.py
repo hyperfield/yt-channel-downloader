@@ -99,14 +99,32 @@ def get_video_format_details(url, target_resolution, target_ext, auth_opts=None)
             info = ydl.extract_info(url, download=False)
             formats = info.get('formats', [])
 
-            if target_ext is None:
-                closest_format_id = find_best_format_by_resolution(
-                    formats, target_resolution)
-            else:
+            selected_format = None
+            if target_ext:
                 closest_format_id = find_best_format_by_resolution(
                     formats, target_resolution, target_ext)
+                if closest_format_id:
+                    selected_format = next(
+                        (fmt for fmt in formats if fmt.get('format_id') == closest_format_id),
+                        None
+                    )
+                if not selected_format:
+                    logger.warning(
+                        "Preferred container %s not available directly for %s; falling back to best match.",
+                        target_ext,
+                        url,
+                    )
 
-            return closest_format_id
+            if not selected_format:
+                closest_format_id = find_best_format_by_resolution(
+                    formats, target_resolution)
+                if closest_format_id:
+                    selected_format = next(
+                        (fmt for fmt in formats if fmt.get('format_id') == closest_format_id),
+                        None
+                    )
+
+            return selected_format
 
         except yt_dlp.utils.DownloadError as e:
             logger.exception("Error extracting info for %s: %s", url, e)

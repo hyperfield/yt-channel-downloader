@@ -6,6 +6,11 @@
 
 from PyQt6.QtCore import QThread, pyqtSignal as Signal
 
+from classes.logger import get_logger
+
+
+logger = get_logger("GetListThread")
+
 
 class GetListThread(QThread):
     """
@@ -67,14 +72,18 @@ class GetListThread(QThread):
         """
         video_list = []
 
-        if not self.channel_id or self.channel_id == "short":
-            video_list = self.yt_channel.get_single_video(self.channel_url)
-        elif self.channel_id == "playlist":
-            video_list = self.yt_channel.fetch_videos_from_playlist(
-                self.channel_url)
-        else:
-            video_list = self.yt_channel.fetch_all_videos_in_channel(
-                self.channel_id)
+        try:
+            if not self.channel_id or self.channel_id == "short":
+                video_list = self.yt_channel.get_single_video(self.channel_url)
+            elif self.channel_id == "playlist":
+                video_list = self.yt_channel.fetch_videos_from_playlist(
+                    self.channel_url)
+            else:
+                video_list = self.yt_channel.fetch_all_videos_in_channel(
+                    self.channel_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Failed to fetch video list: %s", exc)
+            video_list = []
 
         # Ensure that an empty list doesn't crash the app
         if video_list is None:

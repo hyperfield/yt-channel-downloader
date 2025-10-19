@@ -28,8 +28,10 @@
 
 ### What's New in version 0.5.0
 
+- **More sites!** You can now fetch single tracks or videos from other `yt-dlp`-supported platforms — including Vimeo (requires login), Twitch, SoundCloud, Facebook, Instagram, Twitter/X, TikTok, Udemy*, and Reddit — directly from the main URL field. (Bulk channel / playlist fetches remain YouTube-only. *Udemy still requires the appropriate credentials/cookies for premium content.)
 - **YouTube Login and Logout**: Configure the browser profile whose cookies yt-dlp reuses for private, premium, or age-restricted downloads - no heavy-weight embedded browser anymore. Use `File -> YouTube login` to pick the browser and profile, and clear the configuration from the same menu when you no longer need it.
 - **Download cancellation**: Downloads in progress can now be cancelled with the "Cancel downloads" button.
+- **Format selection**: Improved the logic.
 
 ### What's New in version 0.4.12
 
@@ -110,9 +112,11 @@
 - **Download Marking**: Keeps track of downloaded files for easier management.
 - **Playlist Downloads**: Download all or some videos from a playlist URL.
 - **Channel Downloads**: Download all or some videos from a channel URL.
-- **Single Video or Audio Downloads**: Type in a single video link and download it.
+- **Single Video or Audio Downloads**: Paste any supported link (YouTube, Vimeo, Twitch, SoundCloud, Facebook, Instagram, Twitter/X, TikTok, Udemy*, Reddit, and more via yt-dlp) and download it.
 - **Thumbnail Downloads**: Download thumbnails for each of your videos.
 - **Private and Age-Restricted Videos**: Download media on behalf of your Youtube account.
+
+\*Some providers (for example, Udemy or other premium services) still require valid account cookies/credentials. Configure them via `File -> YouTube login` (cookies-from-browser) before attempting restricted downloads.
 
 ### Coming Soon
 
@@ -120,7 +124,6 @@
 - Search field to search within a retrieved list of videos
 - Enhanced download progress bar
 - Download history tracking
-- Support for other audio and video platforms
 - Functionality improvements
 - Interface improvements
 

@@ -187,7 +187,7 @@ class Ui_MainWindow(object):
         self.actionSettings.setToolTip(_translate("MainWindow", "Settings"))
         self.actionSettings.setShortcut(_translate("MainWindow", "Ctrl+S"))
         self.actionAbout.setText(_translate("MainWindow", "About"))
-        self.actionYoutube_login.setText(_translate("MainWindow", "Youtube &login"))
+        self.actionYoutube_login.setText(_translate("MainWindow", "&Use Browser Cookies for Login"))
         self.actionYoutube_login.setShortcut(_translate("MainWindow", "Ctrl+Shift+L"))
         self.actionDonate.setText(_translate("MainWindow", "Support the Project"))
         self.actionDonate.setToolTip(_translate("MainWindow", "Support the Project"))
