@@ -11,6 +11,11 @@ import yt_dlp
 from pytube import Playlist
 from pytube.exceptions import PytubeError
 
+from classes.logger import get_logger
+
+
+logger = get_logger("YouTubeURLValidator")
+
 
 class YouTubeURLValidator:
     @staticmethod
@@ -25,6 +30,7 @@ class YouTubeURLValidator:
                                  download=False)
             return True
         except yt_dlp.utils.DownloadError:
+            logger.debug("yt-dlp reported unavailable video: %s", video_id)
             return False
 
     @staticmethod
@@ -35,13 +41,13 @@ class YouTubeURLValidator:
             if playlist.videos[0]:
                 return True
             else:
-                print("Playlist seems to exist but has no videos.")
+                logger.warning("Playlist has no videos: %s", playlist_url)
                 return False
         except (PytubeError, IndexError) as e:
-            print(f"Failed to fetch playlist or playlist is empty: {e}")
+            logger.exception("Failed to fetch playlist %s: %s", playlist_url, e)
             return False
         except HTTPError as e:
-            print(f"Failed to retrieve a possible playlist due to HTTP Error {e.code}: {e.reason}")
+            logger.exception("HTTP error while fetching playlist %s: %s", playlist_url, e)
             return False
 
     @staticmethod
@@ -102,4 +108,5 @@ class YouTubeURLValidator:
                 return True, full_url
 
         # If no matches
+        logger.warning("URL validation failed for input: %s", url_or_video_id)
         return False, None

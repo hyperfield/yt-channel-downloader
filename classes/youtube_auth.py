@@ -5,6 +5,8 @@ from PyQt6.QtCore import QObject, pyqtSignal as Signal
 
 import yt_dlp
 
+from classes.logger import get_logger
+
 
 _DEFAULT_TEST_URL = 'https://www.youtube.com/feed/history'
 _LOGIN_COOKIE_NAMES = {
@@ -65,8 +67,11 @@ class YoutubeAuthManager(QObject):
         )
         self._browser_config: Optional[BrowserConfig] = config
         self._logged_in = False
+        self._logger = get_logger("YoutubeAuthManager")
         if self._browser_config:
             self._logged_in, _ = self._validate_browser_config(self._browser_config)
+            if self._logged_in:
+                self._logger.info("Restored browser configuration for '%s'", self._browser_config.browser)
 
     @property
     def is_configured(self) -> bool:
@@ -89,6 +94,7 @@ class YoutubeAuthManager(QObject):
             settings['youtube_browser_config'] = config.to_settings_dict()
             self._settings_manager.save_settings_to_file(settings)
             self._logged_in = True
+            self._logger.info("Configured yt-dlp cookies-from-browser for '%s'", config.browser)
         self.login_completed.emit(success, message)
         if self._logged_in != previous_state:
             self.login_state_changed.emit(self._logged_in)
@@ -100,6 +106,7 @@ class YoutubeAuthManager(QObject):
         settings['youtube_browser_config'] = {}
         self._settings_manager.save_settings_to_file(settings)
         self.login_state_changed.emit(False)
+        self._logger.info("Cleared stored browser configuration")
 
     def get_yt_dlp_options(self) -> dict:
         if not self._browser_config:
@@ -116,6 +123,7 @@ class YoutubeAuthManager(QObject):
             with yt_dlp.YoutubeDL(params) as ydl:
                 jar = ydl.cookiejar
                 if not jar:
+                    self._logger.warning("No cookies retrieved from browser '%s'", config.browser)
                     return False, 'No cookies were found for the selected browser/profile.'
 
                 logged_in = any(
@@ -130,6 +138,7 @@ class YoutubeAuthManager(QObject):
                         ydl.extract_info(_DEFAULT_TEST_URL, download=False)
                     except Exception:
                         pass
+                    self._logger.warning("Cookies from browser '%s' did not include login tokens", config.browser)
                     return False, (
                         'The selected browser profile did not provide YouTube login cookies. '
                         'Ensure you are signed in to YouTube within that browser profile and try again.'
@@ -137,4 +146,5 @@ class YoutubeAuthManager(QObject):
 
                 return True, ''
         except Exception as exc:  # noqa: BLE001
+            self._logger.exception("Failed to validate browser cookies for '%s': %s", config.browser, exc)
             return False, str(exc)

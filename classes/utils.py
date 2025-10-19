@@ -1,5 +1,10 @@
 import yt_dlp
 
+from classes.logger import get_logger
+
+
+logger = get_logger("utils")
+
 
 def find_best_format_by_resolution(formats, target_resolution, target_ext="Any"):
     """
@@ -104,5 +109,5 @@ def get_video_format_details(url, target_resolution, target_ext, auth_opts=None)
             return closest_format_id
 
         except yt_dlp.utils.DownloadError as e:
-            print(f"Error extracting info: {e}")
+            logger.exception("Error extracting info for %s: %s", url, e)
             return None
