@@ -51,6 +51,11 @@ class DownloadThread(QThread):
         self.main_window = mainWindow
         self.settings_manager = SettingsManager()
         self.user_settings = self.settings_manager.settings
+        self._cancel_requested = False
+
+    def cancel(self):
+        """Signal the running download to halt."""
+        self._cancel_requested = True
 
     def run(self):
         """
@@ -126,10 +131,16 @@ class DownloadThread(QThread):
 
             # Attempt to download the video with yt-dlp
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                if self._cancel_requested:
+                    raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
                 ydl.download([self.url])
 
             # Emit signal on successful download
             self.downloadCompleteSignal.emit(self.index)
+
+        except yt_dlp.utils.DownloadCancelled:
+            self.downloadProgressSignal.emit({"index": str(self.index),
+                                              "error": "Cancelled"})
 
         except yt_dlp.utils.DownloadError as e:
             # Handle yt-dlp-specific download errors
@@ -161,6 +172,8 @@ class DownloadThread(QThread):
             d (dict): A dictionary containing status information about the
             ongoing download.
         """
+        if self._cancel_requested:
+            raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
         if d['status'] == 'downloading':
             progress_str = d['_percent_str']
             ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')

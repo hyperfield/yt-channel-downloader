@@ -29,6 +29,7 @@
 ### What's New in version 0.5.0
 
 - **YouTube Login and Logout**: Configure the browser profile whose cookies yt-dlp reuses for private, premium, or age-restricted downloads - no heavy-weight embedded browser anymore. Use `File -> YouTube login` to pick the browser and profile, and clear the configuration from the same menu when you no longer need it.
+- **Download cancellation**: Downloads in progress can now be cancelled with the "Cancel downloads" button.
 
 ### What's New in version 0.4.12
 
