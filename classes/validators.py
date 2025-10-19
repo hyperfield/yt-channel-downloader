@@ -14,10 +14,12 @@ from pytube.exceptions import PytubeError
 
 class YouTubeURLValidator:
     @staticmethod
-    def check_existence(video_id):
+    def check_existence(video_id, extra_opts=None):
         """Check if a YouTube video exists and is available using yt-dlp."""
         try:
             ydl_opts = {'quiet': True}
+            if extra_opts:
+                ydl_opts.update(extra_opts)
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}",
                                  download=False)
@@ -43,7 +45,7 @@ class YouTubeURLValidator:
             return False
 
     @staticmethod
-    def is_valid(url_or_video_id):
+    def is_valid(url_or_video_id, extra_opts=None):
         """Validate the URL or video ID."""
         url_pattern = (
             r'(https?://)?'
@@ -72,14 +74,14 @@ class YouTubeURLValidator:
         url_match = re.match(url_pattern, url_or_video_id)
         if url_match:
             video_id = url_match.group(3)
-            if YouTubeURLValidator.check_existence(video_id):
+            if YouTubeURLValidator.check_existence(video_id, extra_opts):
                 return True, url_or_video_id
 
         # Check if the URL is a YouTube Shorts video
         shorts_match = re.match(shorts_pattern, url_or_video_id)
         if shorts_match:
             video_id = shorts_match.group(3)
-            if YouTubeURLValidator.check_existence(video_id):
+            if YouTubeURLValidator.check_existence(video_id, extra_opts):
                 # Convert Shorts URL to standard watch URL
                 full_url = f"https://www.youtube.com/watch?v={video_id}"
                 return True, full_url
@@ -88,14 +90,14 @@ class YouTubeURLValidator:
         short_link_match = re.match(short_link_pattern, url_or_video_id)
         if short_link_match:
             video_id = short_link_match.group(3)
-            if YouTubeURLValidator.check_existence(video_id):
+            if YouTubeURLValidator.check_existence(video_id, extra_opts):
                 # Convert to standard watch URL
                 full_url = f"https://www.youtube.com/watch?v={video_id}"
                 return True, full_url
 
         # Check if it's a direct video ID
         if re.match(video_id_pattern, url_or_video_id):
-            if YouTubeURLValidator.check_existence(url_or_video_id):
+            if YouTubeURLValidator.check_existence(url_or_video_id, extra_opts):
                 full_url = f"https://www.youtube.com/watch?v={url_or_video_id}"
                 return True, full_url
 

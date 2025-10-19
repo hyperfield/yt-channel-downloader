@@ -70,14 +70,11 @@ class DownloadThread(QThread):
                 'writethumbnail': write_thumbnail,
             }
 
-            # Cookie settings for logged-in users
-            if self.main_window.youtube_login_dialog and \
-                    self.main_window.youtube_login_dialog.logged_in:
-                cookie_file_path = self.main_window.youtube_login_dialog.\
-                    cookie_jar_path
-                ydl_opts['cookiefile'] = cookie_file_path
-            else:
-                cookie_file_path = None
+            auth_opts = {}
+            if self.main_window.youtube_auth_manager and \
+                    self.main_window.youtube_auth_manager.is_configured:
+                auth_opts = self.main_window.youtube_auth_manager.get_yt_dlp_options()
+                ydl_opts.update(auth_opts)
 
             # Set video format and quality preferences
             video_format = settings_map['preferred_video_format'].get(
@@ -86,10 +83,12 @@ class DownloadThread(QThread):
                 self.user_settings.get('preferred_video_quality', 'bestvideo'),
                 'Any')
 
-            closest_format_id = get_video_format_details(self.url,
-                                                         video_quality,
-                                                         video_format,
-                                                         cookie_file_path)
+            closest_format_id = get_video_format_details(
+                self.url,
+                video_quality,
+                video_format,
+                auth_opts,
+            )
 
             if closest_format_id:
                 ydl_opts['format'] = f"{closest_format_id}+bestaudio"

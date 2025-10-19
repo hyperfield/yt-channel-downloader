@@ -27,6 +27,12 @@ class YTChannel(QObject):
         self.base_video_url = 'https://www.youtube.com/watch?v='
         self.video_titles_links = []
 
+    def _get_auth_params(self):
+        manager = getattr(self.main_window, "youtube_auth_manager", None)
+        if manager and manager.is_configured:
+            return manager.get_yt_dlp_options()
+        return {}
+
     def is_video_url(self, url):
         return 'youtube.com/watch?v=' in url or 'youtu.be/' in url \
             or len(url) == 11
@@ -85,6 +91,7 @@ class YTChannel(QObject):
                 }
             }
         }
+        ydl_opts.update(self._get_auth_params())
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -129,8 +136,9 @@ class YTChannel(QObject):
         return []
 
     def get_single_video(self, video_url):
+        auth_params = self._get_auth_params()
         validation_result, formatted_url_or_id = YouTubeURLValidator.is_valid(
-            video_url)
+            video_url, auth_params)
 
         if validation_result:
             video_data = self.retrieve_video_metadata(formatted_url_or_id)

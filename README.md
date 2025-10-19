@@ -26,6 +26,10 @@
 
 ## Change Log
 
+### What's New in version 0.5.0
+
+- **YouTube Login and Logout**: Configure the browser profile whose cookies yt-dlp reuses for private, premium, or age-restricted downloads - no heavy-weight embedded browser anymore. Use `File -> YouTube login` to pick the browser and profile, and clear the configuration from the same menu when you no longer need it.
+
 ### What's New in version 0.4.12
 
 - **Only the Windows installer changed**: updated `yt-dlp` to the latest version to fix a problem with unretrievable URLs.
@@ -69,7 +73,7 @@
 
 ### What's New in version 0.4.0
 
-- **YouTube Login and Logout**: You can now log in to your YouTube account directly within the application to download private or age-restricted content. You can log out of your YouTube account with a single click. This action clears the stored cookies and resets the session. The cookies are stored within the app's config directory.
+- **YouTube Login and Logout**: Configure the browser profile whose cookies yt-dlp should reuse for private or age-restricted downloads. Use `File -> YouTube login` to select the browser/profile, and choose “Clear YouTube login” to forget the configuration.
 - **Minor Improvements and Bug Fixes**.
 
 ### What's New in version 0.3.3

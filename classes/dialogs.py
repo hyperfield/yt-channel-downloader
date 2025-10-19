@@ -1,26 +1,33 @@
 # Author: hyperfield
 # Email: inbox@quicknode.net
 # Project: YT Channel Downloader
-# Description: This module contains the classes CustomDialog
-# and YoutubeLoginDialog.
+# Description: This module contains dialog helpers for the UI.
 # License: MIT License
 
-import http.cookiejar
-import time
-
-from PyQt6.QtWidgets import QMainWindow, QDialog, QDialogButtonBox, \
-    QVBoxLayout, QLabel
-from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWebEngineCore import QWebEngineProfile
-from PyQt6.QtCore import QUrl, QDateTime, QTimer
-from PyQt6.QtNetwork import QNetworkCookie
-from PyQt6.QtCore import pyqtSignal as Signal
+from PyQt6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QLabel,
+    QLineEdit,
+    QVBoxLayout,
+    QWidget,
+)
 from PyQt6.QtCore import Qt
 
-from .settings_manager import SettingsManager
+from .youtube_auth import BrowserConfig
 
-URL_LOGIN = "https://accounts.google.com/ServiceLogin?service=youtube"
-URL_YOUTUBE = "https://www.youtube.com/"
+BROWSER_CHOICES = [
+    ('chrome', 'Chrome / Chromium'),
+    ('firefox', 'Firefox'),
+    ('brave', 'Brave'),
+    ('edge', 'Microsoft Edge'),
+    ('opera', 'Opera'),
+    ('safari', 'Safari (macOS)'),
+    ('vivaldi', 'Vivaldi'),
+    ('whale', 'Naver Whale'),
+]
 
 
 class CustomDialog(QDialog):
@@ -51,128 +58,64 @@ class CustomDialog(QDialog):
         self.setLayout(self.layout)
 
 
-class YoutubeLoginDialog(QMainWindow):
-    logged_in_signal = Signal()
+class YoutubeCookiesDialog(QDialog):
+    """Dialog allowing the user to configure cookies-from-browser settings."""
 
-    def __init__(self, cookie_jar_path):
-        super().__init__()
-        self.browser = QWebEngineView()
-        self.setCentralWidget(self.browser)
+    def __init__(self, parent: QWidget | None = None, config: BrowserConfig | None = None):
+        super().__init__(parent)
+        self.setWindowTitle("Configure YouTube login")
 
-        self.settings_manager = SettingsManager()
-        self.cookie_jar_path = cookie_jar_path
-        self.cookie_jar = http.cookiejar.MozillaCookieJar(self.cookie_jar_path)
+        self.browser_combo = QComboBox(self)
+        for key, label in BROWSER_CHOICES:
+            self.browser_combo.addItem(label, userData=key)
 
-        self.cookies_loaded = False
-        self.logged_in = False
-        self.cookie_expirations = {}
+        self.profile_input = QLineEdit(self)
+        self.profile_input.setPlaceholderText("Optional. Leave blank for default profile.")
 
-        self.profile = QWebEngineProfile.defaultProfile()
-        self.cookie_store = self.profile.cookieStore()
+        self.keyring_input = QLineEdit(self)
+        self.keyring_input.setPlaceholderText("Optional keyring backend (e.g. kwallet5, gnomekeyring).")
+        self.container_input = QLineEdit(self)
+        self.container_input.setPlaceholderText("Optional container name (Firefox Multi-Account).")
 
-        self.load_cookies()
+        if config:
+            index = self.browser_combo.findData(config.browser)
+            if index >= 0:
+                self.browser_combo.setCurrentIndex(index)
+            self.profile_input.setText(config.profile or "")
+            self.keyring_input.setText(config.keyring or "")
+            self.container_input.setText(config.container or "")
 
-        if self.cookies_loaded:
-            self.logged_in = True
-            self.logged_in_signal.emit()
-            self.browser.load(QUrl(URL_YOUTUBE))
-        else:
-            self.browser.load(QUrl(URL_LOGIN))
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, self)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
 
-        self.cookie_store.cookieAdded.connect(self.process_cookie)
+        form_layout = QFormLayout()
+        form_layout.addRow("Browser", self.browser_combo)
+        form_layout.addRow("Profile", self.profile_input)
+        form_layout.addRow("Keyring", self.keyring_input)
+        form_layout.addRow("Container", self.container_input)
 
-        QTimer.singleShot(60000, self.check_cookie_expiry)
-
-    def process_cookie(self, cookie):
-        py_cookie = http.cookiejar.Cookie(
-            version=0,
-            name=cookie.name().data().decode('utf-8'),
-            value=cookie.value().data().decode('utf-8'),
-            port=None,
-            port_specified=False,
-            domain=cookie.domain(),
-            domain_specified=bool(cookie.domain()),
-            domain_initial_dot=cookie.domain().startswith('.'),
-            path=cookie.path(),
-            path_specified=bool(cookie.path()),
-            secure=cookie.isSecure(),
-            expires=cookie.expirationDate().toSecsSinceEpoch() if
-            cookie.expirationDate().isValid() else None,
-            discard=False,
-            comment=None,
-            comment_url=None,
-            rest={},
-            rfc2109=False
+        root_layout = QVBoxLayout(self)
+        info_label = QLabel(
+            "Select the browser profile that is already signed in to YouTube. "
+            "yt-dlp will reuse its cookies to access private or age-restricted videos.",
+            self,
         )
-        self.cookie_jar.set_cookie(py_cookie)
-        self.cookie_jar.save(ignore_discard=True)
+        info_label.setWordWrap(True)
+        root_layout.addWidget(info_label)
+        root_layout.addLayout(form_layout)
+        root_layout.addWidget(buttons)
 
-        if py_cookie.expires:
-            self.cookie_expirations[py_cookie.name] = py_cookie.expires
-
-        if cookie.name().data().decode('utf-8') in ["SID", "HSID", "SSID"]:
-            self.logged_in = True
-            QTimer.singleShot(2000, self.emit_logged_in_signal)
-
-    def load_cookies(self):
-        try:
-            self.cookie_jar.load(ignore_discard=True)
-            logged_in_cookies = ["SID", "HSID", "SSID"]
-            found_logged_in_cookies = set()
-
-            for cookie in self.cookie_jar:
-                q_cookie = QNetworkCookie(
-                    cookie.name.encode('utf-8'),
-                    cookie.value.encode('utf-8')
-                )
-                q_cookie.setDomain(cookie.domain)
-                q_cookie.setPath(cookie.path)
-                q_cookie.setSecure(cookie.secure)
-                if cookie.expires:
-                    q_cookie.setExpirationDate(QDateTime.fromSecsSinceEpoch(cookie.expires))
-                    self.cookie_expirations[cookie.name] = cookie.expires
-
-                QWebEngineProfile.defaultProfile().cookieStore().setCookie(
-                    q_cookie)
-                # Check if the loaded cookie is one of the logged-in cookies
-                if cookie.name in logged_in_cookies:
-                    found_logged_in_cookies.add(cookie.name)
-
-            # Set cookies_loaded to True only if all logged-in cookies
-            # are found
-            self.cookies_loaded = all(cookie in found_logged_in_cookies
-                                      for cookie in logged_in_cookies)
-            self.logged_in = self.cookies_loaded
-        except FileNotFoundError:
-            pass
-
-    def clear_cookies(self):
-        self.cookie_jar.clear()
-        self.cookie_jar.save(ignore_discard=True)
-        self.cookies_loaded = False
-        self.profile = self.browser.page().profile()
-        self.profile.cookieStore().deleteAllCookies()
-
-    def logout(self):
-        self.clear_cookies()
-        self.profile.clearHttpCache()
-        self.browser.setUrl(QUrl("about:blank"))
-        self.browser.load(QUrl("https://accounts.google.com/signin"))
-        self.logged_in = False
-
-    def check_cookie_expiry(self):
-        current_time = time.time()
-        for cookie_name, expiry in list(self.cookie_expirations.items()):
-            if expiry < current_time:
-                self.load_cookies()
-                break
-        QTimer.singleShot(60000, self.check_cookie_expiry)
-
-    def emit_logged_in_signal(self):
-        if self.logged_in:
-            self.logged_in_signal.emit()
-            self.close()
-
-    def close_window(self):
-        if self.logged_in:
-            self.close()
+    def get_config(self) -> BrowserConfig:
+        browser = self.browser_combo.currentData()
+        profile = self.profile_input.text().strip() or None
+        container = self.container_input.text().strip() or None
+        keyring = self.keyring_input.text().strip() or None
+        if keyring:
+            keyring = keyring.lower()
+        return BrowserConfig(
+            browser=browser,
+            profile=profile,
+            keyring=keyring,
+            container=container,
+        )
