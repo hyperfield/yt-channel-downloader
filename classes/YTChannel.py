@@ -16,6 +16,8 @@ from pytube import Playlist
 from pytube.exceptions import PytubeError
 from PyQt6.QtCore import QObject, pyqtSignal as Signal
 
+from classes.logger import get_logger
+
 
 class YTChannel(QObject):
     showError = Signal(str)
@@ -26,6 +28,7 @@ class YTChannel(QObject):
         self.channelId = ""
         self.base_video_url = 'https://www.youtube.com/watch?v='
         self.video_titles_links = []
+        self.logger = get_logger("YTChannel")
 
     def _get_auth_params(self):
         manager = getattr(self.main_window, "youtube_auth_manager", None)
@@ -69,13 +72,13 @@ class YTChannel(QObject):
             self.channelId = html[channelId_first_index: channelId_last_index]
             return self.channelId
         except error.HTTPError as e:
-            print(e.__dict__)
+            self.logger.exception("HTTP error while resolving channel ID: %s", e)
             raise e
         except error.URLError as e:
-            print(e.__dict__)
+            self.logger.exception("URL error while resolving channel ID: %s", e)
             raise error.URLError("Invalid URL")
         except ValueError as e:
-            print(e.__dict__)
+            self.logger.exception("Value error while resolving channel ID: %s", e)
             raise ValueError
 
     def retrieve_video_metadata(self, video_url):
@@ -99,7 +102,7 @@ class YTChannel(QObject):
             vid_title = video_info.get('title', 'Unknown Title')
             return [vid_title, video_url]
         except yt_dlp.utils.DownloadError as e:
-            print(f"Error fetching video metadata: {e}")
+            self.logger.exception("Error fetching video metadata for %s: %s", video_url, e)
             self.showError.emit(f"Failed to fetch video metadata: {e}")
             return None
 
@@ -112,6 +115,7 @@ class YTChannel(QObject):
                 self.video_titles_links.append([vid_title, video_url])
             return self.video_titles_links
         except TimeoutError:
+            self.logger.error("Timeout while fetching channel videos for %s", channel_id)
             self.showError.emit("Failed to fetch channel videos: Timeout reached")
 
     def fetch_videos_from_playlist(self, playlist_url):
@@ -128,7 +132,7 @@ class YTChannel(QObject):
                 return video_titles_links
 
             except (PytubeError, Exception) as e:
-                print(f"Error fetching playlist details: {e}")
+                self.logger.exception("Error fetching playlist details for %s: %s", playlist_url, e)
                 self.showError.emit(f"Failed to fetch playlist details: {e}")
                 return []
 

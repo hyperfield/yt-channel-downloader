@@ -34,6 +34,10 @@ from classes.YTChannel import YTChannel
 from classes.videoitem import VideoItem
 from classes.settings import SettingsDialog
 from classes.youtube_auth import YoutubeAuthManager
+from classes.logger import get_logger
+
+
+logger = get_logger("MainWindow")
 
 
 class MainWindow(QMainWindow):
@@ -72,6 +76,7 @@ class MainWindow(QMainWindow):
         self.window_resize_needed = True
         self.youtube_auth_manager = None
         self.yt_chan_vids_titles_links = []
+        logger.info("Main window initialised")
 
         self.init_styles()
 
@@ -129,6 +134,7 @@ class MainWindow(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.model = QtGui.QStandardItemModel()
+        logger.debug("Setting up main window UI components")
         self.cancelDownloadsButton = QPushButton("Cancel downloads", self)
         self.cancelDownloadsButton.setObjectName("cancelDownloadsButton")
         self.cancelDownloadsButton.setMinimumSize(QtCore.QSize(120, 32))
@@ -148,6 +154,7 @@ class MainWindow(QMainWindow):
 
     def open_donate_url(self):
         """Opens the donation URL in the default web browser."""
+        logger.info("Opening donation page in browser")
         QDesktopServices.openUrl(QUrl("https://liberapay.com/hyperfield/donate"))
 
     def setup_button(self, button, callback):
@@ -203,6 +210,7 @@ class MainWindow(QMainWindow):
         """Handles download error notifications from DownloadThread."""
         index = int(data["index"])
         error_type = data.get("error", "Unexpected error")
+        logger.error("Download thread %s reported error: %s", index, error_type)
 
         if error_type == "Download error":
             self.show_download_error(index)
@@ -213,14 +221,17 @@ class MainWindow(QMainWindow):
 
     def show_download_error(self, index):
         """Displays a dialog for download-specific errors."""
+        logger.error("Download error dialog shown for index %s", index)
         QMessageBox.critical(self, "Download Error", f"An error occurred while downloading item {index}. Please check the URL and try again.")
 
     def show_network_error(self, index):
         """Displays a dialog for network-related errors."""
+        logger.error("Network error dialog shown for index %s", index)
         QMessageBox.warning(self, "Network Error", f"Network issue encountered while downloading item {index}. Check your internet connection and try again.")
 
     def show_unexpected_error(self, index):
         """Displays a dialog for unexpected errors."""
+        logger.error("Unexpected error dialog shown for index %s", index)
         QMessageBox.warning(self, "Unexpected Error", f"An unexpected error occurred while downloading item {index}. Please try again later.")
 
     def show_download_complete(self, index):
@@ -239,7 +250,9 @@ class MainWindow(QMainWindow):
     def cancel_active_downloads(self):
         """Request cancellation for all active download threads."""
         if not self.active_download_threads:
+            logger.info("Cancel requested with no active downloads")
             return
+        logger.info("Cancelling %d active download(s)", len(self.active_download_threads))
         for index, thread in list(self.active_download_threads.items()):
             if thread.isRunning():
                 thread.cancel()
@@ -265,6 +278,7 @@ class MainWindow(QMainWindow):
             selection_item.setCheckState(Qt.CheckState.Unchecked)
         self.cleanup_download_thread(index)
         self.ui.treeView.viewport().update()
+        logger.info("Download completed for row %s", index)
 
     def initialize_settings(self):
         """Initializes user settings from the settings manager."""
@@ -289,6 +303,7 @@ class MainWindow(QMainWindow):
     def initialize_youtube_login(self):
         """Hook up menu action and restore previously saved browser config."""
         self.youtube_auth_manager = YoutubeAuthManager(self.settings_manager, self)
+        logger.info("Initialising YouTube authentication manager")
         self.ui.actionYoutube_login.triggered.connect(self.handle_youtube_login)
         self.youtube_auth_manager.login_state_changed.connect(
             self.update_youtube_login_menu)
@@ -299,10 +314,12 @@ class MainWindow(QMainWindow):
     def handle_youtube_login(self):
         """Configure or clear yt-dlp's cookies-from-browser authentication."""
         if not self.youtube_auth_manager.is_configured:
+            logger.info("Starting YouTube login configuration flow")
             user_settings = self.settings_manager.settings
             if not user_settings.get('dont_show_login_prompt'):
                 login_prompt_dialog = LoginPromptDialog(self)
                 if login_prompt_dialog.exec() != QDialog.DialogCode.Accepted:
+                    logger.debug("YouTube login prompt dismissed by user")
                     return
 
             dialog = YoutubeCookiesDialog(
@@ -312,7 +329,9 @@ class MainWindow(QMainWindow):
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 config = dialog.get_config()
                 self.youtube_auth_manager.configure(config)
+                logger.info("Stored cookies-from-browser settings for '%s'", config.browser)
         else:
+            logger.info("User requested clearing stored YouTube login configuration")
             confirmation = QMessageBox.question(
                 self,
                 "Clear YouTube login",
@@ -322,6 +341,7 @@ class MainWindow(QMainWindow):
             )
             if confirmation == QMessageBox.StandardButton.Yes:
                 self.youtube_auth_manager.clear()
+                logger.info("YouTube login configuration cleared")
                 QMessageBox.information(
                     self,
                     "YouTube login",
@@ -331,6 +351,7 @@ class MainWindow(QMainWindow):
     def on_youtube_login_completed(self, success, message):
         """Show feedback after attempting to configure browser cookies."""
         if success:
+            logger.info("YouTube login cookies ready for reuse")
             QMessageBox.information(
                 self,
                 "YouTube login",
@@ -340,6 +361,7 @@ class MainWindow(QMainWindow):
             details = message or (
                 "yt-dlp could not read login cookies from the selected browser profile."
             )
+            logger.warning("Failed to configure YouTube login: %s", details)
             QMessageBox.warning(
                 self,
                 "YouTube login failed",
@@ -611,23 +633,28 @@ class MainWindow(QMainWindow):
         self.window_resize_needed = True
         self.ui.getVidListButton.setEnabled(False)
         channel_url = self.ui.chanUrlEdit.text()
+        logger.info("Fetching video list for URL: %s", channel_url)
         yt_channel = self._prepare_yt_channel()
 
         if self._is_playlist_or_video_with_playlist(yt_channel, channel_url):
+            logger.debug("Detected playlist URL")
             self._start_fetch_dialog("playlist", yt_channel, channel_url,
                                      self.handle_video_list)
 
         elif self._is_video(yt_channel, channel_url):
             fetch_type = "short" if yt_channel.is_short_video_url(
                 channel_url) else None
+            logger.debug("Detected single video URL (short=%s)", bool(fetch_type))
             self._start_fetch_dialog(fetch_type, yt_channel, channel_url,
                                      self.handle_single_video)
         else:
+            logger.debug("Attempting to fetch channel data")
             self._handle_channel_fetch(yt_channel, channel_url)
 
     def _prepare_yt_channel(self):
         """Prepares and returns a YTChannel instance."""
         yt_channel = YTChannel(main_window=self)
+        logger.debug("YTChannel helper prepared")
         yt_channel.showError.connect(self.display_error_dialog)
         return yt_channel
 
@@ -645,9 +672,11 @@ class MainWindow(QMainWindow):
         """Handles the logic for fetching a channel."""
         try:
             channel_id = yt_channel.get_channel_id(channel_url)
+            logger.debug("Resolved channel ID: %s", channel_id)
             self._start_fetch_dialog(channel_id, yt_channel,
                                      finish_handler=self.handle_video_list)
         except (ValueError, error.URLError):
+            logger.warning("Failed to resolve channel from URL: %s", channel_url)
             self.display_error_dialog("Please check your URL")
 
     @Slot(list)
@@ -661,6 +690,7 @@ class MainWindow(QMainWindow):
                             and link information.
         """
         self.yt_chan_vids_titles_links = video_list
+        logger.info("Loaded %d videos into list", len(video_list))
         self.populate_window_list()
 
     @Slot(list)
@@ -672,6 +702,7 @@ class MainWindow(QMainWindow):
             video_list (list): A list containing the details of a single video.
         """
         self.yt_chan_vids_titles_links = video_list
+        logger.info("Loaded single video into list")
         self.populate_window_list()
 
     @Slot()

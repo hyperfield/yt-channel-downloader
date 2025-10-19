@@ -12,10 +12,14 @@ import unicodedata
 from classes.utils import get_video_format_details
 from classes.settings_manager import SettingsManager
 from config.constants import settings_map
+from classes.logger import get_logger
 
 import yt_dlp
 
 from PyQt6.QtCore import QThread, pyqtSignal as Signal
+
+
+logger = get_logger("DownloadThread")
 
 
 class DownloadThread(QThread):
@@ -52,6 +56,7 @@ class DownloadThread(QThread):
         self.settings_manager = SettingsManager()
         self.user_settings = self.settings_manager.settings
         self._cancel_requested = False
+        logger.debug("DownloadThread initialised for index %s, URL: %s", index, url)
 
     def cancel(self):
         """Signal the running download to halt."""
@@ -65,6 +70,7 @@ class DownloadThread(QThread):
         """
         self.main_window.download_semaphore.acquire()
         try:
+            logger.info("Download started for index %s", self.index)
             sanitized_title = self.sanitize_filename(self.title)
             download_directory = self.user_settings.get('download_directory')
             write_thumbnail = self.user_settings.get('download_thumbnail')
@@ -137,32 +143,35 @@ class DownloadThread(QThread):
 
             # Emit signal on successful download
             self.downloadCompleteSignal.emit(self.index)
+            logger.info("Download finished successfully for index %s", self.index)
 
         except yt_dlp.utils.DownloadCancelled:
             self.downloadProgressSignal.emit({"index": str(self.index),
                                               "error": "Cancelled"})
+            logger.info("Download cancelled for index %s", self.index)
 
         except yt_dlp.utils.DownloadError as e:
             # Handle yt-dlp-specific download errors
-            print(f"Download error for {self.url}: {e}")
+            logger.exception("Download error for %s: %s", self.url, e)
             self.downloadProgressSignal.emit({"index": str(self.index),
                                               "error": "Download error"})
 
         except (ConnectionError, TimeoutError) as e:
             # Handle network-related errors
-            print(f"Network error for {self.url}: {e}")
+            logger.exception("Network error for %s: %s", self.url, e)
             self.downloadProgressSignal.emit({"index": str(self.index),
                                               "error": "Network error"})
 
         except Exception as e:
             # Handle any other unforeseen errors
-            print(f"An unexpected error occurred for {self.url}: {e}")
+            logger.exception("Unexpected error for %s: %s", self.url, e)
             self.downloadProgressSignal.emit({"index": str(self.index),
                                               "error": "Unexpected error"})
 
         finally:
             # Release semaphore regardless of outcome
             self.main_window.download_semaphore.release()
+            logger.debug("Released download semaphore for index %s", self.index)
 
     def dl_hook(self, d):
         """
