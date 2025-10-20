@@ -255,6 +255,7 @@ class MainWindow(QMainWindow):
             logger.info("Cancel requested with no active downloads")
             return
         logger.info("Cancelling %d active download(s)", len(self.active_download_threads))
+        self.cancelDownloadsButton.setEnabled(False)
         for index, thread in list(self.active_download_threads.items()):
             if thread.isRunning():
                 thread.cancel()
