@@ -9,7 +9,7 @@ import os
 import re
 import unicodedata
 
-from classes.utils import get_video_format_details
+from classes.utils import get_format_candidates, QuietYDLLogger
 from classes.settings_manager import SettingsManager
 from config.constants import settings_map
 from classes.logger import get_logger
@@ -79,6 +79,9 @@ class DownloadThread(QThread):
                 'outtmpl': os.path.join(download_directory, f'{sanitized_title}.%(ext)s'),
                 'progress_hooks': [self.dl_hook],
                 'writethumbnail': write_thumbnail,
+                'quiet': True,
+                'no_warnings': True,
+                'logger': QuietYDLLogger(),
             }
 
             auth_opts = {}
@@ -87,7 +90,7 @@ class DownloadThread(QThread):
                 auth_opts = self.main_window.youtube_auth_manager.get_yt_dlp_options()
                 ydl_opts.update(auth_opts)
 
-            # Set video format and quality preferences
+            # Set video/audio format preferences
             video_format = settings_map['preferred_video_format'].get(
                 self.user_settings.get('preferred_video_format', 'Any'), 'Any')
             video_quality = settings_map['preferred_video_quality'].get(
@@ -98,48 +101,7 @@ class DownloadThread(QThread):
             if video_quality in ('Any', None):
                 video_quality = 'bestvideo'
 
-            selected_format = get_video_format_details(
-                self.url,
-                video_quality,
-                video_format,
-                auth_opts,
-            )
-
-            selected_ext = None
-            if selected_format:
-                format_id = selected_format.get('format_id')
-                selected_ext = selected_format.get('ext')
-                if format_id:
-                    ydl_opts['format'] = f"{format_id}+bestaudio"
-            else:
-                logger.warning(
-                    "No direct format found for preferences (index=%s, desired=%s, quality=%s)."
-                    " Falling back to yt-dlp defaults.",
-                    self.index,
-                    video_format or 'Any',
-                    video_quality or 'best',
-                )
-
-            if 'format' not in ydl_opts:
-                if video_quality:
-                    ydl_opts['format'] = video_quality
-                else:
-                    ydl_opts['format'] = 'bestvideo+bestaudio'
-
-            desired_container = video_format
-            if desired_container:
-                if selected_ext != desired_container:
-                    ydl_opts['merge_output_format'] = desired_container
-                    logger.info(
-                        "Will remux download %s to %s (available=%s)",
-                        self.index,
-                        desired_container,
-                        selected_ext,
-                    )
-
-            # Set audio-only download options if enabled
             if self.user_settings.get('audio_only'):
-                ydl_opts.pop('merge_output_format', None)
                 audio_format = settings_map['preferred_audio_format'].get(
                     self.user_settings.get('preferred_audio_format', 'Any'),
                     'Any')
@@ -154,22 +116,73 @@ class DownloadThread(QThread):
                     }]
                 else:
                     audio_filter = ''
-                ydl_opts['format'] = \
-                    f"{audio_quality}{audio_filter}/bestaudio/best"
+                ydl_opts['format'] = f"{audio_quality}{audio_filter}/bestaudio/best"
+            else:
+                format_candidates = get_format_candidates(
+                    self.url,
+                    video_quality,
+                    video_format,
+                    auth_opts,
+                )
+                if not format_candidates:
+                    logger.warning(
+                        "No exact format candidates for index %s (requested=%s/%s). Will attempt generic fallback.",
+                        self.index,
+                        video_quality,
+                        video_format or 'Any',
+                    )
+                ydl_opts['format_candidates'] = format_candidates
 
-                # Set proxy if needed
-                proxy_type = self.user_settings.get('proxy_server_type', None)
-                proxy_addr = self.user_settings.get('proxy_server_addr', None)
-                proxy_port = self.user_settings.get('proxy_server_port', None)
+            # Set proxy if needed
+            proxy_type = self.user_settings.get('proxy_server_type', None)
+            proxy_addr = self.user_settings.get('proxy_server_addr', None)
+            proxy_port = self.user_settings.get('proxy_server_port', None)
 
-                if proxy_type and proxy_addr and proxy_port:
-                    ydl_opts['proxy'] = f"{proxy_type}://{proxy_addr}:{proxy_port}"
+            if proxy_type and proxy_addr and proxy_port:
+                ydl_opts['proxy'] = f"{proxy_type}://{proxy_addr}:{proxy_port}"
 
-            # Attempt to download the video with yt-dlp
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                if self._cancel_requested:
-                    raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
-                ydl.download([self.url])
+            if self.user_settings.get('audio_only'):
+                try:
+                    self._execute_download(ydl_opts)
+                except yt_dlp.utils.DownloadError as err:
+                    raise
+            else:
+                format_candidates = get_format_candidates(
+                    self.url,
+                    video_quality,
+                    video_format,
+                    auth_opts,
+                )
+                height_value = None
+                if video_quality and video_quality != 'bestvideo':
+                    digits = ''.join(filter(str.isdigit, video_quality))
+                    if digits:
+                        try:
+                            height_value = int(digits)
+                        except ValueError:
+                            height_value = None
+                format_string = self._build_format_selector(format_candidates, height_value, video_format)
+                primary_opts = dict(ydl_opts)
+                primary_opts['format'] = format_string
+                try:
+                    self._execute_download(primary_opts)
+                except yt_dlp.utils.DownloadError as err:
+                    err_str = str(err)
+                    if any(token in err_str for token in (
+                        "Requested format is not available",
+                        "HTTP Error 403",
+                    )):
+                        fallback_opts = dict(ydl_opts)
+                        fallback_opts.pop('postprocessors', None)
+                        fallback_opts['format'] = 'best'
+                        logger.warning(
+                            "Preferred format unavailable for index %s (%s); falling back to generic best.",
+                            self.index,
+                            err_str,
+                        )
+                        self._execute_download(fallback_opts)
+                    else:
+                        raise
 
             # Emit signal on successful download
             self.downloadCompleteSignal.emit(self.index)
@@ -203,6 +216,32 @@ class DownloadThread(QThread):
             self.main_window.download_semaphore.release()
             logger.debug("Released download semaphore for index %s", self.index)
 
+    def _build_format_selector(self, candidates, height, file_ext):
+        selectors = []
+        for fmt in candidates:
+            selectors.append(f"{fmt}+bestaudio")
+        if height:
+            selectors.append(f"bestvideo[height<={height}]+bestaudio")
+            selectors.append(f"best[height<={height}]")
+        if file_ext and file_ext != 'Any':
+            selectors.append(f"bestvideo[ext={file_ext}]+bestaudio")
+            selectors.append(f"best[ext={file_ext}]")
+        selectors.append("bestvideo+bestaudio")
+        selectors.append("best")
+        seen = set()
+        ordered = []
+        for item in selectors:
+            if item not in seen:
+                seen.add(item)
+                ordered.append(item)
+        return '/'.join(ordered)
+
+    def _execute_download(self, options):
+        with yt_dlp.YoutubeDL(options) as ydl:
+            if self._cancel_requested:
+                raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
+            ydl.download([self.url])
+
     def dl_hook(self, d):
         """
         Callback function used by yt-dlp to handle download progress updates.
@@ -219,8 +258,8 @@ class DownloadThread(QThread):
             progress_str = ansi_escape.sub('', progress_str)
             progress = float(progress_str.strip('%'))
             self.downloadProgressSignal.emit(
-                {"index": str(self.index), "progress": f"{progress} %"}
-                )
+                {"index": str(self.index), "progress": progress}
+            )
 
     @staticmethod
     def sanitize_filename(filename):
