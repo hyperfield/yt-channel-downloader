@@ -1,6 +1,6 @@
 # YT Channel Downloader
 
-[![Version](https://badgen.net/badge/version/0.4.12/green)](#) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/d941f316b7ba45a4aa9114f029ca4a0b)](https://app.codacy.com/gh/hyperfield/yt-channel-downloader/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LiberaPay/orange)](https://liberapay.com/hyperfield/donate) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dt/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dw/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
+[![Version](https://badgen.net/badge/version/0.5.0/green)](#) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/d941f316b7ba45a4aa9114f029ca4a0b)](https://app.codacy.com/gh/hyperfield/yt-channel-downloader/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LiberaPay/orange)](https://liberapay.com/hyperfield/donate) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dt/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dw/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
 
 [![Download YT Channel Downloader](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
 
@@ -31,7 +31,6 @@
 - **More sites!** You can now fetch single tracks or videos from other `yt-dlp`-supported platforms — including Vimeo (requires login), Twitch, SoundCloud, Facebook, Instagram, Twitter/X, TikTok, Udemy*, and Reddit — directly from the main URL field. (Bulk channel / playlist fetches remain YouTube-only. *Udemy still requires the appropriate credentials/cookies for premium content.)
 - **YouTube Login and Logout**: Configure the browser profile whose cookies yt-dlp reuses for private, premium, or age-restricted downloads - no heavy-weight embedded browser anymore. Use `File -> YouTube login` to pick the browser and profile, and clear the configuration from the same menu when you no longer need it.
 - **Download cancellation**: Downloads in progress can now be cancelled with the "Cancel downloads" button.
-- **Format selection**: Improved the logic.
 
 ### What's New in version 0.4.12
 
