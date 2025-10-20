@@ -42,6 +42,7 @@ class GetListThread(QThread):
     """
     finished = Signal(list)
     cancelled = Signal()
+    error = Signal(str)
 
     def __init__(self, channel_id, yt_channel, channel_url=None, parent=None):
         """
@@ -83,16 +84,18 @@ class GetListThread(QThread):
                     self.channel_id)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Failed to fetch video list: %s", exc)
-            video_list = []
+            self.error.emit(str(exc))
+            return
 
         # Ensure that an empty list doesn't crash the app
         if video_list is None:
             video_list = []
 
-        if not self._is_cancelled:
-            self.finished.emit(video_list)
-        else:
+        if self._is_cancelled:
             self.cancelled.emit()
+            return
+
+        self.finished.emit(video_list)
 
     def cancel(self):
         self._is_cancelled = True

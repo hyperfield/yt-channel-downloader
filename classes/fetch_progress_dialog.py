@@ -38,6 +38,7 @@ class FetchProgressDialog(QDialog):
     """
     finished = Signal(list)
     cancelled = Signal()
+    error = Signal(str)
 
     def __init__(self, channel_id, yt_channel, channel_url=None, parent=None):
         """
@@ -84,6 +85,7 @@ class FetchProgressDialog(QDialog):
         self.thread = GetListThread(channel_id, yt_channel, channel_url)
         self.thread.finished.connect(self.on_fetch_complete)
         self.thread.cancelled.connect(self.on_fetch_cancel)
+        self.thread.error.connect(self.on_fetch_error)
 
         # Timer setup
         self.elapsed_seconds = 0
@@ -116,6 +118,12 @@ class FetchProgressDialog(QDialog):
         self.timer.stop()
         self.finished.emit(video_list)
         self.accept()
+
+    def on_fetch_error(self, message):
+        """Forward worker errors and close the dialog."""
+        self.timer.stop()
+        self.error.emit(message)
+        self.reject()
 
     def apply_style(self):
         """

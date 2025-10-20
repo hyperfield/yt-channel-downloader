@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QLabel,
     QLineEdit,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
@@ -46,12 +47,12 @@ class CustomDialog(QDialog):
             icon_label.setPixmap(icon.pixmap(32, 32))
             self.layout.addWidget(icon_label)
 
-        dlg_message = QLabel(message)
-        dlg_message.setTextFormat(Qt.TextFormat.RichText)
-        # Allow link clicking
-        dlg_message.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-        # Open links in default web browser
+        dlg_message = QTextBrowser()
         dlg_message.setOpenExternalLinks(True)
+        dlg_message.setText(message)
+        dlg_message.setMinimumWidth(380)
+        dlg_message.setMinimumHeight(120)
+        dlg_message.setSizeAdjustPolicy(QTextBrowser.SizeAdjustPolicy.AdjustToContents)
 
         self.layout.addWidget(dlg_message)
         self.layout.addWidget(self.buttonBox)
