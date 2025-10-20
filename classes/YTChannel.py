@@ -108,7 +108,7 @@ class YTChannel(QObject):
         except yt_dlp.utils.DownloadError as e:
             self.logger.exception("Error fetching video metadata for %s: %s", video_url, e)
             self.showError.emit(f"Failed to fetch video metadata: {e}")
-            return None
+            raise
 
     def fetch_all_videos_in_channel(self, channel_id):
         try:
@@ -143,10 +143,10 @@ class YTChannel(QObject):
             except (PytubeError, Exception) as e:
                 self.logger.exception("Error fetching playlist details for %s: %s", playlist_url, e)
                 self.showError.emit(f"Failed to fetch playlist details: {e}")
-                return []
+                raise
 
         self.showError.emit("The URL is incorrect or unreachable.")
-        return []
+        raise ValueError("Invalid playlist URL")
 
     def get_single_video(self, video_url):
         auth_params = self._get_auth_params()
@@ -166,4 +166,4 @@ class YTChannel(QObject):
             return self.video_titles_links
 
         self.showError.emit("The URL is incorrect or unreachable.")
-        return None
+        raise ValueError("Invalid video URL")

@@ -7,6 +7,7 @@
 from urllib import error
 import os
 import math
+import re
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, pyqtSlot as Slot
@@ -78,6 +79,8 @@ class MainWindow(QMainWindow):
         self.youtube_auth_manager = None
         self.yt_chan_vids_titles_links = []
         self.progress_widgets = {}
+        self.fetch_in_progress = False
+        self.fetch_error_message = None
         logger.info("Main window initialised")
 
         self.init_styles()
@@ -665,6 +668,8 @@ class MainWindow(QMainWindow):
                             finish_handler=None):
         """Helper method to start FetchProgressDialog and connect finished
         signal."""
+        self.fetch_in_progress = True
+        self.fetch_error_message = None
         fetch_dialog = FetchProgressDialog(channel_id, yt_channel, channel_url,
                                            parent=self)
 
@@ -673,6 +678,9 @@ class MainWindow(QMainWindow):
 
         fetch_dialog.finished.connect(self.enable_get_vid_list_button)
         fetch_dialog.cancelled.connect(self.enable_get_vid_list_button)
+        fetch_dialog.error.connect(self._handle_fetch_error)
+        fetch_dialog.finished.connect(lambda _: self._cleanup_fetch_state())
+        fetch_dialog.cancelled.connect(self._cleanup_fetch_state)
 
         fetch_dialog.exec()
 
@@ -681,6 +689,21 @@ class MainWindow(QMainWindow):
         if self.youtube_auth_manager and self.youtube_auth_manager.is_configured:
             return self.youtube_auth_manager.get_yt_dlp_options()
         return {}
+
+    @Slot(str)
+    def _handle_fetch_error(self, message):
+        """Display a single fetch error dialog and re-enable the UI."""
+        logger.error("Fetch error encountered: %s", message)
+        raw_message = self.fetch_error_message or message
+        display_message = re.sub(r'\x1B\[[0-9;]*[A-Za-z]', '', raw_message)
+        dlg = CustomDialog("Fetch error", display_message, parent=self)
+        dlg.exec()
+        self.enable_get_vid_list_button()
+        self._cleanup_fetch_state()
+
+    def _cleanup_fetch_state(self):
+        self.fetch_in_progress = False
+        self.fetch_error_message = None
 
     @Slot()
     def show_vid_list(self):
@@ -725,8 +748,16 @@ class MainWindow(QMainWindow):
         """Prepares and returns a YTChannel instance."""
         yt_channel = YTChannel(main_window=self)
         logger.debug("YTChannel helper prepared")
-        yt_channel.showError.connect(self.display_error_dialog)
+        yt_channel.showError.connect(self._handle_channel_error)
         return yt_channel
+
+    @Slot(str)
+    def _handle_channel_error(self, message):
+        if self.fetch_in_progress:
+            if not self.fetch_error_message:
+                self.fetch_error_message = message
+        else:
+            self.display_error_dialog(message)
 
     def _is_playlist_or_video_with_playlist(self, yt_channel, url):
         """Checks if the URL is a playlist or a video with a playlist."""
