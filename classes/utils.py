@@ -6,6 +6,22 @@ from classes.logger import get_logger
 logger = get_logger("utils")
 
 
+class QuietYDLLogger:
+    """Minimal yt-dlp-compatible logger that suppresses noisy output."""
+
+    def debug(self, msg):
+        logger.debug(msg)
+
+    def info(self, msg):
+        logger.debug(msg)
+
+    def warning(self, msg):
+        logger.debug(msg)
+
+    def error(self, msg):
+        logger.error(msg)
+
+
 def find_best_format_by_resolution(formats, target_resolution, target_ext="Any"):
     """
     Finds the best video format from a list of formats based on the target
@@ -85,47 +101,64 @@ def find_closest_resolution_with_fallback(formats, target_resolution):
     return None
 
 
-def get_video_format_details(url, target_resolution, target_ext, auth_opts=None):
+def get_format_candidates(url, target_resolution, target_ext, auth_opts=None):
+    """Return format_ids ordered by closeness to the requested resolution."""
     ydl_opts = {
         'quiet': True,
+        'no_warnings': True,
         'dump_single_json': True,
         'noplaylist': True,
+        'logger': QuietYDLLogger(),
     }
     if auth_opts:
         ydl_opts.update(auth_opts)
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        try:
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-            formats = info.get('formats', [])
+    except yt_dlp.utils.DownloadError as e:
+        logger.exception("Error extracting info for %s: %s", url, e)
+        return []
 
-            selected_format = None
-            if target_ext:
-                closest_format_id = find_best_format_by_resolution(
-                    formats, target_resolution, target_ext)
-                if closest_format_id:
-                    selected_format = next(
-                        (fmt for fmt in formats if fmt.get('format_id') == closest_format_id),
-                        None
-                    )
-                if not selected_format:
-                    logger.warning(
-                        "Preferred container %s not available directly for %s; falling back to best match.",
-                        target_ext,
-                        url,
-                    )
+    formats = info.get('formats', [])
+    ext_key = target_ext if target_ext and target_ext != 'Any' else 'Any'
+    filtered = filter_formats(formats, ext_key)
+    if not filtered and ext_key != 'Any':
+        filtered = filter_formats(formats, 'Any')
 
-            if not selected_format:
-                closest_format_id = find_best_format_by_resolution(
-                    formats, target_resolution)
-                if closest_format_id:
-                    selected_format = next(
-                        (fmt for fmt in formats if fmt.get('format_id') == closest_format_id),
-                        None
-                    )
+    filtered = [f for f in filtered if f.get('format_id') and f.get('height') and f.get('url')]
+    if not filtered:
+        return []
 
-            return selected_format
+    if target_resolution == 'bestvideo':
+        sorted_formats = sorted(filtered, key=lambda f: (-(f.get('height') or 0), -(f.get('tbr') or 0)))
+    else:
+        try:
+            target_height = int(''.join(filter(str.isdigit, target_resolution)))
+        except ValueError:
+            target_height = None
 
-        except yt_dlp.utils.DownloadError as e:
-            logger.exception("Error extracting info for %s: %s", url, e)
-            return None
+        if target_height is None:
+            sorted_formats = filtered
+        else:
+            def sort_key(fmt):
+                height = fmt.get('height') or 0
+                delta = height - target_height
+                return (abs(delta), 0 if delta <= 0 else 1, -height if delta <= 0 else height)
+
+            sorted_formats = sorted(filtered, key=sort_key)
+
+    seen = set()
+    candidates = []
+    for fmt in sorted_formats:
+        fmt_id = fmt.get('format_id')
+        if fmt_id and fmt_id not in seen:
+            seen.add(fmt_id)
+            candidates.append(fmt_id)
+
+    return candidates
+
+
+def get_video_format_details(url, target_resolution, target_ext, auth_opts=None):
+    candidates = get_format_candidates(url, target_resolution, target_ext, auth_opts)
+    return candidates[0] if candidates else None

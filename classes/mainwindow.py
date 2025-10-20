@@ -13,7 +13,7 @@ from PyQt6.QtCore import Qt, pyqtSlot as Slot
 from PyQt6 import QtGui, QtCore
 from PyQt6.QtWidgets import QHeaderView
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QDialog, QCheckBox,
-                             QMessageBox, QPushButton, QHBoxLayout)
+                             QMessageBox, QPushButton, QHBoxLayout, QProgressBar)
 from PyQt6.QtCore import QSemaphore
 from PyQt6.QtGui import QFont
 from PyQt6.QtGui import QFontMetrics
@@ -77,6 +77,7 @@ class MainWindow(QMainWindow):
         self.window_resize_needed = True
         self.youtube_auth_manager = None
         self.yt_chan_vids_titles_links = []
+        self.progress_widgets = {}
         logger.info("Main window initialised")
 
         self.init_styles()
@@ -257,8 +258,10 @@ class MainWindow(QMainWindow):
         for index, thread in list(self.active_download_threads.items()):
             if thread.isRunning():
                 thread.cancel()
-                progress_item = QtGui.QStandardItem("Cancelling...")
-                self.model.setItem(index, 3, progress_item)
+                progress_bar = self.progress_widgets.get(index)
+                if progress_bar:
+                    progress_bar.setRange(0, 0)
+                    progress_bar.setFormat("Cancelling...")
         self.ui.treeView.viewport().update()
         self.update_cancel_button_state()
 
@@ -267,13 +270,21 @@ class MainWindow(QMainWindow):
         thread = self.active_download_threads.pop(index, None)
         if thread and thread in self.dl_threads:
             self.dl_threads.remove(thread)
+        self.progress_widgets.pop(index, None)
         self.update_cancel_button_state()
         self.update_download_button_state()
 
     def on_download_complete(self, index):
         """Update UI after a download thread reports completion."""
-        progress_item = QtGui.QStandardItem("Completed")
-        self.model.setItem(index, 3, progress_item)
+        progress_bar = self.progress_widgets.get(index)
+        if progress_bar:
+            progress_bar.setRange(0, 100)
+            progress_bar.setValue(100)
+            progress_bar.setFormat("Completed")
+        progress_item = self.model.item(index, ColumnIndexes.PROGRESS)
+        if progress_item:
+            progress_item.setData("Completed", Qt.ItemDataRole.DisplayRole)
+            progress_item.setData(100.0, Qt.ItemDataRole.UserRole)
         selection_item = self.model.item(index, 0)
         if selection_item is not None:
             selection_item.setCheckState(Qt.CheckState.Unchecked)
@@ -455,6 +466,7 @@ class MainWindow(QMainWindow):
         self.model.setHorizontalHeaderLabels(
             ['Download?', 'Title', 'Link', 'Progress'])
         self.ui.treeView.setModel(self.model)
+        self.progress_widgets.clear()
 
         # Set proportional widths
         header = self.ui.treeView.header()
@@ -575,6 +587,12 @@ class MainWindow(QMainWindow):
         video_item = VideoItem(title, link, download_path)
         self.root_item.appendRow(video_item.get_qt_item())
         self.dl_path_correspondences[title] = download_path
+        row_index = self.model.rowCount() - 1
+        progress_index = self.model.index(row_index, ColumnIndexes.PROGRESS)
+        completed = DownloadThread.is_download_complete(download_path)
+        progress_bar = self._create_progress_bar(completed=completed)
+        self.ui.treeView.setIndexWidget(progress_index, progress_bar)
+        self.progress_widgets[row_index] = progress_bar
 
     def _get_video_filepath(self, title):
         """Generates the file path for a given video title based on user
@@ -611,6 +629,36 @@ class MainWindow(QMainWindow):
             background-color: gray;
         }
         """)
+
+    def _create_progress_bar(self, completed=False):
+        bar = QProgressBar(self.ui.treeView)
+        bar.setRange(0, 100)
+        bar.setMinimumHeight(16)
+        bar.setTextVisible(True)
+        bar.setStyleSheet(
+            """
+            QProgressBar {
+                border: 2px solid grey;
+                border-radius: 5px;
+                text-align: center;
+                background: #f0f0f0;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 1,
+                    stop: 0 #3a7bd5,
+                    stop: 1 #00d2ff
+                );
+            }
+            """
+        )
+        if completed:
+            bar.setValue(100)
+            bar.setFormat("Completed")
+        else:
+            bar.setValue(0)
+            bar.setFormat("%p%")
+        return bar
 
     def _start_fetch_dialog(self, channel_id, yt_channel, channel_url=None,
                             finish_handler=None):
@@ -759,8 +807,15 @@ class MainWindow(QMainWindow):
             )
             return
         for index in self.vid_dl_indexes:
-            progress_item = QtGui.QStandardItem()
-            self.model.setItem(index, 3, progress_item)
+            progress_bar = self.progress_widgets.get(index)
+            if progress_bar is None:
+                progress_bar = self._create_progress_bar()
+                progress_index = self.model.index(index, ColumnIndexes.PROGRESS)
+                self.ui.treeView.setIndexWidget(progress_index, progress_bar)
+                self.progress_widgets[index] = progress_bar
+            progress_bar.setRange(0, 100)
+            progress_bar.setValue(0)
+            progress_bar.setFormat("%p%")
             link = self.model.item(index, 2).text()
             title = self.model.item(index, 1).text()
             dl_thread = DownloadThread(link, index, title, self)
@@ -795,18 +850,33 @@ class MainWindow(QMainWindow):
                                 and its current progress percentage.
         """
         file_index = int(progress_data["index"])
-
+        progress_bar = self.progress_widgets.get(file_index)
         if "progress" in progress_data:
-            progress = progress_data["progress"]
-            progress_item = QtGui.QStandardItem(str(progress))
-            self.model.setItem(int(file_index), 3, progress_item)
+            progress = float(progress_data["progress"])
+            if progress_bar:
+                progress_bar.setRange(0, 100)
+                progress_bar.setValue(int(progress))
+                progress_bar.setFormat("%p%")
+            progress_item = self.model.item(file_index, ColumnIndexes.PROGRESS)
+            if progress_item:
+                progress_item.setData(progress, Qt.ItemDataRole.UserRole)
+                progress_item.setData(None, Qt.ItemDataRole.DisplayRole)
             self.ui.treeView.viewport().update()
         elif "error" in progress_data:
             error_message = progress_data["error"]
+            if progress_bar:
+                if error_message == "Cancelled":
+                    progress_bar.setRange(0, 0)
+                else:
+                    progress_bar.setRange(0, 100)
+                progress_bar.setValue(0)
+                progress_bar.setFormat(error_message)
+            progress_item = self.model.item(file_index, ColumnIndexes.PROGRESS)
+            if progress_item:
+                progress_item.setData(None, Qt.ItemDataRole.UserRole)
+                progress_item.setData(error_message, Qt.ItemDataRole.DisplayRole)
             if error_message != "Cancelled":
                 self.handle_download_error(progress_data)
-            progress_item = QtGui.QStandardItem(error_message)
-            self.model.setItem(file_index, 3, progress_item)
             self.cleanup_download_thread(file_index)
             self.ui.treeView.viewport().update()
 

@@ -50,8 +50,13 @@ class VideoItem:
                                          QtCore.Qt.CheckState.Unchecked)
         item_title = QtGui.QStandardItem(self.title)
         item_link = QtGui.QStandardItem(self.link)
-        item_progress = QtGui.QStandardItem("Complete" if
-                                            self.is_download_complete else "")
+        item_progress = QtGui.QStandardItem()
+        if self.is_download_complete:
+            item_progress.setData(100.0, QtCore.Qt.ItemDataRole.UserRole)
+            item_progress.setData("Completed", QtCore.Qt.ItemDataRole.DisplayRole)
+        else:
+            item_progress.setData(0.0, QtCore.Qt.ItemDataRole.UserRole)
+            item_progress.setData("", QtCore.Qt.ItemDataRole.DisplayRole)
         self.qt_item = [self.item_checkbox, item_title, item_link,
                         item_progress]
 
@@ -68,6 +73,9 @@ class VideoItem:
             subitem.setForeground(gray_brush)
         self.item_checkbox.setFlags(QtCore.Qt.ItemFlag.ItemIsSelectable |
                                     QtCore.Qt.ItemFlag.ItemIsUserTristate)
+        progress_item = self.qt_item[-1]
+        progress_item.setData(100.0, QtCore.Qt.ItemDataRole.UserRole)
+        progress_item.setData("Completed", QtCore.Qt.ItemDataRole.DisplayRole)
 
     def mark_as_complete(self):
         """Public method to deactivate UI items when the download is

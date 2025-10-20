@@ -8,6 +8,7 @@ import re
 from urllib import request, error
 
 from classes.validators import YouTubeURLValidator, extract_single_media, is_supported_media_url
+from classes.utils import QuietYDLLogger
 from config.constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID
 
 import scrapetube
@@ -82,19 +83,22 @@ class YTChannel(QObject):
             raise ValueError
 
     def retrieve_video_metadata(self, video_url):
+        auth_opts = self._get_auth_params()
         ydl_opts = {
             'quiet': True,
+            'no_warnings': True,
             'extract_flat': True,   # Only extract metadata
             'noplaylist': True,     # Ensure it's not extracting a playlist
             'skip_download': True,  # Skip the download step entirely
             'socket_timeout': 10,
             'extractor_args': {
                 'youtube': {
-                    'skip': ['signature']
+                    'skip': ['signature'],
                 }
-            }
+            },
+            'logger': QuietYDLLogger(),
         }
-        ydl_opts.update(self._get_auth_params())
+        ydl_opts.update(auth_opts)
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
