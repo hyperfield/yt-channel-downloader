@@ -798,6 +798,21 @@ class MainWindow(QMainWindow):
         for row in range(self.model.rowCount()):
             item = self.model.item(row, 0)
             if item.checkState() == Qt.CheckState.Checked:
+                # Skip already completed downloads
+                title = self.model.item(row, 1).text()
+                download_path = self.dl_path_correspondences.get(title)
+                if download_path and DownloadThread.is_download_complete(download_path):
+                    item.setCheckState(Qt.CheckState.Unchecked)
+                    progress_bar = self.progress_widgets.get(row)
+                    if progress_bar:
+                        progress_bar.setRange(0, 100)
+                        progress_bar.setValue(100)
+                        progress_bar.setFormat("Completed")
+                    progress_item = self.model.item(row, ColumnIndexes.PROGRESS)
+                    if progress_item:
+                        progress_item.setData(100.0, Qt.ItemDataRole.UserRole)
+                        progress_item.setData("Completed", Qt.ItemDataRole.DisplayRole)
+                    continue
                 self.vid_dl_indexes.append(row)
         if not self.vid_dl_indexes:
             QMessageBox.information(
@@ -864,19 +879,28 @@ class MainWindow(QMainWindow):
             self.ui.treeView.viewport().update()
         elif "error" in progress_data:
             error_message = progress_data["error"]
-            if progress_bar:
-                if error_message == "Cancelled":
-                    progress_bar.setRange(0, 0)
-                else:
-                    progress_bar.setRange(0, 100)
-                progress_bar.setValue(0)
-                progress_bar.setFormat(error_message)
+            progress_value = float(progress_data.get("progress", 0.0))
             progress_item = self.model.item(file_index, ColumnIndexes.PROGRESS)
-            if progress_item:
-                progress_item.setData(None, Qt.ItemDataRole.UserRole)
-                progress_item.setData(error_message, Qt.ItemDataRole.DisplayRole)
-            if error_message != "Cancelled":
+
+            if error_message == "Cancelled":
+                if progress_bar:
+                    progress_bar.setRange(0, 100)
+                    progress_bar.setValue(int(progress_value))
+                    progress_bar.setFormat(f"Part-downloaded – {progress_value:.1f}%")
+                if progress_item:
+                    progress_item.setData(progress_value, Qt.ItemDataRole.UserRole)
+                    progress_item.setData(f"Part-downloaded – {progress_value:.1f}%",
+                                          Qt.ItemDataRole.DisplayRole)
+            else:
+                if progress_bar:
+                    progress_bar.setRange(0, 100)
+                    progress_bar.setValue(0)
+                    progress_bar.setFormat(error_message)
+                if progress_item:
+                    progress_item.setData(None, Qt.ItemDataRole.UserRole)
+                    progress_item.setData(error_message, Qt.ItemDataRole.DisplayRole)
                 self.handle_download_error(progress_data)
+
             self.cleanup_download_thread(file_index)
             self.ui.treeView.viewport().update()
 

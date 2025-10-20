@@ -56,6 +56,7 @@ class DownloadThread(QThread):
         self.settings_manager = SettingsManager()
         self.user_settings = self.settings_manager.settings
         self._cancel_requested = False
+        self._last_progress = 0.0
         logger.debug("DownloadThread initialised for index %s, URL: %s", index, url)
 
     def cancel(self):
@@ -190,7 +191,8 @@ class DownloadThread(QThread):
 
         except yt_dlp.utils.DownloadCancelled:
             self.downloadProgressSignal.emit({"index": str(self.index),
-                                              "error": "Cancelled"})
+                                              "error": "Cancelled",
+                                              "progress": self._last_progress})
             logger.info("Download cancelled for index %s", self.index)
 
         except yt_dlp.utils.DownloadError as e:
@@ -257,6 +259,7 @@ class DownloadThread(QThread):
             ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
             progress_str = ansi_escape.sub('', progress_str)
             progress = float(progress_str.strip('%'))
+            self._last_progress = progress
             self.downloadProgressSignal.emit(
                 {"index": str(self.index), "progress": progress}
             )
