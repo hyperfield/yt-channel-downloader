@@ -704,20 +704,22 @@ class MainWindow(QMainWindow):
             self._start_fetch_dialog(fetch_type, yt_channel, channel_url,
                                      self.handle_single_video)
         else:
-            auth_opts = self._get_auth_options()
-            if is_supported_media_url(channel_url, auth_opts):
-                logger.debug("URL supported by generic extractor; treating as single media")
-                self._start_fetch_dialog(None, yt_channel, channel_url,
-                                         self.handle_single_video)
-            elif "youtube.com" in channel_url or "youtu.be" in channel_url:
+            # Treat remaining YouTube URLs as channels
+            if "youtube.com" in channel_url or "youtu.be" in channel_url:
                 logger.debug("Attempting to fetch channel data")
                 self._handle_channel_fetch(yt_channel, channel_url)
             else:
-                logger.warning("Unsupported URL submitted: %s", channel_url)
-                self.display_error_dialog(
-                    "The URL is incorrect or unsupported."
-                )
-                self.enable_get_vid_list_button()
+                auth_opts = self._get_auth_options()
+                if is_supported_media_url(channel_url, auth_opts):
+                    logger.debug("URL supported by generic extractor; treating as single media")
+                    self._start_fetch_dialog(None, yt_channel, channel_url,
+                                             self.handle_single_video)
+                else:
+                    logger.warning("Unsupported URL submitted: %s", channel_url)
+                    self.display_error_dialog(
+                        "The URL is incorrect or unsupported."
+                    )
+                    self.enable_get_vid_list_button()
 
     def _prepare_yt_channel(self):
         """Prepares and returns a YTChannel instance."""
