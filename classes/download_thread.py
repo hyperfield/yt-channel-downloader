@@ -146,7 +146,29 @@ class DownloadThread(QThread):
                 try:
                     self._execute_download(ydl_opts)
                 except yt_dlp.utils.DownloadError as err:
-                    raise
+                    err_str = str(err)
+                    if any(token in err_str for token in (
+                        "Requested format is not available",
+                        "HTTP Error 403",
+                        "HTTP Error 404",
+                    )):
+                        fallback_opts = dict(ydl_opts)
+                        fallback_opts['format'] = 'best'
+                        postprocessors = fallback_opts.get('postprocessors')
+                        if not postprocessors:
+                            preferred_codec = audio_format if audio_format and audio_format != 'Any' else 'mp3'
+                            fallback_opts['postprocessors'] = [{
+                                'key': 'FFmpegExtractAudio',
+                                'preferredcodec': preferred_codec
+                            }]
+                        logger.warning(
+                            "Audio-only format unavailable for index %s (%s); falling back to progressive best.",
+                            self.index,
+                            err_str,
+                        )
+                        self._execute_download(fallback_opts)
+                    else:
+                        raise
             else:
                 format_candidates = get_format_candidates(
                     self.url,
