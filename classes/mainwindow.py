@@ -166,6 +166,30 @@ class MainWindow(QMainWindow):
         QDesktopServices.openUrl(QUrl("https://liberapay.com/hyperfield/donate"))
 
     @Slot()
+    def show_license_dialog(self) -> None:
+        """Display MIT license text in a dialog."""
+        license_text = (
+            "<b>MIT License</b><br><br>"
+            "Copyright (c) 2017-2024 hyperfield<br><br>"
+            "Permission is hereby granted, free of charge, to any person obtaining a copy "
+            "of this software and associated documentation files (the 'Software'), to deal "
+            "in the Software without restriction, including without limitation the rights "
+            "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell "
+            "copies of the Software, and to permit persons to whom the Software is furnished "
+            "to do so, subject to the following conditions:<br><br>"
+            "The above copyright notice and this permission notice shall be included in all "
+            "copies or substantial portions of the Software.<br><br>"
+            "THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, "
+            "INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A "
+            "PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT "
+            "HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION "
+            "OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE "
+            "SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
+        )
+        dialog = CustomDialog("MIT License", license_text, parent=self)
+        dialog.exec()
+
+    @Slot()
     def on_check_for_updates(self) -> None:
         """Show update instructions tailored to the current runtime."""
         self.updater.prompt_for_update(parent=self)
@@ -192,7 +216,20 @@ class MainWindow(QMainWindow):
         """Insert the Check for Updates action into the Help menu."""
         self.actionCheckForUpdates = QtGui.QAction("Check for Updates...", self)
         self.actionCheckForUpdates.setObjectName("actionCheckForUpdates")
-        self.ui.menuHelp.insertAction(self.ui.actionDonate, self.actionCheckForUpdates)
+        self.actionCheckForUpdates.setMenuRole(QtGui.QAction.MenuRole.NoRole)
+        self.actionAboutQt = QtGui.QAction("About Qt", self)
+        self.actionAboutQt.setMenuRole(QtGui.QAction.MenuRole.NoRole)
+        self.actionAboutQt.setObjectName("actionAboutQt")
+        self.actionAboutLicense = QtGui.QAction("About MIT License", self)
+        self.actionAboutLicense.setMenuRole(QtGui.QAction.MenuRole.NoRole)
+        self.actionAboutLicense.setObjectName("actionAboutLicense")
+
+        insert_before = self.ui.actionDonate
+        self.ui.menuHelp.insertAction(insert_before, self.actionAboutLicense)
+        self.ui.menuHelp.insertAction(insert_before, self.actionAboutQt)
+        self.ui.menuHelp.insertAction(insert_before, self.actionCheckForUpdates)
+        self.ui.actionAbout.setText("About YT Channel Downloader")
+        self.ui.actionAbout.setMenuRole(QtGui.QAction.MenuRole.NoRole)
 
     def setup_tree_view_delegate(self):
         """Sets up a delegate for managing custom items in the tree view."""
@@ -223,6 +260,8 @@ class MainWindow(QMainWindow):
         self.ui.actionSettings.triggered.connect(self.show_settings_dialog)
         self.ui.actionExit.triggered.connect(self.exit)
         self.actionCheckForUpdates.triggered.connect(self.on_check_for_updates)
+        self.actionAboutQt.triggered.connect(QApplication.instance().aboutQt)
+        self.actionAboutLicense.triggered.connect(self.show_license_dialog)
         self.model.itemChanged.connect(self.update_download_button_state)
         self.update_download_button_state()
 
