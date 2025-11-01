@@ -50,6 +50,7 @@ class VideoItem:
                                          QtCore.Qt.CheckState.Unchecked)
         item_title = QtGui.QStandardItem(self.title)
         item_link = QtGui.QStandardItem(self.link)
+        item_speed = QtGui.QStandardItem("—")
         item_progress = QtGui.QStandardItem()
         if self.is_download_complete:
             item_progress.setData(100.0, QtCore.Qt.ItemDataRole.UserRole)
@@ -58,7 +59,7 @@ class VideoItem:
             item_progress.setData(0.0, QtCore.Qt.ItemDataRole.UserRole)
             item_progress.setData("", QtCore.Qt.ItemDataRole.DisplayRole)
         self.qt_item = [self.item_checkbox, item_title, item_link,
-                        item_progress]
+                        item_speed, item_progress]
 
         if self.is_download_complete:
             self._deactivate_qt_item()
@@ -73,6 +74,8 @@ class VideoItem:
             subitem.setForeground(gray_brush)
         self.item_checkbox.setFlags(QtCore.Qt.ItemFlag.ItemIsSelectable |
                                     QtCore.Qt.ItemFlag.ItemIsUserTristate)
+        speed_item = self.qt_item[-2]
+        speed_item.setData("—", QtCore.Qt.ItemDataRole.DisplayRole)
         progress_item = self.qt_item[-1]
         progress_item.setData(100.0, QtCore.Qt.ItemDataRole.UserRole)
         progress_item.setData("Completed", QtCore.Qt.ItemDataRole.DisplayRole)

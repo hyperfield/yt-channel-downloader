@@ -214,26 +214,30 @@ class DownloadThread(QThread):
         except yt_dlp.utils.DownloadCancelled:
             self.downloadProgressSignal.emit({"index": str(self.index),
                                               "error": "Cancelled",
-                                              "progress": self._last_progress})
+                                              "progress": self._last_progress,
+                                              "speed": "—"})
             logger.info("Download cancelled for index %s", self.index)
 
         except yt_dlp.utils.DownloadError as e:
             # Handle yt-dlp-specific download errors
             logger.exception("Download error for %s: %s", self.url, e)
             self.downloadProgressSignal.emit({"index": str(self.index),
-                                              "error": "Download error"})
+                                              "error": "Download error",
+                                              "speed": "—"})
 
         except (ConnectionError, TimeoutError) as e:
             # Handle network-related errors
             logger.exception("Network error for %s: %s", self.url, e)
             self.downloadProgressSignal.emit({"index": str(self.index),
-                                              "error": "Network error"})
+                                              "error": "Network error",
+                                              "speed": "—"})
 
         except Exception as e:
             # Handle any other unforeseen errors
             logger.exception("Unexpected error for %s: %s", self.url, e)
             self.downloadProgressSignal.emit({"index": str(self.index),
-                                              "error": "Unexpected error"})
+                                              "error": "Unexpected error",
+                                              "speed": "—"})
 
         finally:
             # Release semaphore regardless of outcome
@@ -266,6 +270,20 @@ class DownloadThread(QThread):
                 raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
             ydl.download([self.url])
 
+    @staticmethod
+    def _format_speed(speed_bytes_per_sec):
+        """
+        Convert a byte-per-second speed reading into a human-readable string.
+        Shows slower speeds in kilobits per second and faster speeds in megabytes per second.
+        """
+        if not speed_bytes_per_sec or speed_bytes_per_sec <= 0:
+            return "—"
+        megabyte_per_sec = speed_bytes_per_sec / (1024 * 1024)
+        if megabyte_per_sec >= 1:
+            return f"{megabyte_per_sec:.2f} MB/s"
+        kilobit_per_sec = (speed_bytes_per_sec * 8) / 1000
+        return f"{kilobit_per_sec:.1f} Kb/s"
+
     def dl_hook(self, d):
         """
         Callback function used by yt-dlp to handle download progress updates.
@@ -282,8 +300,9 @@ class DownloadThread(QThread):
             progress_str = ansi_escape.sub('', progress_str)
             progress = float(progress_str.strip('%'))
             self._last_progress = progress
+            speed_display = self._format_speed(d.get('speed'))
             self.downloadProgressSignal.emit(
-                {"index": str(self.index), "progress": progress}
+                {"index": str(self.index), "progress": progress, "speed": speed_display}
             )
 
     @staticmethod
