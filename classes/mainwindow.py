@@ -37,6 +37,7 @@ from classes.settings import SettingsDialog
 from classes.youtube_auth import YoutubeAuthManager
 from classes.validators import is_supported_media_url
 from classes.logger import get_logger
+from classes.updater import Updater
 
 
 logger = get_logger("MainWindow")
@@ -81,6 +82,7 @@ class MainWindow(QMainWindow):
         self.progress_widgets = {}
         self.fetch_in_progress = False
         self.fetch_error_message = None
+        self.updater = Updater()
         logger.info("Main window initialised")
 
         self.init_styles()
@@ -153,6 +155,7 @@ class MainWindow(QMainWindow):
         self.bottomButtonLayout.addStretch()
         self.bottomButtonLayout.addWidget(self.cancelDownloadsButton)
         self.ui.verticalLayout.addLayout(self.bottomButtonLayout)
+        self._setup_update_action()
         self.setup_buttons()
         self.setup_tree_view_delegate()
         self.ui.actionDonate.triggered.connect(self.open_donate_url)
@@ -161,6 +164,11 @@ class MainWindow(QMainWindow):
         """Opens the donation URL in the default web browser."""
         logger.info("Opening donation page in browser")
         QDesktopServices.openUrl(QUrl("https://liberapay.com/hyperfield/donate"))
+
+    @Slot()
+    def on_check_for_updates(self) -> None:
+        """Show update instructions tailored to the current runtime."""
+        self.updater.prompt_for_update(parent=self)
 
     def setup_button(self, button, callback):
         """Configures a button with the specified callback and font.
@@ -179,6 +187,12 @@ class MainWindow(QMainWindow):
         """Sets up specific buttons used in the main window."""
         self.setup_button(self.ui.downloadSelectedVidsButton, self.dl_vids)
         self.setup_button(self.ui.getVidListButton, self.show_vid_list)
+
+    def _setup_update_action(self) -> None:
+        """Insert the Check for Updates action into the Help menu."""
+        self.actionCheckForUpdates = QtGui.QAction("Check for Updates...", self)
+        self.actionCheckForUpdates.setObjectName("actionCheckForUpdates")
+        self.ui.menuHelp.insertAction(self.ui.actionDonate, self.actionCheckForUpdates)
 
     def setup_tree_view_delegate(self):
         """Sets up a delegate for managing custom items in the tree view."""
@@ -208,6 +222,7 @@ class MainWindow(QMainWindow):
         self.ui.actionAbout.triggered.connect(self.show_about_dialog)
         self.ui.actionSettings.triggered.connect(self.show_settings_dialog)
         self.ui.actionExit.triggered.connect(self.exit)
+        self.actionCheckForUpdates.triggered.connect(self.on_check_for_updates)
         self.model.itemChanged.connect(self.update_download_button_state)
         self.update_download_button_state()
 
