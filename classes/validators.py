@@ -12,6 +12,7 @@ from pytube import Playlist
 from pytube.exceptions import PytubeError
 
 from classes.logger import get_logger
+from classes.utils import QuietYDLLogger
 
 
 logger = get_logger("YouTubeURLValidator")
@@ -34,21 +35,80 @@ class YouTubeURLValidator:
             return False
 
     @staticmethod
-    def playlist_exists(playlist_url):
+    def _build_ydl_opts(base_opts, extra_opts=None):
+        opts = base_opts.copy()
+        if extra_opts:
+            opts.update(extra_opts)
+        opts.setdefault('logger', QuietYDLLogger())
+        return opts
+
+    @staticmethod
+    def playlist_exists(playlist_url, extra_opts=None):
+        try:
+            ydl_opts = YouTubeURLValidator._build_ydl_opts({
+                'quiet': True,
+                'skip_download': True,
+                'extract_flat': True,
+                'playlistend': 1,
+            }, extra_opts)
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(playlist_url, download=False)
+            entries = info.get('entries') or []
+            if any(entry for entry in entries):
+                return True
+            if info.get('_type') != 'playlist' and info.get('webpage_url'):
+                return True
+        except yt_dlp.utils.DownloadError as e:
+            logger.debug("yt-dlp failed to validate playlist %s: %s", playlist_url, e)
+        except Exception as e:  # noqa: BLE001
+            logger.exception("Unexpected error while validating playlist %s: %s", playlist_url, e)
         try:
             playlist = Playlist(playlist_url)
-            # Try accessing the first video's title to ensure it exists
-            if playlist.videos[0]:
+            first_url = None
+            try:
+                # Attempt to grab the first URL to confirm accessibility
+                first_url = next(iter(playlist.video_urls), None)
+            except StopIteration:
+                first_url = None
+            if first_url:
                 return True
-            else:
-                logger.warning("Playlist has no videos: %s", playlist_url)
-                return False
-        except (PytubeError, IndexError) as e:
+            logger.warning("Playlist has no videos: %s", playlist_url)
+            return False
+        except (PytubeError, IndexError, StopIteration) as e:
             logger.exception("Failed to fetch playlist %s: %s", playlist_url, e)
             return False
         except HTTPError as e:
             logger.exception("HTTP error while fetching playlist %s: %s", playlist_url, e)
             return False
+
+    @staticmethod
+    def extract_playlist_entries(playlist_url, extra_opts=None):
+        base_opts = {
+            'quiet': True,
+            'skip_download': True,
+            'extract_flat': True,
+            'playlistend': 100,
+        }
+        ydl_opts = YouTubeURLValidator._build_ydl_opts(base_opts, extra_opts)
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(playlist_url, download=False)
+        except yt_dlp.utils.DownloadError as e:
+            logger.debug("yt-dlp failed to extract playlist entries for %s: %s", playlist_url, e)
+            return []
+        except Exception as e:  # noqa: BLE001
+            logger.exception("Unexpected error while extracting playlist %s: %s", playlist_url, e)
+            return []
+
+        entries = info.get('entries') or []
+        if entries:
+            return [entry for entry in entries if entry]
+
+        if info.get('_type') != 'playlist' and info.get('webpage_url'):
+            return [info]
+
+        logger.warning("Playlist extraction returned no entries for URL: %s", playlist_url)
+        return []
 
     @staticmethod
     def is_valid(url_or_video_id, extra_opts=None):
