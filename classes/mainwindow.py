@@ -289,6 +289,9 @@ class MainWindow(QMainWindow):
         if progress_item:
             progress_item.setData("Completed", Qt.ItemDataRole.DisplayRole)
             progress_item.setData(100.0, Qt.ItemDataRole.UserRole)
+        speed_item = self.model.item(index, ColumnIndexes.SPEED)
+        if speed_item:
+            speed_item.setData("—", Qt.ItemDataRole.DisplayRole)
         selection_item = self.model.item(index, 0)
         if selection_item is not None:
             selection_item.setCheckState(Qt.CheckState.Unchecked)
@@ -468,7 +471,7 @@ class MainWindow(QMainWindow):
         self.model.clear()
         self.root_item = self.model.invisibleRootItem()
         self.model.setHorizontalHeaderLabels(
-            ['Download?', 'Title', 'Link', 'Progress'])
+            ['Download?', 'Title', 'Link', 'Speed', 'Progress'])
         self.ui.treeView.setModel(self.model)
         self.progress_widgets.clear()
 
@@ -480,6 +483,8 @@ class MainWindow(QMainWindow):
                                     QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(ColumnIndexes.LINK,
                                     QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(ColumnIndexes.SPEED,
+                                    QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(ColumnIndexes.PROGRESS,
                                     QHeaderView.ResizeMode.ResizeToContents)
 
@@ -490,7 +495,9 @@ class MainWindow(QMainWindow):
         # Ensure "Progress" column stays narrow
         font_metrics = QFontMetrics(self.ui.treeView.font())
         max_text_width = font_metrics.horizontalAdvance("100%") + 10
-        self.ui.treeView.setColumnWidth(3, max_text_width)
+        self.ui.treeView.setColumnWidth(ColumnIndexes.PROGRESS, max_text_width)
+        speed_width = font_metrics.horizontalAdvance("000.0 MB/s") + 12
+        self.ui.treeView.setColumnWidth(ColumnIndexes.SPEED, speed_width)
 
         self.select_all_checkbox.setVisible(False)
 
@@ -623,7 +630,9 @@ class MainWindow(QMainWindow):
         self.ui.treeView.setItemDelegateForColumn(ColumnIndexes.DOWNLOAD,
                                                   cb_delegate)
         for col in [ColumnIndexes.TITLE,
-                    ColumnIndexes.LINK, ColumnIndexes.PROGRESS]:
+                    ColumnIndexes.LINK,
+                    ColumnIndexes.SPEED,
+                    ColumnIndexes.PROGRESS]:
             self.ui.treeView.resizeColumnToContents(col)
 
     def _apply_tree_view_styles(self):
@@ -900,6 +909,9 @@ class MainWindow(QMainWindow):
         """
         file_index = int(progress_data["index"])
         progress_bar = self.progress_widgets.get(file_index)
+        speed_item = self.model.item(file_index, ColumnIndexes.SPEED)
+        if speed_item and "speed" in progress_data:
+            speed_item.setData(progress_data["speed"], Qt.ItemDataRole.DisplayRole)
         if "progress" in progress_data:
             progress = float(progress_data["progress"])
             if progress_bar:
@@ -925,6 +937,8 @@ class MainWindow(QMainWindow):
                     progress_item.setData(progress_value, Qt.ItemDataRole.UserRole)
                     progress_item.setData(f"Part-downloaded – {progress_value:.1f}%",
                                           Qt.ItemDataRole.DisplayRole)
+                if speed_item:
+                    speed_item.setData(progress_data.get("speed", "—"), Qt.ItemDataRole.DisplayRole)
             else:
                 if progress_bar:
                     progress_bar.setRange(0, 100)
@@ -933,6 +947,8 @@ class MainWindow(QMainWindow):
                 if progress_item:
                     progress_item.setData(None, Qt.ItemDataRole.UserRole)
                     progress_item.setData(error_message, Qt.ItemDataRole.DisplayRole)
+                if speed_item:
+                    speed_item.setData("—", Qt.ItemDataRole.DisplayRole)
                 self.handle_download_error(progress_data)
 
             self.cleanup_download_thread(file_index)
