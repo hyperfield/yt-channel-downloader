@@ -30,7 +30,9 @@ class SettingsManager:
         return config_directory
 
     def load_settings(self):
-        return self.read_settings_from_file()
+        settings = self.read_settings_from_file()
+        self._apply_environment_proxy(settings)
+        return settings
 
     def read_settings_from_file(self):
         try:
@@ -38,6 +40,7 @@ class SettingsManager:
                 return json.load(f)
         except FileNotFoundError:
             default_settings = self.load_default_settings()
+            self._apply_environment_proxy(default_settings)
             self.save_settings_to_file(default_settings)
             return default_settings
 
@@ -55,7 +58,7 @@ class SettingsManager:
             'preferred_audio_format': DEFAULT_AUDIO_FORMAT,
             'preferred_video_quality': DEFAULT_VIDEO_QUALITY,
             'preferred_audio_quality': DEFAULT_AUDIO_QUALITY,
-            'proxy_server_type': '',
+            'proxy_server_type': 'None',
             'proxy_server_addr': '',
             'proxy_server_port': '',
             'download_thumbnail': False,
@@ -66,3 +69,46 @@ class SettingsManager:
     def save_settings_to_file(self, settings):
         with open(self.config_file_path, 'w') as f:
             json.dump(settings, f)
+        self._apply_environment_proxy(settings)
+
+    # ------------------------------------------------------------------ #
+    # Proxy helpers
+    # ------------------------------------------------------------------ #
+    def build_proxy_url(self, settings=None):
+        settings = settings or self.settings
+        proxy_type = (settings.get('proxy_server_type') or '').strip().lower()
+        proxy_addr = (settings.get('proxy_server_addr') or '').strip()
+        proxy_port = (settings.get('proxy_server_port') or '').strip()
+
+        if proxy_type in ('', 'none'):
+            return None
+
+        scheme_map = {
+            'https': 'https',
+            'socks4': 'socks4',
+            'socks5': 'socks5',
+        }
+        scheme = scheme_map.get(proxy_type)
+        if not scheme or not proxy_addr or not proxy_port:
+            return None
+
+        return f"{scheme}://{proxy_addr}:{proxy_port}"
+
+    def build_requests_proxies(self, settings=None):
+        proxy_url = self.build_proxy_url(settings=settings)
+        if not proxy_url:
+            return {}
+        return {
+            'http': proxy_url,
+            'https': proxy_url,
+        }
+
+    def _apply_environment_proxy(self, settings):
+        proxy_url = self.build_proxy_url(settings=settings)
+        env_keys = ('http_proxy', 'https_proxy', 'all_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'socks_proxy', 'SOCKS_PROXY')
+        if proxy_url:
+            for key in env_keys:
+                os.environ[key] = proxy_url
+        else:
+            for key in env_keys:
+                os.environ.pop(key, None)

@@ -89,6 +89,14 @@ class DownloadThread(QThread):
             if self.main_window.youtube_auth_manager and \
                     self.main_window.youtube_auth_manager.is_configured:
                 auth_opts = self.main_window.youtube_auth_manager.get_yt_dlp_options()
+
+            proxy_url = self.settings_manager.build_proxy_url(self.user_settings)
+            if proxy_url:
+                auth_opts = dict(auth_opts) if auth_opts else {}
+                auth_opts['proxy'] = proxy_url
+                ydl_opts['proxy'] = proxy_url
+
+            if auth_opts:
                 ydl_opts.update(auth_opts)
 
             # Set video/audio format preferences
@@ -133,14 +141,6 @@ class DownloadThread(QThread):
                         video_format or 'Any',
                     )
                 ydl_opts['format_candidates'] = format_candidates
-
-            # Set proxy if needed
-            proxy_type = self.user_settings.get('proxy_server_type', None)
-            proxy_addr = self.user_settings.get('proxy_server_addr', None)
-            proxy_port = self.user_settings.get('proxy_server_port', None)
-
-            if proxy_type and proxy_addr and proxy_port:
-                ydl_opts['proxy'] = f"{proxy_type}://{proxy_addr}:{proxy_port}"
 
             if self.user_settings.get('audio_only'):
                 try:
