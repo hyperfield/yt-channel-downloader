@@ -554,7 +554,7 @@ class MainWindow(QMainWindow):
         font_metrics = QFontMetrics(self.ui.treeView.font())
         max_text_width = font_metrics.horizontalAdvance("100%") + 10
         self.ui.treeView.setColumnWidth(ColumnIndexes.PROGRESS, max_text_width)
-        speed_width = font_metrics.horizontalAdvance("000.0 MB/s") + 12
+        speed_width = font_metrics.horizontalAdvance("000.00 GB/s") + 12
         self.ui.treeView.setColumnWidth(ColumnIndexes.SPEED, speed_width)
         duration_width = font_metrics.horizontalAdvance("00:00:00") + 12
         self.ui.treeView.setColumnWidth(ColumnIndexes.DURATION, duration_width)
