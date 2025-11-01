@@ -277,6 +277,8 @@ class MainWindow(QMainWindow):
         self.progress_widgets.pop(index, None)
         self.update_cancel_button_state()
         self.update_download_button_state()
+        if not self.active_download_threads and not self.fetch_in_progress:
+            self._set_fetch_controls_enabled(True)
 
     def on_download_complete(self, index):
         """Update UI after a download thread reports completion."""
@@ -538,13 +540,28 @@ class MainWindow(QMainWindow):
         else:
             self.ui.actionYoutube_login.setText("Use Browser Cookies for Login")
 
+    def _set_fetch_controls_enabled(self, enabled: bool):
+        """Enable or disable URL entry and fetch controls.
+
+        If downloads are active, controls remain disabled regardless of the requested state.
+        """
+        if enabled and self.active_download_threads:
+            enabled = False
+        self.ui.chanUrlEdit.setEnabled(enabled)
+        fetch_button_enabled = enabled and not self.fetch_in_progress
+        self.ui.getVidListButton.setEnabled(fetch_button_enabled)
+
     def update_download_button_state(self):
         """Enable or disable the download button based on item selection.
 
         Scans through the model's items to determine if any are selected for
         download. If at least one item is selected, the download button is
-        enabled; otherwise, it is disabled.
+        enabled; otherwise, it is disabled. When downloads are currently
+        running the button remains disabled.
         """
+        if self.active_download_threads:
+            self.ui.downloadSelectedVidsButton.setEnabled(False)
+            return
         self.ui.downloadSelectedVidsButton.setEnabled(False)
         for row in range(self.model.rowCount()):
             item = self.model.item(row, 0)
@@ -562,7 +579,7 @@ class MainWindow(QMainWindow):
         """
         dlg = CustomDialog("URL error", message)
         dlg.exec()
-        self.ui.getVidListButton.setEnabled(True)
+        self._set_fetch_controls_enabled(True)
 
     def get_vid_list(self, channel_id, yt_channel):
         """
@@ -721,6 +738,8 @@ class MainWindow(QMainWindow):
     def _cleanup_fetch_state(self):
         self.fetch_in_progress = False
         self.fetch_error_message = None
+        if not self.active_download_threads:
+            self._set_fetch_controls_enabled(True)
 
     @Slot()
     def show_vid_list(self):
@@ -836,7 +855,11 @@ class MainWindow(QMainWindow):
         Enables the 'Get Video List' button, allowing the user to initiate 
         another video-fetching process.
         """
-        self.ui.getVidListButton.setEnabled(True)
+        if self.active_download_threads:
+            return
+        if self.fetch_in_progress:
+            return
+        self._set_fetch_controls_enabled(True)
 
     @Slot()
     def dl_vids(self):
@@ -872,6 +895,8 @@ class MainWindow(QMainWindow):
                 "Please select at least one video before starting downloads."
             )
             return
+        self._set_fetch_controls_enabled(False)
+        self.ui.downloadSelectedVidsButton.setEnabled(False)
         for index in self.vid_dl_indexes:
             progress_bar = self.progress_widgets.get(index)
             if progress_bar is None:
