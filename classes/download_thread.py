@@ -7,6 +7,7 @@
 import glob
 import os
 import re
+import time
 import unicodedata
 
 from classes.utils import get_format_candidates, QuietYDLLogger
@@ -20,6 +21,7 @@ from PyQt6.QtCore import QThread, pyqtSignal as Signal
 
 
 logger = get_logger("DownloadThread")
+ANSI_ESCAPE_RE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
 
 class DownloadThread(QThread):
@@ -57,6 +59,8 @@ class DownloadThread(QThread):
         self.user_settings = self.settings_manager.settings
         self._cancel_requested = False
         self._last_progress = 0.0
+        self._last_emitted_progress = -1.0
+        self._last_emit_timestamp = 0.0
         logger.debug("DownloadThread initialised for index %s, URL: %s", index, url)
 
     def cancel(self):
@@ -304,15 +308,23 @@ class DownloadThread(QThread):
         if self._cancel_requested:
             raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
         if d['status'] == 'downloading':
-            progress_str = d['_percent_str']
-            ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-            progress_str = ansi_escape.sub('', progress_str)
+            progress_str = ANSI_ESCAPE_RE.sub('', d['_percent_str'])
             progress = float(progress_str.strip('%'))
             self._last_progress = progress
-            speed_display = self._format_speed(d.get('speed'))
-            self.downloadProgressSignal.emit(
-                {"index": str(self.index), "progress": progress, "speed": speed_display}
+            now = time.monotonic()
+            should_emit = (
+                progress >= 100.0
+                or self._last_emitted_progress < 0.0
+                or abs(progress - self._last_emitted_progress) >= 1.0
+                or (now - self._last_emit_timestamp) >= 0.25
             )
+            if should_emit:
+                speed_display = self._format_speed(d.get('speed'))
+                self._last_emit_timestamp = now
+                self._last_emitted_progress = progress
+                self.downloadProgressSignal.emit(
+                    {"index": str(self.index), "progress": progress, "speed": speed_display}
+                )
 
     @staticmethod
     def sanitize_filename(filename):

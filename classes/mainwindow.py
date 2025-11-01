@@ -8,6 +8,7 @@ from urllib import error
 import os
 import math
 import re
+import threading
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, pyqtSlot as Slot
@@ -15,7 +16,6 @@ from PyQt6 import QtGui, QtCore
 from PyQt6.QtWidgets import QHeaderView
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QDialog, QCheckBox,
                              QMessageBox, QPushButton, QHBoxLayout, QProgressBar)
-from PyQt6.QtCore import QSemaphore
 from PyQt6.QtGui import QFont
 from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtCore import QUrl
@@ -51,8 +51,8 @@ class MainWindow(QMainWindow):
     YouTube login.
 
     Attributes:
-        download_semaphore (QSemaphore): Controls the maximum number of
-                                         simultaneous downloads.
+        download_semaphore (threading.Semaphore): Controls the maximum
+            number of simultaneous downloads.
         ui (Ui_MainWindow): Main UI layout.
         model (QStandardItemModel): Data model for displaying downloadable
                                     videos in a tree view.
@@ -87,9 +87,9 @@ class MainWindow(QMainWindow):
 
         self.init_styles()
 
-        # Limit to 4 simultaneous downloads
+        # Limit to 4 simultaneous downloads (threading.Semaphore avoids GUI thread stalls)
         # TODO: Make this controllable in the Settings
-        self.download_semaphore = QSemaphore(4)
+        self.download_semaphore = threading.Semaphore(4)
 
         self.set_icon()
         self.setup_ui()
