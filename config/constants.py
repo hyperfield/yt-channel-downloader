@@ -5,6 +5,9 @@
 # and DownloadThread.
 # License: MIT License
 
+APP_VERSION = "0.5.0"
+UPDATE_DOWNLOAD_URL = "https://sourceforge.net/projects/yt-channel-downloader/files/latest/download"
+
 DEFAULT_VIDEO_FORMAT = 'Any'
 DEFAULT_AUDIO_FORMAT = 'mp3'
 DEFAULT_AUDIO_QUALITY = 'Best available'
