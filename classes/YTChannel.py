@@ -128,22 +128,51 @@ class YTChannel(QObject):
             return []
 
     def fetch_videos_from_playlist(self, playlist_url):
-        if YouTubeURLValidator.playlist_exists(playlist_url):
+        auth_opts = self._get_auth_params()
+        if YouTubeURLValidator.playlist_exists(playlist_url, auth_opts):
+            video_titles_links = []
+            fallback_entries = YouTubeURLValidator.extract_playlist_entries(playlist_url, auth_opts)
+            seen_urls = set()
+            for entry in fallback_entries:
+                entry_id = entry.get('id')
+                video_url = entry.get('webpage_url') or entry.get('url')
+                if video_url and not video_url.startswith('http'):
+                    video_url = self.base_video_url + video_url
+                if not video_url and entry_id:
+                    video_url = self.base_video_url + entry_id
+                canonical_url = None
+                if entry_id and len(entry_id) == 11:
+                    canonical_url = self.base_video_url + entry_id
+                elif video_url:
+                    canonical_url = video_url
+                if not canonical_url or canonical_url in seen_urls:
+                    continue
+                seen_urls.add(canonical_url)
+                title = entry.get('title') or entry.get('alt_title')
+                if title:
+                    video_titles_links.append([title, canonical_url])
+                    continue
+                try:
+                    video_data = self.retrieve_video_metadata(canonical_url)
+                except Exception:
+                    continue
+                if video_data:
+                    video_titles_links.append(video_data)
+
+            if video_titles_links:
+                return video_titles_links
+
             try:
                 playlist = Playlist(playlist_url)
-                video_titles_links = []
-
                 for video_url in playlist.video_urls:
                     video_data = self.retrieve_video_metadata(video_url)
                     if video_data:
                         video_titles_links.append(video_data)
-
-                return video_titles_links
-
             except (PytubeError, Exception) as e:
-                self.logger.exception("Error fetching playlist details for %s: %s", playlist_url, e)
-                self.showError.emit(f"Failed to fetch playlist details: {e}")
-                raise
+                self.logger.debug("pytube failed to enumerate playlist %s: %s", playlist_url, e)
+
+            if video_titles_links:
+                return video_titles_links
 
         self.showError.emit("The URL is incorrect or unreachable.")
         raise ValueError("Invalid playlist URL")

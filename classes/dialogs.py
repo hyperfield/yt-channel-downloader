@@ -32,8 +32,8 @@ BROWSER_CHOICES = [
 
 
 class CustomDialog(QDialog):
-    def __init__(self, title, message, icon=None):
-        super().__init__()
+    def __init__(self, title, message, icon=None, parent=None):
+        super().__init__(parent)
         self.setWindowTitle(title)
 
         QBtn = QDialogButtonBox.StandardButton.Ok
