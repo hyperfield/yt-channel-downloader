@@ -5,7 +5,16 @@
 # and DownloadThread.
 # License: MIT License
 
-APP_VERSION = "0.5.0"
+APP_VERSION = "0.5.5"
+GITHUB_REPO_OWNER = "hyperfield"
+GITHUB_REPO_NAME = "yt-channel-downloader"
+GITHUB_RELEASES_API_URL = (
+    f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/releases/latest"
+)
+GITHUB_RELEASES_PAGE_URL = (
+    f"https://github.com/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/releases/latest"
+)
+UPDATE_CHECK_TIMEOUT = 5  # seconds
 UPDATE_DOWNLOAD_URL = "https://sourceforge.net/projects/yt-channel-downloader/files/latest/download"
 
 DEFAULT_VIDEO_FORMAT = 'Any'
