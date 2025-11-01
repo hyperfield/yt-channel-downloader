@@ -879,9 +879,8 @@ class MainWindow(QMainWindow):
                 progress_index = self.model.index(index, ColumnIndexes.PROGRESS)
                 self.ui.treeView.setIndexWidget(progress_index, progress_bar)
                 self.progress_widgets[index] = progress_bar
-            progress_bar.setRange(0, 100)
-            progress_bar.setValue(0)
-            progress_bar.setFormat("%p%")
+            progress_bar.setRange(0, 0)
+            progress_bar.setFormat("Preparing...")
             link = self.model.item(index, ColumnIndexes.LINK).text()
             title = self.model.item(index, 1).text()
             dl_thread = DownloadThread(link, index, title, self)
