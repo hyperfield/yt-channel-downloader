@@ -13,8 +13,6 @@ from config.constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID
 
 import scrapetube
 import yt_dlp
-from pytube import Playlist
-from pytube.exceptions import PytubeError
 from PyQt6.QtCore import QObject, pyqtSignal as Signal
 
 from classes.logger import get_logger
@@ -158,18 +156,6 @@ class YTChannel(QObject):
                     continue
                 if video_data:
                     video_titles_links.append(video_data)
-
-            if video_titles_links:
-                return video_titles_links
-
-            try:
-                playlist = Playlist(playlist_url)
-                for video_url in playlist.video_urls:
-                    video_data = self.retrieve_video_metadata(video_url)
-                    if video_data:
-                        video_titles_links.append(video_data)
-            except (PytubeError, Exception) as e:
-                self.logger.debug("pytube failed to enumerate playlist %s: %s", playlist_url, e)
 
             if video_titles_links:
                 return video_titles_links

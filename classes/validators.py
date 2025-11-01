@@ -8,8 +8,6 @@
 import re
 from urllib.error import HTTPError
 import yt_dlp
-from pytube import Playlist
-from pytube.exceptions import PytubeError
 
 from classes.logger import get_logger
 from classes.utils import QuietYDLLogger
@@ -62,24 +60,9 @@ class YouTubeURLValidator:
             logger.debug("yt-dlp failed to validate playlist %s: %s", playlist_url, e)
         except Exception as e:  # noqa: BLE001
             logger.exception("Unexpected error while validating playlist %s: %s", playlist_url, e)
-        try:
-            playlist = Playlist(playlist_url)
-            first_url = None
-            try:
-                # Attempt to grab the first URL to confirm accessibility
-                first_url = next(iter(playlist.video_urls), None)
-            except StopIteration:
-                first_url = None
-            if first_url:
-                return True
-            logger.warning("Playlist has no videos: %s", playlist_url)
-            return False
-        except (PytubeError, IndexError, StopIteration) as e:
-            logger.exception("Failed to fetch playlist %s: %s", playlist_url, e)
-            return False
         except HTTPError as e:
-            logger.exception("HTTP error while fetching playlist %s: %s", playlist_url, e)
-            return False
+            logger.exception("HTTP error while validating playlist %s: %s", playlist_url, e)
+        return False
 
     @staticmethod
     def extract_playlist_entries(playlist_url, extra_opts=None):
