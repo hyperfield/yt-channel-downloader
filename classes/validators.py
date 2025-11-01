@@ -182,7 +182,17 @@ def extract_single_media(url, auth_opts=None):
                 info = first
             title = info.get('title') or 'Unknown Title'
             final_url = info.get('webpage_url') or info.get('url') or url
-            return {'title': title, 'url': final_url}
+            duration = info.get('duration')
+            if isinstance(duration, float):
+                duration = int(duration)
+            if isinstance(duration, str):
+                duration = int(duration) if duration.isdigit() else yt_dlp.utils.parse_duration(duration)
+            if duration is None and info.get('duration_string'):
+                try:
+                    duration = yt_dlp.utils.parse_duration(info['duration_string'])
+                except Exception:  # noqa: BLE001
+                    duration = None
+            return {'title': title, 'url': final_url, 'duration': duration}
     except yt_dlp.utils.DownloadError as exc:
         logger.debug("yt-dlp failed to extract metadata for %s: %s", url, exc)
     except Exception as exc:  # noqa: BLE001

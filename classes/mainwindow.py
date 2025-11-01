@@ -471,7 +471,7 @@ class MainWindow(QMainWindow):
         self.model.clear()
         self.root_item = self.model.invisibleRootItem()
         self.model.setHorizontalHeaderLabels(
-            ['Download?', 'Title', 'Link', 'Speed', 'Progress'])
+            ['Download?', 'Title', 'Duration', 'Link', 'Speed', 'Progress'])
         self.ui.treeView.setModel(self.model)
         self.progress_widgets.clear()
 
@@ -481,6 +481,8 @@ class MainWindow(QMainWindow):
                                     QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(ColumnIndexes.TITLE,
                                     QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(ColumnIndexes.DURATION,
+                                    QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(ColumnIndexes.LINK,
                                     QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(ColumnIndexes.SPEED,
@@ -498,6 +500,8 @@ class MainWindow(QMainWindow):
         self.ui.treeView.setColumnWidth(ColumnIndexes.PROGRESS, max_text_width)
         speed_width = font_metrics.horizontalAdvance("000.0 MB/s") + 12
         self.ui.treeView.setColumnWidth(ColumnIndexes.SPEED, speed_width)
+        duration_width = font_metrics.horizontalAdvance("00:00:00") + 12
+        self.ui.treeView.setColumnWidth(ColumnIndexes.DURATION, duration_width)
 
         self.select_all_checkbox.setVisible(False)
 
@@ -584,18 +588,21 @@ class MainWindow(QMainWindow):
     def populate_window_list(self):
         """Populates the main window's list view with video details."""
         self.reinit_model()
-        for title, link in self.yt_chan_vids_titles_links:
-            self._add_video_item_to_list(title, link)
+        for entry in self.yt_chan_vids_titles_links:
+            self._add_video_item_to_list(entry)
 
         self._finalize_list_view()
 
-    def _add_video_item_to_list(self, title, link):
+    def _add_video_item_to_list(self, video_entry):
         """
         Adds a single video entry to the list view by creating a VideoItem,
         setting its properties, and appending it to the root item.
         """
+        title = video_entry.get('title', 'Unknown Title')
+        link = video_entry.get('url', '')
+        duration = video_entry.get('duration')
         download_path = self._get_video_filepath(title)
-        video_item = VideoItem(title, link, download_path)
+        video_item = VideoItem(title, link, duration, download_path)
         self.root_item.appendRow(video_item.get_qt_item())
         self.dl_path_correspondences[title] = download_path
         row_index = self.model.rowCount() - 1
@@ -630,6 +637,7 @@ class MainWindow(QMainWindow):
         self.ui.treeView.setItemDelegateForColumn(ColumnIndexes.DOWNLOAD,
                                                   cb_delegate)
         for col in [ColumnIndexes.TITLE,
+                    ColumnIndexes.DURATION,
                     ColumnIndexes.LINK,
                     ColumnIndexes.SPEED,
                     ColumnIndexes.PROGRESS]:
@@ -874,7 +882,7 @@ class MainWindow(QMainWindow):
             progress_bar.setRange(0, 100)
             progress_bar.setValue(0)
             progress_bar.setFormat("%p%")
-            link = self.model.item(index, 2).text()
+            link = self.model.item(index, ColumnIndexes.LINK).text()
             title = self.model.item(index, 1).text()
             dl_thread = DownloadThread(link, index, title, self)
             dl_thread.downloadCompleteSignal.connect(self.on_download_complete)

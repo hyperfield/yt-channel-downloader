@@ -13,6 +13,7 @@ from config.constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID
 
 import scrapetube
 import yt_dlp
+from yt_dlp.utils import parse_duration
 from PyQt6.QtCore import QObject, pyqtSignal as Signal
 
 from classes.logger import get_logger
@@ -102,7 +103,12 @@ class YTChannel(QObject):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 video_info = ydl.extract_info(video_url, download=False)
             vid_title = video_info.get('title', 'Unknown Title')
-            return [vid_title, video_url]
+            duration = self._extract_duration_seconds(video_info)
+            return {
+                'title': vid_title,
+                'url': video_url,
+                'duration': duration,
+            }
         except yt_dlp.utils.DownloadError as e:
             self.logger.exception("Error fetching video metadata for %s: %s", video_url, e)
             self.showError.emit(f"Failed to fetch video metadata: {e}")
@@ -114,7 +120,12 @@ class YTChannel(QObject):
             for entry in chan_video_entries:
                 vid_title = entry['title']['runs'][0]['text']
                 video_url = self.base_video_url + entry['videoId']
-                self.video_titles_links.append([vid_title, video_url])
+                duration = self._extract_duration_seconds(entry)
+                self.video_titles_links.append({
+                    'title': vid_title,
+                    'url': video_url,
+                    'duration': duration,
+                })
             return self.video_titles_links
         except TimeoutError:
             self.logger.error("Timeout while fetching channel videos for %s", channel_id)
@@ -147,8 +158,13 @@ class YTChannel(QObject):
                     continue
                 seen_urls.add(canonical_url)
                 title = entry.get('title') or entry.get('alt_title')
+                duration = self._extract_duration_seconds(entry)
                 if title:
-                    video_titles_links.append([title, canonical_url])
+                    video_titles_links.append({
+                        'title': title,
+                        'url': canonical_url,
+                        'duration': duration,
+                    })
                     continue
                 try:
                     video_data = self.retrieve_video_metadata(canonical_url)
@@ -177,8 +193,59 @@ class YTChannel(QObject):
         # Attempt generic extraction via yt-dlp for non-YouTube URLs
         generic = extract_single_media(video_url, auth_params)
         if generic:
-            self.video_titles_links.append([generic['title'], generic['url']])
+            self.video_titles_links.append(generic)
             return self.video_titles_links
 
         self.showError.emit("The URL is incorrect or unreachable.")
         raise ValueError("Invalid video URL")
+
+    @staticmethod
+    def _extract_duration_seconds(info):
+        if not info:
+            return None
+
+        def _coerce(value):
+            if value is None:
+                return None
+            if isinstance(value, (int, float)):
+                if value >= 0:
+                    return int(value)
+                return None
+            if isinstance(value, str):
+                value = value.strip()
+                if not value:
+                    return None
+                if value.isdigit():
+                    return int(value)
+                parsed = parse_duration(value)
+                if parsed is not None:
+                    return parsed
+            return None
+
+        for key in ("duration", "duration_seconds", "lengthSeconds", "length_seconds"):
+            duration = _coerce(info.get(key))
+            if duration is not None:
+                return duration
+
+        duration_ms = info.get('duration_ms')
+        if isinstance(duration_ms, (int, float)) and duration_ms >= 0:
+            return int(duration_ms // 1000)
+
+        duration_str = info.get('duration_string')
+        parsed = _coerce(duration_str)
+        if parsed is not None:
+            return parsed
+
+        length_text = info.get('lengthText')
+        if isinstance(length_text, dict):
+            length_simple = length_text.get('simpleText') or length_text.get('accessibility', {}).get('accessibilityData', {}).get('label')
+            parsed = _coerce(length_simple)
+            if parsed is not None:
+                return parsed
+
+        if isinstance(length_text, str):
+            parsed = _coerce(length_text)
+            if parsed is not None:
+                return parsed
+
+        return None

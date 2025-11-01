@@ -21,7 +21,7 @@ class VideoItem:
                                      downloaded.
         qt_item (list): List of QStandardItem objects for UI representation.
     """
-    def __init__(self, title, link, download_path):
+    def __init__(self, title, link, duration_seconds, download_path):
         """
         Initializes a VideoItem instance, checks the download status,
         and creates the corresponding UI items.
@@ -29,10 +29,12 @@ class VideoItem:
         Args:
             title (str): The title of the video.
             link (str): The link to the video.
+            duration_seconds (int | None): Video length in seconds if known.
             download_path (str): The file path of the video download.
         """
         self.title = title
         self.link = link
+        self.duration_seconds = duration_seconds
         self.download_path = download_path
         self.is_download_complete = DownloadThread.is_download_complete(
             self.download_path)
@@ -50,6 +52,11 @@ class VideoItem:
                                          QtCore.Qt.CheckState.Unchecked)
         item_title = QtGui.QStandardItem(self.title)
         item_link = QtGui.QStandardItem(self.link)
+        duration_value = self._coerce_duration_value(self.duration_seconds)
+        duration_display = self._format_duration(duration_value)
+        item_duration = QtGui.QStandardItem(duration_display)
+        if duration_value is not None:
+            item_duration.setData(duration_value, QtCore.Qt.ItemDataRole.UserRole)
         item_speed = QtGui.QStandardItem("—")
         item_progress = QtGui.QStandardItem()
         if self.is_download_complete:
@@ -58,8 +65,14 @@ class VideoItem:
         else:
             item_progress.setData(0.0, QtCore.Qt.ItemDataRole.UserRole)
             item_progress.setData("", QtCore.Qt.ItemDataRole.DisplayRole)
-        self.qt_item = [self.item_checkbox, item_title, item_link,
-                        item_speed, item_progress]
+        self.qt_item = [
+            self.item_checkbox,
+            item_title,
+            item_duration,
+            item_link,
+            item_speed,
+            item_progress,
+        ]
 
         if self.is_download_complete:
             self._deactivate_qt_item()
@@ -93,3 +106,23 @@ class VideoItem:
             list: The list of QStandardItem objects.
         """
         return self.qt_item
+
+    @staticmethod
+    def _coerce_duration_value(duration_seconds):
+        if duration_seconds is None:
+            return None
+        try:
+            total_seconds = int(float(duration_seconds))
+        except (TypeError, ValueError):
+            return None
+        return total_seconds if total_seconds >= 0 else None
+
+    @staticmethod
+    def _format_duration(duration_seconds):
+        if duration_seconds is None:
+            return "—"
+        hours, remainder = divmod(duration_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        if hours:
+            return f"{hours:d}:{minutes:02d}:{seconds:02d}"
+        return f"{minutes:d}:{seconds:02d}"
