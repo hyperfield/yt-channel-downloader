@@ -274,15 +274,24 @@ class DownloadThread(QThread):
     def _format_speed(speed_bytes_per_sec):
         """
         Convert a byte-per-second speed reading into a human-readable string.
-        Shows slower speeds in kilobits per second and faster speeds in megabytes per second.
+        Displays speeds in KB/s for sub-megabyte transfers and in MB/s beyond that.
         """
         if not speed_bytes_per_sec or speed_bytes_per_sec <= 0:
             return "—"
-        megabyte_per_sec = speed_bytes_per_sec / (1024 * 1024)
-        if megabyte_per_sec >= 1:
+
+        kilobyte_per_sec = speed_bytes_per_sec / 1024
+        if kilobyte_per_sec < 1:
+            return f"{speed_bytes_per_sec:.0f} B/s"
+
+        if kilobyte_per_sec < 1024:
+            return f"{kilobyte_per_sec:.1f} KB/s"
+
+        megabyte_per_sec = kilobyte_per_sec / 1024
+        if megabyte_per_sec < 1024:
             return f"{megabyte_per_sec:.2f} MB/s"
-        kilobit_per_sec = (speed_bytes_per_sec * 8) / 1000
-        return f"{kilobit_per_sec:.1f} Kb/s"
+
+        gigabyte_per_sec = megabyte_per_sec / 1024
+        return f"{gigabyte_per_sec:.2f} GB/s"
 
     def dl_hook(self, d):
         """
