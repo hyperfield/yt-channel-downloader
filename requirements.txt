@@ -1,5 +1,4 @@
 appdirs==1.4.4
-pytube
 requests==2.32.3
 scrapetube
 yt-dlp
