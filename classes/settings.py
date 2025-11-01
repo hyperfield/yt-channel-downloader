@@ -82,6 +82,9 @@ class SettingsDialog(QDialog):
         is_proxy_enabled = current_text != "None"
         self.ui.proxy_server_addr.setDisabled(not is_proxy_enabled)
         self.ui.proxy_server_port.setDisabled(not is_proxy_enabled)
+        if not is_proxy_enabled:
+            self.ui.proxy_server_addr.clear()
+            self.ui.proxy_server_port.clear()
 
     def populate_ui_from_settings(self):
         user_settings = self.get_settings()
@@ -103,15 +106,23 @@ class SettingsDialog(QDialog):
             dropdown.setCurrentIndex(index)
 
     def save_settings(self):
+        proxy_type = self.ui.proxy_server_type.currentText()
+        proxy_addr = self.ui.proxy_server_addr.text().strip()
+        proxy_port = self.ui.proxy_server_port.text().strip()
+
+        if proxy_type == "None":
+            proxy_addr = ''
+            proxy_port = ''
+
         new_settings = {
             'download_directory': self.ui.save_downloads_edit.text(),
             'preferred_video_format': self.ui.pref_vid_format_dropdown.currentText(),
             'preferred_audio_format': self.ui.pref_aud_format_dropdown.currentText(),
             'preferred_video_quality': self.ui.pref_vid_quality_dropdown.currentText(),
             'preferred_audio_quality': self.ui.pref_aud_quality_dropdown.currentText(),
-            'proxy_server_type': self.ui.proxy_server_type.currentText(),
-            'proxy_server_addr': self.ui.proxy_server_addr.text(),
-            'proxy_server_port': self.ui.proxy_server_port.text(),
+            'proxy_server_type': proxy_type,
+            'proxy_server_addr': proxy_addr,
+            'proxy_server_port': proxy_port,
             'download_thumbnail': self.ui.check_download_thumbnails.isChecked(),
             'audio_only': self.ui.check_audio_only.isChecked(),
         }

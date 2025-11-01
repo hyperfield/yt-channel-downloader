@@ -5,11 +5,14 @@
 # License: MIT License
 
 import re
-from urllib import request, error
+from urllib import error
+
+import requests
 
 from classes.validators import YouTubeURLValidator, extract_single_media, is_supported_media_url
 from classes.utils import QuietYDLLogger
 from config.constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID
+from classes.settings_manager import SettingsManager
 
 import scrapetube
 import yt_dlp
@@ -29,12 +32,18 @@ class YTChannel(QObject):
         self.base_video_url = 'https://www.youtube.com/watch?v='
         self.video_titles_links = []
         self.logger = get_logger("YTChannel")
+        self.settings_manager = SettingsManager()
 
     def _get_auth_params(self):
         manager = getattr(self.main_window, "youtube_auth_manager", None)
+        opts = {}
         if manager and manager.is_configured:
-            return manager.get_yt_dlp_options()
-        return {}
+            opts = manager.get_yt_dlp_options()
+        proxy_url = self.settings_manager.build_proxy_url()
+        if proxy_url:
+            opts = dict(opts) if opts else {}
+            opts.setdefault('proxy', proxy_url)
+        return opts
 
     def is_video_url(self, url):
         return 'youtube.com/watch?v=' in url or 'youtu.be/' in url \
@@ -61,7 +70,13 @@ class YTChannel(QObject):
                     self.channelId = split_url[i+1]
                     return self.channelId
         try:
-            html = request.urlopen(url, timeout=10).read().__str__()
+            response = requests.get(
+                url,
+                timeout=10,
+                proxies=self.settings_manager.build_requests_proxies(),
+            )
+            response.raise_for_status()
+            html = response.text
             channelId_first_index = html.find("externalId") + KEYWORD_LEN + \
                 OFFSET_TO_CHANNEL_ID
             channelId_last_index = channelId_first_index
@@ -71,12 +86,14 @@ class YTChannel(QObject):
                 channelId_last_index += 1
             self.channelId = html[channelId_first_index: channelId_last_index]
             return self.channelId
-        except error.HTTPError as e:
+        except requests.exceptions.HTTPError as e:
             self.logger.exception("HTTP error while resolving channel ID: %s", e)
-            raise e
-        except error.URLError as e:
-            self.logger.exception("URL error while resolving channel ID: %s", e)
-            raise error.URLError("Invalid URL")
+            status = e.response.status_code if e.response else None
+            headers = e.response.headers if e.response else None
+            raise error.HTTPError(url, status, str(e), headers, None) from e
+        except requests.exceptions.RequestException as e:
+            self.logger.exception("Request error while resolving channel ID: %s", e)
+            raise error.URLError(str(e)) from e
         except ValueError as e:
             self.logger.exception("Value error while resolving channel ID: %s", e)
             raise ValueError
@@ -98,6 +115,10 @@ class YTChannel(QObject):
             'logger': QuietYDLLogger(),
         }
         ydl_opts.update(auth_opts)
+        proxy_url = self.settings_manager.build_proxy_url()
+        if proxy_url:
+            ydl_opts['proxy'] = proxy_url
+            auth_opts.setdefault('proxy', proxy_url)
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
