@@ -101,7 +101,7 @@
 
 ## Binaries
 
-[Download the latest installer for Windows here.](https://github.com/hyperfield/yt-channel-downloader/releases)
+[Download the latest binary releases here.](https://github.com/hyperfield/yt-channel-downloader/releases)
 
 ## Features
 
