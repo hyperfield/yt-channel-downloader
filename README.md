@@ -1,14 +1,14 @@
 # YT Channel Downloader
 
-[![Version](https://badgen.net/badge/version/0.5.0/green)](#) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/d941f316b7ba45a4aa9114f029ca4a0b)](https://app.codacy.com/gh/hyperfield/yt-channel-downloader/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LiberaPay/orange)](https://liberapay.com/hyperfield/donate) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dt/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dw/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
+[![Version](https://badgen.net/badge/version/0.5.5/green)](#) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/d941f316b7ba45a4aa9114f029ca4a0b)](https://app.codacy.com/gh/hyperfield/yt-channel-downloader/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LiberaPay/orange)](https://liberapay.com/hyperfield/donate) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dt/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dw/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
 
 [![Download YT Channel Downloader](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
 
 **YT Channel Downloader** is an intuitive desktop application built to simplify the process of downloading YouTube media content. Leveraging the robustness of [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [scrapetube](https://github.com/dermasmid/scrapetube), and enriched with a modern PyQt 6 GUI, this tool offers a seamless experience to download your favorite content.
 
-![YT Channel Downloader Screenshot (Windows)](screenshot_win.png)
-![YT Channel Downloader Screenshot (Linux)](screenshot_lin.png)
-![YT Channel Downloader Screenshot (MacOS)](screenshot_mac.png)
+![YT Channel Downloader Screenshot (Windows)](docs/images/screenshot_win.png)
+![YT Channel Downloader Screenshot (Linux)](docs/images/screenshot_lin.png)
+![YT Channel Downloader Screenshot (MacOS)](docs/images/screenshot_mac.png)
 
 ---
 
@@ -16,7 +16,8 @@
 - [Binaries](#binaries)
 - [Features](#features)
 - [Installation](#installation)
-  - [MacOS or Linux](#macos-or-linux)
+  - [Install from PyPI](#install-from-pypi)
+  - [MacOS or Linux (from source)](#macos-or-linux-from-source)
   - [Windows](#windows)
 - [How to Use](#how-to-use)
 - [Contributing](#contributing)
@@ -25,6 +26,17 @@
 - [Donation](#donation)
 
 ## Change Log
+
+### What's New in version 0.5.5
+
+- Added a download speed indicator column.
+- Added a column showing the duration of videos or audios.
+- Added a check for updates.
+- Removed `pytube`; playlists are now retrieved much faster via `yt_dlp`.
+- Published on PyPI for easy installation with `pip`.
+- First release to include binaries for macOS and Linux (Debian-compatible only for now).
+- Reorganized the source into a `src/` layout for cleaner imports and packaging.
+- Bug fixes and stability improvements.
 
 ### What's New in version 0.5.0
 
@@ -128,7 +140,16 @@
 
 ## Installation
 
-### MacOS or Linux
+### Install from PyPI
+
+The easiest way to get the desktop app is straight from PyPI. Make sure FFmpeg is installed (see below), then run:
+
+```bash
+python3 -m pip install --upgrade yt-channel-downloader
+yt-channel-downloader
+```
+
+### MacOS or Linux (from source)
 
 `ffmpeg` is needed for the app to work correctly, so make sure you have it on your system. Check in your terminal emulator if `ffmpeg` is installed:
 
@@ -173,21 +194,13 @@ On Arch Linux:
 
     .venv/bin/activate
 
-##### Install requirements (optional: in a virtual environment)
+##### Install the project in editable mode
 
-    pip install -r requirements.txt
+    pip install -e .
 
 ##### Run the program
 
-    python3 main.py
-
-or
-
-    chmod +x main.py
-
-and then
-
-    ./main.py
+    yt-channel-downloader
 
 To deactivate the virtual environment after usage, type
 
@@ -229,35 +242,36 @@ to check if it's on your system.
 
 #### How to install YT Channel Downloader
 
+Install or upgrade the app with pip (PowerShell or Command Prompt):
 
+```powershell
+python -m pip install --upgrade yt-channel-downloader
+yt-channel-downloader
+```
 
-##### Create a virtual environment
+#### Optional: run from a cloned repository
 
+1. Clone the repo and open PowerShell in the project root.
+2. Create and activate a virtual environment:
+
+    ```powershell
     python -m venv .venv
+    .venv\Scripts\activate
+    ```
 
-##### Activate the virtual environment
+3. Install the project in editable mode:
 
-    .venv\Scripts\activate.bat
+    ```powershell
+    pip install -e .
+    ```
 
-##### Install requirements
+4. Launch the app:
 
-    pip install -r requirements.txt
+    ```powershell
+    yt-channel-downloader
+    ```
 
-##### Run the program
-
-    python main.py
-
-##### Deactivate the virtual environment after usage
-
-    .venv\Scripts\deactivate.bat
-
-#### Graphical Interface Approach
-
-1. **Download Git and Python installers** and install them.
-2. **Download the repository** as a ZIP file from GitHub and extract it.
-3. **Navigate to the directory** and find `requirements.txt`.
-4. **Shift + Right-click** in the folder and choose "Open command window here" or "Open PowerShell window here".
-5. Follow steps 3-6 from the Command Prompt or PowerShell instructions above.
+5. Deactivate the environment when finished with `deactivate`.
 
 ## How to Use
 
