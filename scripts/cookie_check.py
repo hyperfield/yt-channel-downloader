@@ -2,7 +2,7 @@ from pathlib import Path
 import sys
 
 _ROOT = Path(__file__).resolve().parent
-_SRC = _ROOT / "src"
+_SRC = _ROOT.parent / "src"
 if _SRC.exists():
     sys.path.insert(0, str(_SRC))
 
