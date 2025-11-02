@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yt-channel-downloader"
+version = "0.5.5"
+description = "Desktop app for downloading entire YouTube channels or playlists via yt-dlp."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+authors = [
+  { name = "hyperfield", email = "info@quicknode.net" }
+]
+keywords = ["youtube", "yt-dlp", "downloader", "video", "gui", "PyQt6"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: OS Independent",
+  "Topic :: Multimedia :: Video",
+  "Environment :: X11 Applications :: Qt",
+]
+dependencies = [
+  "appdirs>=1.4.4",
+  "requests>=2.31",
+  "scrapetube>=2.4.0",
+  "yt-dlp>=2024.8.6",
+  "PyQt6>=6.6.0",
+]
+
+[project.scripts]
+yt-channel-downloader = "yt_channel_downloader.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/hyperfield/yt-channel-downloader"
+Source = "https://github.com/hyperfield/yt-channel-downloader"
+Issues = "https://github.com/hyperfield/yt-channel-downloader/issues"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"yt_channel_downloader" = [
+  "icon.png",
+  "assets/*.png",
+  "assets/icons/*",
+  "assets/resources_rc.py",
+  "assets/resources.qrc",
+  "ui/*.py",
+  "ui/*.ui",
+]

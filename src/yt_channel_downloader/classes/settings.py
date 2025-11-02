@@ -4,8 +4,8 @@
 # Description: This module contains the class SettingsDialog
 # License: MIT License
 
-from ui.ui_settings import Ui_Settings
-from classes.settings_manager import SettingsManager
+from ..ui.ui_settings import Ui_Settings
+from .settings_manager import SettingsManager
 
 from PyQt6.QtWidgets import QDialog
 from PyQt6.QtWidgets import QFileDialog

@@ -1,0 +1,4 @@
+include LICENSE
+include README.md
+recursive-include src/yt_channel_downloader/assets *
+recursive-include src/yt_channel_downloader/ui *

@@ -3,7 +3,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional
 
-from classes.settings_manager import SettingsManager
+from .settings_manager import SettingsManager
 
 
 _BASE_LOGGER_NAME = "yt_channel_downloader"

@@ -9,17 +9,17 @@ from urllib import error
 
 import requests
 
-from classes.validators import YouTubeURLValidator, extract_single_media, is_supported_media_url
-from classes.utils import QuietYDLLogger
-from config.constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID
-from classes.settings_manager import SettingsManager
+from .validators import YouTubeURLValidator, extract_single_media, is_supported_media_url
+from .utils import QuietYDLLogger
+from ..config.constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID
+from .settings_manager import SettingsManager
 
 import scrapetube
 import yt_dlp
 from yt_dlp.utils import parse_duration
 from PyQt6.QtCore import QObject, pyqtSignal as Signal
 
-from classes.logger import get_logger
+from .logger import get_logger
 
 
 class YTChannel(QObject):

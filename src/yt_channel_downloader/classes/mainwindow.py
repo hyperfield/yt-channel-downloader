@@ -21,23 +21,23 @@ from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QDesktopServices
 
-import assets.resources_rc as resources_rc    # Qt resources
-from ui.ui_form import Ui_MainWindow
-from ui.ui_about import Ui_aboutDialog
-from classes.settings_manager import SettingsManager
-from classes.enums import ColumnIndexes
-from classes.download_thread import DownloadThread
-from classes.dialogs import CustomDialog, YoutubeCookiesDialog
-from classes.fetch_progress_dialog import FetchProgressDialog
-from classes.login_prompt_dialog import LoginPromptDialog
-from classes.delegates import CheckBoxDelegate
-from classes.YTChannel import YTChannel
-from classes.videoitem import VideoItem
-from classes.settings import SettingsDialog
-from classes.youtube_auth import YoutubeAuthManager
-from classes.validators import is_supported_media_url
-from classes.logger import get_logger
-from classes.updater import Updater
+from ..assets import resources_rc    # Qt resources
+from ..ui.ui_form import Ui_MainWindow
+from ..ui.ui_about import Ui_aboutDialog
+from .settings_manager import SettingsManager
+from .enums import ColumnIndexes
+from .download_thread import DownloadThread
+from .dialogs import CustomDialog, YoutubeCookiesDialog
+from .fetch_progress_dialog import FetchProgressDialog
+from .login_prompt_dialog import LoginPromptDialog
+from .delegates import CheckBoxDelegate
+from .YTChannel import YTChannel
+from .videoitem import VideoItem
+from .settings import SettingsDialog
+from .youtube_auth import YoutubeAuthManager
+from .validators import is_supported_media_url
+from .logger import get_logger
+from .updater import Updater
 
 
 logger = get_logger("MainWindow")

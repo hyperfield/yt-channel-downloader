@@ -5,7 +5,7 @@ from PyQt6.QtCore import QObject, pyqtSignal as Signal
 
 import yt_dlp
 
-from classes.logger import get_logger
+from .logger import get_logger
 
 
 _DEFAULT_TEST_URL = 'https://www.youtube.com/feed/history'
