@@ -14,7 +14,6 @@ from .utils import QuietYDLLogger
 from ..config.constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID
 from .settings_manager import SettingsManager
 
-import scrapetube
 import yt_dlp
 from yt_dlp.utils import parse_duration
 from PyQt6.QtCore import QObject, pyqtSignal as Signal
@@ -135,27 +134,86 @@ class YTChannel(QObject):
             self.showError.emit(f"Failed to fetch video metadata: {e}")
             raise
 
-    def fetch_all_videos_in_channel(self, channel_id):
+    def fetch_all_videos_in_channel(self, channel_id, limit=None):
+        """
+        Fetch all videos associated with the provided channel identifier using yt-dlp.
+
+        Args:
+            channel_id (str): The resolved YouTube channel identifier (e.g. UCxxxx...).
+            limit (int | None): Optional maximum number of entries to fetch; None fetches all.
+        """
+        channel_url = f"https://www.youtube.com/channel/{channel_id}/videos"
+        auth_opts = self._get_auth_params()
+        ydl_opts = {
+            'quiet': True,
+            'skip_download': True,
+            'extract_flat': True,
+        }
+        if limit is not None:
+            ydl_opts['playlistend'] = limit
+
+        if auth_opts:
+            ydl_opts.update(auth_opts)
+        ydl_opts.setdefault('logger', QuietYDLLogger())
+
         try:
-            chan_video_entries = scrapetube.get_channel(channel_id)
-            for entry in chan_video_entries:
-                vid_title = entry['title']['runs'][0]['text']
-                video_url = self.base_video_url + entry['videoId']
-                duration = self._extract_duration_seconds(entry)
-                self.video_titles_links.append({
-                    'title': vid_title,
-                    'url': video_url,
-                    'duration': duration,
-                })
-            return self.video_titles_links
-        except TimeoutError:
-            self.logger.error("Timeout while fetching channel videos for %s", channel_id)
-            self.showError.emit("Failed to fetch channel videos: Timeout reached")
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(channel_url, download=False)
+        except yt_dlp.utils.DownloadError as exc:
+            self.logger.exception("yt-dlp failed to fetch channel videos for %s: %s", channel_id, exc)
+            self.showError.emit("Failed to fetch channel videos: yt-dlp error")
             return []
         except Exception as exc:  # noqa: BLE001
-            self.logger.exception("Unexpected error fetching channel videos for %s: %s", channel_id, exc)
+            self.logger.exception("Unexpected error while using yt-dlp for channel %s: %s", channel_id, exc)
             self.showError.emit("Failed to fetch channel videos: unexpected error")
             return []
+
+        entries = info.get('entries') if isinstance(info, dict) else None
+        if not entries:
+            self.logger.warning("yt-dlp returned no entries for channel %s", channel_id)
+            return []
+
+        seen_urls = set()
+        collected = []
+        for entry in entries:
+            if not entry:
+                continue
+            video_id = entry.get('id')
+            video_url = entry.get('webpage_url') or entry.get('url')
+            if video_url and not video_url.startswith('http'):
+                video_url = self.base_video_url + video_url
+            if not video_url and video_id:
+                video_url = self.base_video_url + video_id
+            if not video_url:
+                self.logger.debug("Skipping channel entry without resolvable URL: %s", entry)
+                continue
+            if video_url in seen_urls:
+                continue
+            seen_urls.add(video_url)
+
+            title = entry.get('title') or entry.get('alt_title') or entry.get('fulltitle')
+            duration = self._extract_duration_seconds(entry)
+
+            metadata = None
+            if not title or duration is None:
+                try:
+                    metadata = self.retrieve_video_metadata(video_url)
+                except Exception:  # noqa: BLE001
+                    self.logger.debug("Failed fallback metadata fetch for %s", video_url, exc_info=True)
+
+            if metadata:
+                title = title or metadata.get('title')
+                if duration is None:
+                    duration = metadata.get('duration')
+
+            collected.append({
+                'title': title or 'Unknown Title',
+                'url': video_url,
+                'duration': duration,
+            })
+
+        self.video_titles_links = collected
+        return self.video_titles_links
 
     def fetch_videos_from_playlist(self, playlist_url):
         auth_opts = self._get_auth_params()
