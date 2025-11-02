@@ -31,7 +31,6 @@ classifiers = [
 dependencies = [
   "appdirs>=1.4.4",
   "requests>=2.31",
-  "scrapetube>=2.4.0",
   "yt-dlp>=2024.8.6",
   "PyQt6>=6.6.0",
 ]
