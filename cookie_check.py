@@ -1,5 +1,13 @@
-from classes.settings_manager import SettingsManager
-from classes.youtube_auth import YoutubeAuthManager
+from pathlib import Path
+import sys
+
+_ROOT = Path(__file__).resolve().parent
+_SRC = _ROOT / "src"
+if _SRC.exists():
+    sys.path.insert(0, str(_SRC))
+
+from yt_channel_downloader.classes.settings_manager import SettingsManager
+from yt_channel_downloader.classes.youtube_auth import YoutubeAuthManager
 import yt_dlp
 
 manager = YoutubeAuthManager(SettingsManager())

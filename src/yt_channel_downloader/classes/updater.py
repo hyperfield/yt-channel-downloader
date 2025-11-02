@@ -10,9 +10,9 @@ from typing import Any, Optional
 import requests
 from PyQt6.QtWidgets import QWidget
 
-from classes.dialogs import CustomDialog
-from classes.runtime_info import RuntimeInfo, RuntimeMode, detect_runtime
-from config.constants import (
+from .dialogs import CustomDialog
+from .runtime_info import RuntimeInfo, RuntimeMode, detect_runtime
+from ..config.constants import (
     APP_VERSION,
     GITHUB_RELEASES_API_URL,
     GITHUB_RELEASES_PAGE_URL,

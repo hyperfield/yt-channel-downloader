@@ -1,6 +1,6 @@
 import yt_dlp
 
-from classes.logger import get_logger
+from .logger import get_logger
 
 
 logger = get_logger("utils")

@@ -5,7 +5,10 @@
 # and DownloadThread.
 # License: MIT License
 
-APP_VERSION = "0.5.5"
+try:
+    from .. import __version__ as APP_VERSION
+except Exception:  # noqa: BLE001
+    APP_VERSION = "0.0.0"
 GITHUB_REPO_OWNER = "hyperfield"
 GITHUB_REPO_NAME = "yt-channel-downloader"
 GITHUB_RELEASES_API_URL = (

@@ -10,10 +10,10 @@ import re
 import time
 import unicodedata
 
-from classes.utils import get_format_candidates, QuietYDLLogger
-from classes.settings_manager import SettingsManager
-from config.constants import settings_map
-from classes.logger import get_logger
+from .utils import get_format_candidates, QuietYDLLogger
+from .settings_manager import SettingsManager
+from ..config.constants import settings_map
+from .logger import get_logger
 
 import yt_dlp
 

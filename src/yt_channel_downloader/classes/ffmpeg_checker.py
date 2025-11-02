@@ -3,7 +3,7 @@ import shutil
 import sys
 from PyQt6.QtWidgets import QApplication, QStyle
 
-from classes.dialogs import CustomDialog
+from .dialogs import CustomDialog
 
 
 class FFmpegChecker:

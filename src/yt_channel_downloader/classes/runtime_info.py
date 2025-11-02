@@ -28,7 +28,7 @@ class RuntimeInfo:
 
 def detect_runtime() -> RuntimeInfo:
     """
-    Detect whether the application is running from source (python main.py)
+    Detect whether the application is running from source (python -m yt_channel_downloader)
     or from a frozen/packaged bundle (e.g. PyInstaller).
     """
     if getattr(sys, "frozen", False):

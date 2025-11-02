@@ -3,7 +3,7 @@ This module defines the VideoItem class used to represent video items in a
 list view, including methods to initialize and manage UI elements for each
 item.
 """
-from classes.download_thread import DownloadThread
+from .download_thread import DownloadThread
 
 from PyQt6 import QtGui, QtCore
 

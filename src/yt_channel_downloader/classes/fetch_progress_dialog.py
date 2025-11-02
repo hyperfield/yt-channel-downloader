@@ -18,8 +18,8 @@ from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar, \
     QPushButton
 from PyQt6.QtCore import Qt, QTimer
 
-from classes.get_list_thread import GetListThread
-from config.constants import MS_PER_SECOND
+from .get_list_thread import GetListThread
+from ..config.constants import MS_PER_SECOND
 
 
 class FetchProgressDialog(QDialog):

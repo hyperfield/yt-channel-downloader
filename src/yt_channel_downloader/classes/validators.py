@@ -9,8 +9,8 @@ import re
 from urllib.error import HTTPError
 import yt_dlp
 
-from classes.logger import get_logger
-from classes.utils import QuietYDLLogger
+from .logger import get_logger
+from .utils import QuietYDLLogger
 
 
 logger = get_logger("YouTubeURLValidator")

@@ -6,7 +6,7 @@
 
 from PyQt6.QtCore import QThread, pyqtSignal as Signal
 
-from classes.logger import get_logger
+from .logger import get_logger
 
 
 logger = get_logger("GetListThread")
