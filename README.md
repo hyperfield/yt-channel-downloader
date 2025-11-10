@@ -131,12 +131,11 @@
 
 ### Coming Soon
 
-- Download shorts
 - Search field to search within a retrieved list of videos
-- Enhanced download progress bar
 - Download history tracking
-- Functionality improvements
+- Pre-download summary
 - Interface improvements
+- [Suggest a feature!](https://github.com/hyperfield/yt-channel-downloader/issues)
 
 ## Installation
 
@@ -145,7 +144,15 @@
 The easiest way to get the desktop app is straight from PyPI. Make sure FFmpeg is installed (see below), then run:
 
 ```bash
-python3 -m pip install --upgrade yt-channel-downloader
+pip install --upgrade yt-channel-downloader
+```
+
+If you don't have `pip`, you can use `python -m pip` instead.
+
+To update the app to the latest version from PyPI:
+
+```bash
+pip install yt-channel-downloader
 yt-channel-downloader
 ```
 
