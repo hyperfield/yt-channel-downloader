@@ -144,7 +144,7 @@
 The easiest way to get the desktop app is straight from PyPI. Make sure FFmpeg is installed (see below), then run:
 
 ```bash
-pip install --upgrade yt-channel-downloader
+pip install yt-channel-downloader
 ```
 
 If you don't have `pip`, you can use `python -m pip` instead.
@@ -152,7 +152,7 @@ If you don't have `pip`, you can use `python -m pip` instead.
 To update the app to the latest version from PyPI:
 
 ```bash
-pip install yt-channel-downloader
+pip install --upgrade yt-channel-downloader
 yt-channel-downloader
 ```
 
