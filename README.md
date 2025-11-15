@@ -1,6 +1,6 @@
 # YT Channel Downloader
 
-[![Version](https://badgen.net/badge/version/0.5.5/green)](#) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/d941f316b7ba45a4aa9114f029ca4a0b)](https://app.codacy.com/gh/hyperfield/yt-channel-downloader/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade) [![Donate via PayPal](https://badgen.net/badge/donate/PayPal/blue)](https://paypal.me/hyperfield) [![Donate via Liberapay](https://badgen.net/badge/donate/LiberaPay/orange)](https://liberapay.com/hyperfield/donate) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dt/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dw/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
+[![Version](https://img.shields.io/badge/Version-0.5.5-green)](#) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/d941f316b7ba45a4aa9114f029ca4a0b)](https://app.codacy.com/gh/hyperfield/yt-channel-downloader/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade) [![Donate via Ko-Fi](https://img.shields.io/badge/Donate-Ko--Fi-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/hyperfield) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dt/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download) [![Download YT Channel Downloader](https://img.shields.io/sourceforge/dw/yt-channel-downloader.svg)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
 
 [![Download YT Channel Downloader](https://a.fsdn.com/con/app/sf-download-button)](https://sourceforge.net/projects/yt-channel-downloader/files/latest/download)
 
@@ -304,9 +304,9 @@ See also the list of [contributors](https://github.com/hyperfield/yt-channel-dow
 
 ## Donation
 
-If you like this application and feel like you can donate a little bit to support the author and speed up the introduction of new exciting features to the program, I'll appreciate your donation to my PayPal, Bitcoin or Ethereum account. :)
+If you like this application and want to support future development, I'll appreciate your donation via Ko-Fi or crypto. :)
 
-**[PayPal](https://paypal.me/hyperfield)**
+[![Ko-Fi](https://img.shields.io/badge/Ko--Fi-Support%20this%20project-FF5E5B?logo=kofi&logoColor=white&style=flat)](https://ko-fi.com/hyperfield) ![Visa](https://img.shields.io/badge/Visa-accepted-blue?logo=visa&logoColor=white&style=flat) ![Mastercard](https://img.shields.io/badge/Mastercard-accepted-orange?logo=mastercard&logoColor=white&style=flat)
 
 **Bitcoin**: bc1pglp2m26kqatgm6z8vtuhk66jd74ghv948wtyhtgtj6wh30nzz6csjajv00
 

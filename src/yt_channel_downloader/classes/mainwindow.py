@@ -163,7 +163,7 @@ class MainWindow(QMainWindow):
     def open_donate_url(self):
         """Opens the donation URL in the default web browser."""
         logger.info("Opening donation page in browser")
-        QDesktopServices.openUrl(QUrl("https://liberapay.com/hyperfield/donate"))
+        QDesktopServices.openUrl(QUrl("https://ko-fi.com/hyperfield"))
 
     @Slot()
     def show_license_dialog(self) -> None:
