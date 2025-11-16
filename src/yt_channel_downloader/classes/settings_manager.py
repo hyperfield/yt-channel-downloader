@@ -63,6 +63,7 @@ class SettingsManager:
             'proxy_server_port': '',
             'download_thumbnail': False,
             'audio_only': False,
+            'suppress_node_runtime_warning': False,
             'dont_show_login_prompt': False
         }
 

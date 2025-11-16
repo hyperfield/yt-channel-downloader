@@ -319,11 +319,17 @@ class DownloadThread(QThread):
                 or (now - self._last_emit_timestamp) >= 0.25
             )
             if should_emit:
-                speed_display = self._format_speed(d.get('speed'))
+                raw_speed = d.get('speed')
+                speed_display = self._format_speed(raw_speed)
                 self._last_emit_timestamp = now
                 self._last_emitted_progress = progress
                 self.downloadProgressSignal.emit(
-                    {"index": str(self.index), "progress": progress, "speed": speed_display}
+                    {
+                        "index": str(self.index),
+                        "progress": progress,
+                        "speed": speed_display,
+                        "speed_bps": raw_speed,
+                    }
                 )
 
     @staticmethod
