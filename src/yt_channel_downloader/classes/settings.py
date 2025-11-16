@@ -125,6 +125,9 @@ class SettingsDialog(QDialog):
             'proxy_server_port': proxy_port,
             'download_thumbnail': self.ui.check_download_thumbnails.isChecked(),
             'audio_only': self.ui.check_audio_only.isChecked(),
+            # Preserve opt-out flags that aren't represented in the UI
+            'suppress_node_runtime_warning': self.settings_manager.settings.get('suppress_node_runtime_warning', False),
+            'dont_show_login_prompt': self.settings_manager.settings.get('dont_show_login_prompt', False),
         }
         self.update_settings(new_settings)
 

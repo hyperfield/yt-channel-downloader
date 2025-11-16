@@ -9,6 +9,9 @@ import os
 import math
 import re
 import threading
+import subprocess
+import shutil
+from collections import deque
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -91,6 +94,8 @@ class MainWindow(QMainWindow):
         self.updater = Updater()
         self.format_info_cache: Dict[str, dict] = {}
         self.size_estimate_cache: Dict[Tuple[str, Tuple], Optional[int]] = {}
+        self.speed_history: Dict[int, deque] = {}
+        self.estimated_download_sizes: Dict[int, Optional[int]] = {}
         self._settings_signature: Optional[Tuple] = None
         self._suppress_item_changed = False
         logger.info("Main window initialised")
@@ -113,6 +118,7 @@ class MainWindow(QMainWindow):
         self.initialize_settings()
         self.setup_select_all_checkbox()
         self.initialize_youtube_login()
+        self.maybe_warn_node_runtime()
 
     def init_styles(self):
         """Applies global styles and element-specific styles for the main
@@ -341,6 +347,7 @@ class MainWindow(QMainWindow):
         if thread and thread in self.dl_threads:
             self.dl_threads.remove(thread)
         self.progress_widgets.pop(index, None)
+        self.speed_history.pop(index, None)
         self.update_cancel_button_state()
         self.update_download_button_state()
         if not self.active_download_threads and not self.fetch_in_progress:
@@ -365,6 +372,7 @@ class MainWindow(QMainWindow):
             selection_item.setCheckState(Qt.CheckState.Unchecked)
         self.cleanup_download_thread(index)
         self.ui.treeView.viewport().update()
+        self.update_selection_size_summary()
         logger.info("Download completed for row %s", index)
 
     def initialize_settings(self):
@@ -372,6 +380,7 @@ class MainWindow(QMainWindow):
         self.settings_manager = SettingsManager()
         self.user_settings = self.settings_manager.settings
         self._refresh_settings_signature()
+        self.user_settings.setdefault('suppress_node_runtime_warning', False)
 
     def setup_select_all_checkbox(self):
         """Sets up the Select All checkbox and adds it to the layout."""
@@ -387,6 +396,39 @@ class MainWindow(QMainWindow):
         self.dl_threads = []
         self.dl_path_correspondences = {}
         self.active_download_threads = {}
+        self.speed_history.clear()
+
+    def maybe_warn_node_runtime(self):
+        """Inform users (optionally) to install Node.js for broader YouTube support."""
+        if self.user_settings.get('suppress_node_runtime_warning'):
+            return
+
+        node_path = shutil.which("node")
+        if node_path:
+            # Run quick version check to ensure it actually works
+            try:
+                subprocess.run([node_path, "--version"], check=True,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+                return
+            except Exception:  # noqa: BLE001
+                pass
+
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setWindowTitle("Optional dependency recommended")
+        msg.setText("Node.js is recommended for more complete YouTube format coverage.")
+        msg.setInformativeText(
+            "yt-dlp can use a JavaScript runtime to parse YouTube player code. "
+            "Installing Node.js reduces missing formats and silences related warnings.\n\n"
+            "See the README section “Recommended: Node.js runtime” for install steps."
+        )
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        dont_show = QCheckBox("Don't show again", msg)
+        msg.setCheckBox(dont_show)
+        msg.exec()
+        if dont_show.isChecked():
+            self.user_settings['suppress_node_runtime_warning'] = True
+            self.settings_manager.save_settings_to_file(self.user_settings)
 
     def initialize_youtube_login(self):
         """Hook up menu action and restore previously saved browser config."""
@@ -546,6 +588,8 @@ class MainWindow(QMainWindow):
             ['Download?', 'Title', 'Duration', 'Link', 'Speed', 'Progress'])
         self.ui.treeView.setModel(self.model)
         self.progress_widgets.clear()
+        self.estimated_download_sizes.clear()
+        self.speed_history.clear()
 
         # Set proportional widths
         header = self.ui.treeView.header()
@@ -775,14 +819,17 @@ class MainWindow(QMainWindow):
             duration_item = self.model.item(row, ColumnIndexes.DURATION)
             duration_seconds = duration_item.data(Qt.ItemDataRole.UserRole) if duration_item else None
             estimate = self._get_or_estimate_size(link_item.text(), duration_seconds)
+            self.estimated_download_sizes[row] = estimate
             if estimate is None:
                 has_unknown = True
             else:
                 total_bytes += estimate
 
+        eta_text = self._estimate_total_eta(total_bytes)
         summary = f"Selected: {len(selected_rows)} | Est. download: {self._format_size(total_bytes)}"
         if has_unknown:
             summary += " (+unknown)"
+        summary += f" | ETA: {eta_text}"
         self.selection_summary_label.setText(summary)
 
     def _get_or_estimate_size(self, link: str, duration_seconds: Optional[int]) -> Optional[int]:
@@ -797,7 +844,25 @@ class MainWindow(QMainWindow):
         info = self._fetch_format_info(link)
         estimate = self._estimate_size_from_info(info, duration_seconds)
         self.size_estimate_cache[cache_key] = estimate
+        if estimate:
+            # Keep a quick lookup for ETA calculations keyed by row index later
+            try:
+                row_index = self._link_to_row_index(link)
+                if row_index is not None:
+                    self.estimated_download_sizes[row_index] = estimate
+            except Exception:  # noqa: BLE001
+                pass
         return estimate
+
+    def _link_to_row_index(self, link: str) -> Optional[int]:
+        """Find the first row whose link matches; used to cache estimates."""
+        if not link:
+            return None
+        for row in range(self.model.rowCount()):
+            item = self.model.item(row, ColumnIndexes.LINK)
+            if item and item.text() == link:
+                return row
+        return None
 
     def _fetch_format_info(self, link: str) -> Optional[dict]:
         """Fetch and cache full format metadata for a URL."""
@@ -1027,6 +1092,46 @@ class MainWindow(QMainWindow):
                 return f"{size:.1f} {unit}" if unit != 'B' else f"{int(size)} B"
             size /= step
         return f"{size:.1f} PB"
+
+    @staticmethod
+    def _format_eta(seconds: float) -> str:
+        """Short human-readable ETA (h:mm:ss or m:ss)."""
+        if seconds is None or seconds <= 0:
+            return "0s"
+        total_seconds = int(seconds)
+        minutes, sec = divmod(total_seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        if hours:
+            return f"{hours:d}:{minutes:02d}:{sec:02d}"
+        return f"{minutes:d}:{sec:02d}"
+
+    def _ensure_estimate_for_index(self, index: int) -> Optional[int]:
+        """Return or compute estimated total bytes for a row index."""
+        if index in self.estimated_download_sizes:
+            return self.estimated_download_sizes[index]
+        link_item = self.model.item(index, ColumnIndexes.LINK)
+        duration_item = self.model.item(index, ColumnIndexes.DURATION) if index < self.model.rowCount() else None
+        duration_seconds = duration_item.data(Qt.ItemDataRole.UserRole) if duration_item else None
+        estimate = self._get_or_estimate_size(link_item.text() if link_item else "", duration_seconds)
+        self.estimated_download_sizes[index] = estimate
+        return estimate
+
+    def _estimate_total_eta(self, total_bytes: int) -> str:
+        """Estimate total ETA for selected items based on recent speeds."""
+        avg_speed = self._compute_average_speed()
+        if not avg_speed or avg_speed <= 0 or not total_bytes:
+            return "—"
+        eta_seconds = total_bytes / avg_speed
+        return self._format_eta(eta_seconds)
+
+    def _compute_average_speed(self) -> Optional[float]:
+        """Compute rolling average speed across active downloads."""
+        samples = []
+        for history in self.speed_history.values():
+            samples.extend(history)
+        if not samples:
+            return None
+        return sum(samples) / len(samples)
 
     def _create_progress_bar(self, completed=False):
         bar = QProgressBar(self.ui.treeView)
@@ -1306,6 +1411,12 @@ class MainWindow(QMainWindow):
             speed_item.setData(progress_data["speed"], Qt.ItemDataRole.DisplayRole)
         if "progress" in progress_data:
             progress = float(progress_data["progress"])
+            avg_speed = None
+            raw_speed = progress_data.get("speed_bps")
+            if raw_speed:
+                history = self.speed_history.setdefault(file_index, deque(maxlen=20))
+                history.append(float(raw_speed))
+                avg_speed = sum(history) / len(history)
             if progress_bar:
                 progress_bar.setRange(0, 100)
                 progress_bar.setValue(int(progress))
@@ -1315,6 +1426,7 @@ class MainWindow(QMainWindow):
                 progress_item.setData(progress, Qt.ItemDataRole.UserRole)
                 progress_item.setData(None, Qt.ItemDataRole.DisplayRole)
             self.ui.treeView.viewport().update()
+            self.update_selection_size_summary()
         elif "error" in progress_data:
             error_message = progress_data["error"]
             progress_value = float(progress_data.get("progress", 0.0))
