@@ -10,22 +10,27 @@ import math
 import re
 import threading
 from pathlib import Path
+from typing import Dict, Optional, Tuple
 
 from PyQt6.QtCore import Qt, pyqtSlot as Slot
 from PyQt6 import QtGui, QtCore
 from PyQt6.QtWidgets import QHeaderView
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QDialog, QCheckBox,
-                             QMessageBox, QPushButton, QHBoxLayout, QProgressBar)
+                             QMessageBox, QPushButton, QHBoxLayout, QProgressBar,
+                             QLabel)
 from PyQt6.QtGui import QFont
 from PyQt6.QtGui import QFontMetrics
+from PyQt6.QtGui import QStandardItem
 from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QDesktopServices
+import yt_dlp
 
 from ..assets import resources_rc    # Qt resources
 from ..ui.ui_form import Ui_MainWindow
 from ..ui.ui_about import Ui_aboutDialog
 from .settings_manager import SettingsManager
 from .enums import ColumnIndexes
+from ..config.constants import settings_map
 from .download_thread import DownloadThread
 from .dialogs import CustomDialog, YoutubeCookiesDialog
 from .fetch_progress_dialog import FetchProgressDialog
@@ -36,6 +41,7 @@ from .videoitem import VideoItem
 from .settings import SettingsDialog
 from .youtube_auth import YoutubeAuthManager
 from .validators import is_supported_media_url
+from .utils import QuietYDLLogger, filter_formats
 from .logger import get_logger
 from .updater import Updater
 
@@ -83,6 +89,10 @@ class MainWindow(QMainWindow):
         self.fetch_in_progress = False
         self.fetch_error_message = None
         self.updater = Updater()
+        self.format_info_cache: Dict[str, dict] = {}
+        self.size_estimate_cache: Dict[Tuple[str, Tuple], Optional[int]] = {}
+        self._settings_signature: Optional[Tuple] = None
+        self._suppress_item_changed = False
         logger.info("Main window initialised")
 
         self.init_styles()
@@ -94,6 +104,8 @@ class MainWindow(QMainWindow):
         self.set_icon()
         self.setup_ui()
         self.root_item = self.model.invisibleRootItem()
+        self.selection_summary_label = QLabel("")
+        self.ui.statusbar.addPermanentWidget(self.selection_summary_label)
 
         self.setup_about_dialog()
         self.init_download_structs()
@@ -262,7 +274,7 @@ class MainWindow(QMainWindow):
         self.actionCheckForUpdates.triggered.connect(self.on_check_for_updates)
         self.actionAboutQt.triggered.connect(QApplication.instance().aboutQt)
         self.actionAboutLicense.triggered.connect(self.show_license_dialog)
-        self.model.itemChanged.connect(self.update_download_button_state)
+        self.model.itemChanged.connect(self.on_item_changed)
         self.update_download_button_state()
 
     def handle_download_error(self, data):
@@ -359,6 +371,7 @@ class MainWindow(QMainWindow):
         """Initializes user settings from the settings manager."""
         self.settings_manager = SettingsManager()
         self.user_settings = self.settings_manager.settings
+        self._refresh_settings_signature()
 
     def setup_select_all_checkbox(self):
         """Sets up the Select All checkbox and adds it to the layout."""
@@ -484,7 +497,7 @@ class MainWindow(QMainWindow):
         excluded from selection toggling.
         """
         new_value = state == 2
-
+        self._suppress_item_changed = True
         for row in range(self.model.rowCount()):
             item_title_index = self.model.index(row, 1)
             item_title = self.model.data(item_title_index)
@@ -502,6 +515,9 @@ class MainWindow(QMainWindow):
                 else Qt.CheckState.Unchecked
             self.model.setData(index, new_check_state,
                                Qt.ItemDataRole.CheckStateRole)
+        self._suppress_item_changed = False
+        self.update_download_button_state()
+        self.update_selection_size_summary()
 
     def center_on_screen(self):
         """Center the main window on the primary screen.
@@ -570,6 +586,9 @@ class MainWindow(QMainWindow):
         """
         settings_dialog = SettingsDialog()
         settings_dialog.exec()
+        self.user_settings = self.settings_manager.settings
+        self._refresh_settings_signature()
+        self.update_selection_size_summary()
 
     def show_about_dialog(self):
         """Display the 'About' dialog for the application.
@@ -622,6 +641,14 @@ class MainWindow(QMainWindow):
             if item.checkState() == Qt.CheckState.Checked:
                 self.ui.downloadSelectedVidsButton.setEnabled(True)
 
+    def on_item_changed(self, item):
+        """React to checkbox changes to refresh button state and size totals."""
+        self.update_download_button_state()
+        if self._suppress_item_changed:
+            return
+        if item and item.column() == ColumnIndexes.DOWNLOAD:
+            self.update_selection_size_summary()
+
     @Slot(str)
     def display_error_dialog(self, message):
         """
@@ -663,6 +690,7 @@ class MainWindow(QMainWindow):
             self._add_video_item_to_list(entry)
 
         self._finalize_list_view()
+        self.update_selection_size_summary()
 
     def _add_video_item_to_list(self, video_entry):
         """
@@ -721,6 +749,284 @@ class MainWindow(QMainWindow):
             background-color: gray;
         }
         """)
+
+    def update_selection_size_summary(self):
+        """Calculate and display estimated download sizes for checked rows."""
+        if self.model.rowCount() == 0:
+            self.selection_summary_label.setText("")
+            return
+
+        selected_rows = []
+        for row in range(self.model.rowCount()):
+            checkbox_item = self.model.item(row, ColumnIndexes.DOWNLOAD)
+            if checkbox_item and checkbox_item.checkState() == Qt.CheckState.Checked:
+                selected_rows.append(row)
+        if not selected_rows:
+            self.selection_summary_label.setText("No items selected")
+            return
+
+        has_unknown = False
+        total_bytes = 0
+        for row in selected_rows:
+            link_item = self.model.item(row, ColumnIndexes.LINK)
+            if link_item is None:
+                has_unknown = True
+                continue
+            duration_item = self.model.item(row, ColumnIndexes.DURATION)
+            duration_seconds = duration_item.data(Qt.ItemDataRole.UserRole) if duration_item else None
+            estimate = self._get_or_estimate_size(link_item.text(), duration_seconds)
+            if estimate is None:
+                has_unknown = True
+            else:
+                total_bytes += estimate
+
+        summary = f"Selected: {len(selected_rows)} | Est. download: {self._format_size(total_bytes)}"
+        if has_unknown:
+            summary += " (+unknown)"
+        self.selection_summary_label.setText(summary)
+
+    def _get_or_estimate_size(self, link: str, duration_seconds: Optional[int]) -> Optional[int]:
+        """Return cached estimate when available or compute a fresh one."""
+        if not link:
+            return None
+        settings_sig = self._settings_signature or ()
+        cache_key = (link, settings_sig)
+        if cache_key in self.size_estimate_cache:
+            return self.size_estimate_cache[cache_key]
+
+        info = self._fetch_format_info(link)
+        estimate = self._estimate_size_from_info(info, duration_seconds)
+        self.size_estimate_cache[cache_key] = estimate
+        return estimate
+
+    def _fetch_format_info(self, link: str) -> Optional[dict]:
+        """Fetch and cache full format metadata for a URL."""
+        if not link:
+            return None
+        cached = self.format_info_cache.get(link)
+        if cached:
+            return cached
+
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'skip_download': True,
+            'noplaylist': True,
+            'logger': QuietYDLLogger(),
+        }
+        auth_opts = self._get_auth_options() or {}
+        proxy_url = self.settings_manager.build_proxy_url(self.user_settings)
+        if proxy_url:
+            auth_opts.setdefault('proxy', proxy_url)
+            ydl_opts['proxy'] = proxy_url
+
+        ydl_opts.update(auth_opts)
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(link, download=False)
+            self.format_info_cache[link] = info
+            return info
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to fetch format info for %s: %s", link, exc)
+            return None
+
+    def _estimate_size_from_info(self, info: Optional[dict], duration_seconds: Optional[int]) -> Optional[int]:
+        """Estimate download size using available format metadata."""
+        if info is None:
+            return self._guess_size_from_bitrate(duration_seconds)
+
+        formats = info.get('formats') or []
+        audio_only = self.user_settings.get('audio_only')
+        video_quality = self._map_setting('preferred_video_quality', 'bestvideo')
+        video_ext = self._map_setting('preferred_video_format', None)
+        audio_quality = self._map_setting('preferred_audio_quality', 'bestaudio')
+        audio_ext = self._map_setting('preferred_audio_format', None)
+
+        if audio_only:
+            audio_fmt = self._select_audio_format(formats, audio_ext, audio_quality)
+            estimate = self._estimate_stream_size(audio_fmt, duration_seconds)
+            if estimate is None:
+                return self._guess_size_from_bitrate(duration_seconds)
+            return estimate
+
+        video_fmt = self._select_video_format(formats, video_quality, video_ext)
+
+        total = 0
+        if video_fmt:
+            video_size = self._estimate_stream_size(video_fmt, duration_seconds)
+            if video_size:
+                total += video_size
+        audio_fmt = None
+        if not video_fmt or video_fmt.get('acodec') in (None, 'none'):
+            audio_fmt = self._select_audio_format(formats, None, 'bestaudio')
+            audio_size = self._estimate_stream_size(audio_fmt, duration_seconds)
+            if audio_size:
+                total += audio_size
+
+        if total == 0:
+            return self._guess_size_from_bitrate(duration_seconds)
+        return total
+
+    def _select_video_format(self, formats, target_resolution: str, target_ext: Optional[str]):
+        """Pick the best matching video stream (could be muxed) for estimates."""
+        ext_key = target_ext if target_ext not in (None, 'Any') else 'Any'
+        filtered = filter_formats(formats, ext_key)
+        if not filtered and ext_key != 'Any':
+            filtered = filter_formats(formats, 'Any')
+        filtered = [f for f in filtered if f.get('format_id') and f.get('url')]
+        if not filtered:
+            return None
+
+        target_height = None
+        if target_resolution and target_resolution != 'bestvideo':
+            digits = ''.join(filter(str.isdigit, str(target_resolution)))
+            if digits:
+                try:
+                    target_height = int(digits)
+                except ValueError:
+                    target_height = None
+
+        if target_height:
+            def sort_key(fmt):
+                height = fmt.get('height') or 0
+                delta = abs(height - target_height)
+                return (delta, -height, -(fmt.get('tbr') or 0))
+            filtered = sorted(filtered, key=sort_key)
+        else:
+            filtered = sorted(filtered, key=lambda f: (-(f.get('height') or 0), -(f.get('tbr') or 0)))
+
+        return filtered[0]
+
+    def _select_audio_format(self, formats, preferred_ext: Optional[str], preferred_quality: Optional[str]):
+        """Pick the audio stream closest to the requested quality/extension."""
+        audio_formats = [
+            f for f in formats
+            if f.get('vcodec') == 'none' and f.get('url')
+        ]
+        if preferred_ext and preferred_ext not in ('Any', None):
+            filtered = [
+                f for f in audio_formats
+                if f.get('ext') == preferred_ext or preferred_ext in (f.get('acodec') or '')
+            ]
+            if filtered:
+                audio_formats = filtered
+        if not audio_formats:
+            audio_formats = [f for f in formats if f.get('acodec') not in (None, 'none') and f.get('url')]
+        if not audio_formats:
+            return None
+
+        target_bitrate = self._parse_bitrate_kbps(preferred_quality)
+        if target_bitrate:
+            audio_formats = sorted(
+                audio_formats,
+                key=lambda f: (
+                    abs((self._get_audio_bitrate(f) or 0) - target_bitrate),
+                    -(self._get_audio_bitrate(f) or 0),
+                )
+            )
+        else:
+            audio_formats = sorted(audio_formats, key=lambda f: -(self._get_audio_bitrate(f) or 0))
+
+        return audio_formats[0]
+
+    @staticmethod
+    def _get_audio_bitrate(fmt) -> Optional[float]:
+        abr = fmt.get('abr') or fmt.get('tbr')
+        return float(abr) if abr is not None else None
+
+    @staticmethod
+    def _get_video_bitrate(fmt) -> Optional[float]:
+        if fmt is None:
+            return None
+        for key in ('tbr', 'vbr'):
+            value = fmt.get(key)
+            if value is not None:
+                return float(value)
+        return None
+
+    def _estimate_stream_size(self, fmt, duration_seconds: Optional[int]) -> Optional[int]:
+        if fmt is None:
+            return None
+        for key in ('filesize', 'filesize_approx'):
+            value = fmt.get(key)
+            if isinstance(value, (int, float)) and value > 0:
+                return int(value)
+        if duration_seconds and duration_seconds > 0:
+            bitrate_kbps = self._get_audio_bitrate(fmt) if fmt.get('vcodec') == 'none' else self._get_video_bitrate(fmt)
+            if bitrate_kbps:
+                return int(bitrate_kbps * 1000 / 8 * duration_seconds)
+        return None
+
+    @staticmethod
+    def _parse_bitrate_kbps(label: Optional[str]) -> Optional[int]:
+        if not label or label == 'bestaudio':
+            return None
+        digits = ''.join(filter(str.isdigit, label))
+        if not digits:
+            return None
+        try:
+            return int(digits)
+        except ValueError:
+            return None
+
+    def _guess_size_from_bitrate(self, duration_seconds: Optional[int]) -> Optional[int]:
+        """Fallback heuristic when we can't fetch metadata."""
+        if not duration_seconds or duration_seconds <= 0:
+            return None
+        if self.user_settings.get('audio_only'):
+            bitrate_kbps = self._parse_bitrate_kbps(
+                self._map_setting('preferred_audio_quality', 'bestaudio')
+            ) or 192
+        else:
+            quality = self._map_setting('preferred_video_quality', '1080p')
+            bitrate_lookup = {
+                '2160p': 20000,
+                '1440p': 12000,
+                '1080p': 8000,
+                '720p': 5000,
+                '480p': 2500,
+                '360p': 1200,
+                '240p': 700,
+                '144p': 400,
+                'bestvideo': 8000,
+            }
+            bitrate_kbps = bitrate_lookup.get(quality, 4000)
+        return int(bitrate_kbps * 1000 / 8 * duration_seconds)
+
+    def _map_setting(self, key: str, default):
+        return settings_map.get(key, {}).get(self.user_settings.get(key), default)
+
+    def _build_settings_signature(self) -> Tuple:
+        """Build a tuple that reflects current download-affecting settings."""
+        return (
+            self.user_settings.get('audio_only'),
+            self.user_settings.get('preferred_audio_format'),
+            self.user_settings.get('preferred_audio_quality'),
+            self.user_settings.get('preferred_video_format'),
+            self.user_settings.get('preferred_video_quality'),
+        )
+
+    def _refresh_settings_signature(self):
+        """Reset caches when settings relevant to format selection change."""
+        new_sig = self._build_settings_signature()
+        if new_sig != self._settings_signature:
+            self._settings_signature = new_sig
+            self.size_estimate_cache.clear()
+            self.format_info_cache.clear()
+
+    @staticmethod
+    def _format_size(num_bytes: int) -> str:
+        if num_bytes is None or num_bytes <= 0:
+            return "—"
+        step = 1024.0
+        units = ['B', 'KB', 'MB', 'GB', 'TB']
+        size = float(num_bytes)
+        for unit in units:
+            if size < step:
+                return f"{size:.1f} {unit}" if unit != 'B' else f"{int(size)} B"
+            size /= step
+        return f"{size:.1f} PB"
 
     def _create_progress_bar(self, completed=False):
         bar = QProgressBar(self.ui.treeView)
