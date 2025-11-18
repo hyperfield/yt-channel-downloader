@@ -5,6 +5,7 @@
 TODO.txt
 .DS_Store
 readthedocs/
+changelog/
 
 # Shell scripts
 *.sh
