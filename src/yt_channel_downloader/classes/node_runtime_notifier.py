@@ -1,0 +1,83 @@
+# Author: hyperfield
+# Project: YT Channel Downloader
+# Description: Helper to prompt users to install Node.js for yt-dlp
+
+import shutil
+import subprocess
+
+from PyQt6.QtWidgets import QMessageBox, QCheckBox
+from PyQt6.QtCore import QUrl
+from PyQt6.QtGui import QDesktopServices
+
+from .logger import get_logger
+
+
+logger = get_logger("NodeRuntimeNotifier")
+
+
+class NodeRuntimeNotifier:
+    """Encapsulates detection and prompting for an optional Node.js runtime."""
+
+    def __init__(self, settings_manager, warning_tracker, parent):
+        self.settings_manager = settings_manager
+        self.warning_tracker = warning_tracker
+        self.parent = parent
+        self.prompted_this_session = False
+
+    def maybe_prompt(self, *, force=False, require_logged_warning=False):
+        """
+        Show a recommendation dialog if Node.js is missing or yt-dlp reported it.
+
+        Args:
+            force (bool): Prompt even if a node binary is present (used when yt-dlp warns).
+            require_logged_warning (bool): Only prompt if yt-dlp logged the JS runtime warning.
+        """
+        settings = self.settings_manager.settings
+        if settings.get('suppress_node_runtime_warning'):
+            logger.info("Node.js warning suppressed by user preference")
+            return
+
+        if require_logged_warning and not self.warning_tracker.pop_seen():
+            return
+
+        if not force and self._has_working_node():
+            return
+
+        if self.prompted_this_session and not force:
+            logger.debug("Node.js warning already shown this session")
+            return
+
+        self._show_prompt(settings)
+
+    def _has_working_node(self) -> bool:
+        node_path = shutil.which("node")
+        if not node_path:
+            return False
+        try:
+            subprocess.run([node_path, "--version"], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+            logger.debug("Node.js detected at %s", node_path)
+            return True
+        except Exception:  # noqa: BLE001
+            logger.info("Node.js binary found at %s but version check failed", node_path)
+            return False
+
+    def _show_prompt(self, settings):
+        msg = QMessageBox(self.parent)
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setWindowTitle("Optional dependency recommended")
+        msg.setText("Node.js is recommended for more complete YouTube format coverage.")
+        msg.setInformativeText(
+            "yt-dlp reported that a JavaScript runtime is missing. "
+            "Installing Node.js reduces missing formats and silences related warnings.\n\n"
+            "See the README section “Recommended: Node.js runtime” for install steps."
+        )
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        dont_show = QCheckBox("Don't show again", msg)
+        msg.setCheckBox(dont_show)
+        msg.exec()
+        self.prompted_this_session = True
+
+        if dont_show.isChecked():
+            settings['suppress_node_runtime_warning'] = True
+            self.settings_manager.save_settings_to_file(settings)

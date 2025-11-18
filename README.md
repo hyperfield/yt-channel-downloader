@@ -27,6 +27,10 @@
 
 ## Change Log
 
+### What's New in version 0.6.0
+
+
+
 ### What's New in version 0.5.5
 
 - Added a download speed indicator column.

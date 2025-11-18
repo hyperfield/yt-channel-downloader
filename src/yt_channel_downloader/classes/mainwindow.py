@@ -9,8 +9,6 @@ import os
 import math
 import re
 import threading
-import subprocess
-import shutil
 from collections import deque
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -44,7 +42,9 @@ from .videoitem import VideoItem
 from .settings import SettingsDialog
 from .youtube_auth import YoutubeAuthManager
 from .validators import is_supported_media_url
-from .utils import QuietYDLLogger, filter_formats
+from .utils import QuietYDLLogger, filter_formats, js_warning_tracker
+from .node_runtime_notifier import NodeRuntimeNotifier
+from .support_prompt import SupportPrompt
 from .logger import get_logger
 from .updater import Updater
 
@@ -98,6 +98,8 @@ class MainWindow(QMainWindow):
         self.estimated_download_sizes: Dict[int, Optional[int]] = {}
         self._settings_signature: Optional[Tuple] = None
         self._suppress_item_changed = False
+        self.node_notifier: Optional[NodeRuntimeNotifier] = None
+        self.support_prompt: Optional[SupportPrompt] = None
         logger.info("Main window initialised")
 
         self.init_styles()
@@ -116,9 +118,10 @@ class MainWindow(QMainWindow):
         self.init_download_structs()
         self.connect_signals()
         self.initialize_settings()
+        self._init_node_notifier()
+        self._init_support_prompt()
         self.setup_select_all_checkbox()
         self.initialize_youtube_login()
-        self.maybe_warn_node_runtime()
 
     def init_styles(self):
         """Applies global styles and element-specific styles for the main
@@ -387,6 +390,14 @@ class MainWindow(QMainWindow):
         self.user_settings.setdefault('downloads_completed', 0)
         self.user_settings.setdefault('support_prompt_next_at', 50)
 
+    def _init_node_notifier(self):
+        """Set up the Node.js runtime notifier helper."""
+        self.node_notifier = NodeRuntimeNotifier(self.settings_manager, js_warning_tracker, self)
+
+    def _init_support_prompt(self):
+        """Set up the support prompt helper."""
+        self.support_prompt = SupportPrompt(self, self.settings_manager)
+
     def setup_select_all_checkbox(self):
         """Sets up the Select All checkbox and adds it to the layout."""
         self.select_all_checkbox = QCheckBox("Select All", self)
@@ -403,27 +414,36 @@ class MainWindow(QMainWindow):
         self.active_download_threads = {}
         self.speed_history.clear()
 
-    def maybe_warn_node_runtime(self):
+    def maybe_warn_node_runtime(self, force: bool = False):
         """Inform users (optionally) to install Node.js for broader YouTube support."""
         if self.user_settings.get('suppress_node_runtime_warning'):
+            logger.info("Node.js warning suppressed by user preference")
             return
 
+        node_missing = True
         node_path = shutil.which("node")
-        if node_path:
-            # Run quick version check to ensure it actually works
+        if node_path and not force:
             try:
                 subprocess.run([node_path, "--version"], check=True,
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
-                return
+                node_missing = False
+                logger.debug("Node.js detected at %s; skipping runtime warning", node_path)
             except Exception:  # noqa: BLE001
-                pass
+                logger.info("Node.js binary found at %s but version check failed; will prompt", node_path)
+
+        if not force and not node_missing:
+            return
+
+        if self._node_prompted_this_session and not force:
+            logger.debug("Node.js warning already shown this session")
+            return
 
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Icon.Information)
         msg.setWindowTitle("Optional dependency recommended")
         msg.setText("Node.js is recommended for more complete YouTube format coverage.")
         msg.setInformativeText(
-            "yt-dlp can use a JavaScript runtime to parse YouTube player code. "
+            "yt-dlp reported that a JavaScript runtime is missing. "
             "Installing Node.js reduces missing formats and silences related warnings.\n\n"
             "See the README section “Recommended: Node.js runtime” for install steps."
         )
@@ -431,40 +451,27 @@ class MainWindow(QMainWindow):
         dont_show = QCheckBox("Don't show again", msg)
         msg.setCheckBox(dont_show)
         msg.exec()
+        self._node_prompted_this_session = True
         if dont_show.isChecked():
             self.user_settings['suppress_node_runtime_warning'] = True
             self.settings_manager.save_settings_to_file(self.user_settings)
 
+    def _maybe_prompt_on_js_warning(self):
+        """If yt-dlp emitted a JS runtime warning, prompt the user."""
+        if self.node_notifier and js_warning_tracker.pop_seen():
+            logger.info("yt-dlp reported missing JS runtime; showing recommendation dialog")
+            self.node_notifier.maybe_prompt(force=True)
+
     def maybe_show_support_prompt(self):
         """Show a support prompt when download milestones are reached."""
+        if not self.support_prompt:
+            return
         next_at = self.user_settings.get('support_prompt_next_at', 50)
         completed = self.user_settings.get('downloads_completed', 0)
-        if completed < next_at:
+        if not self.support_prompt.should_prompt(completed, next_at):
             return
-
-        msg = QMessageBox(self)
-        msg.setIcon(QMessageBox.Icon.Information)
-        msg.setWindowTitle("Support YT Channel Downloader")
-        msg.setText("Enjoying the app? Supporting the project keeps it maintained and improves new features.")
-        msg.setInformativeText(
-            "If it’s saved you time, please consider a small Ko-Fi contribution. "
-            "You can also defer or opt out for a while."
-        )
-        support_btn = msg.addButton("Support", QMessageBox.ButtonRole.AcceptRole)
-        later_btn = msg.addButton("I'm not yet sure", QMessageBox.ButtonRole.DestructiveRole)
-        cannot_btn = msg.addButton("I cannot donate", QMessageBox.ButtonRole.RejectRole)
-        msg.exec()
-
-        if msg.clickedButton() == support_btn:
-            QDesktopServices.openUrl(QUrl("https://ko-fi.com/hyperfield"))
-            # Cannot detect actual donations; assume goodwill and snooze longer
-            self.user_settings['support_prompt_next_at'] = completed + 500
-        elif msg.clickedButton() == cannot_btn:
-            self.user_settings['support_prompt_next_at'] = completed + 150
-        else:
-            # "I'm not yet sure"
-            self.user_settings['support_prompt_next_at'] = completed + 50
-
+        new_threshold = self.support_prompt.show_and_get_next_threshold(completed)
+        self.user_settings['support_prompt_next_at'] = new_threshold
         self.settings_manager.save_settings_to_file(self.user_settings)
 
     def initialize_youtube_login(self):
@@ -772,6 +779,8 @@ class MainWindow(QMainWindow):
 
         self._finalize_list_view()
         self.update_selection_size_summary()
+        self._maybe_prompt_on_js_warning()
+        self._maybe_prompt_on_js_warning()
 
     def _add_video_item_to_list(self, video_entry):
         """
@@ -1254,6 +1263,8 @@ class MainWindow(QMainWindow):
     def show_vid_list(self):
         """Fetches and displays a single video, a playlist or a channel based
         on the input URL."""
+        if self.node_notifier:
+            self.node_notifier.maybe_prompt()
         self.window_resize_needed = True
         self.ui.getVidListButton.setEnabled(False)
         channel_url = self.ui.chanUrlEdit.text()
