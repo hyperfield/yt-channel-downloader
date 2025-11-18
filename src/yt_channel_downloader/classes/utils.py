@@ -6,8 +6,30 @@ from .logger import get_logger
 logger = get_logger("utils")
 
 
+class JsRuntimeWarningTracker:
+    """Tracks whether yt-dlp reported missing JavaScript runtime."""
+
+    def __init__(self):
+        self._seen = False
+
+    def mark(self, msg):
+        if isinstance(msg, str) and "No supported JavaScript runtime could be found" in msg:
+            self._seen = True
+
+    def pop_seen(self):
+        seen = self._seen
+        self._seen = False
+        return seen
+
+
+js_warning_tracker = JsRuntimeWarningTracker()
+
+
 class QuietYDLLogger:
     """Minimal yt-dlp-compatible logger that suppresses noisy output."""
+
+    def __init__(self, warning_tracker=None):
+        self.warning_tracker = warning_tracker or js_warning_tracker
 
     def debug(self, msg):
         logger.debug(msg)
@@ -16,7 +38,12 @@ class QuietYDLLogger:
         logger.debug(msg)
 
     def warning(self, msg):
-        logger.debug(msg)
+        self.warning_tracker.mark(msg)
+        logger.warning(msg)
+
+    def log_warning(self, msg):
+        """Alias for warning to keep naming explicit in code that calls it directly."""
+        self.warning(msg)
 
     def error(self, msg):
         logger.error(msg)

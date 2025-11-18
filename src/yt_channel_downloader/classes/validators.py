@@ -44,7 +44,8 @@ class YouTubeURLValidator:
     def playlist_exists(playlist_url, extra_opts=None):
         try:
             ydl_opts = YouTubeURLValidator._build_ydl_opts({
-                'quiet': True,
+                'quiet': False,
+                'no_warnings': False,
                 'skip_download': True,
                 'extract_flat': True,
                 'playlistend': 1,
@@ -67,10 +68,12 @@ class YouTubeURLValidator:
     @staticmethod
     def extract_playlist_entries(playlist_url, extra_opts=None):
         base_opts = {
-            'quiet': True,
+            'quiet': False,
+            'no_warnings': False,
             'skip_download': True,
-            'extract_flat': True,
-            'playlistend': 100,
+            'noplaylist': False,
+            'playlist_items': '1-1000',
+            'yes_playlist': True,
         }
         ydl_opts = YouTubeURLValidator._build_ydl_opts(base_opts, extra_opts)
         try:
