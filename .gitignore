@@ -4,6 +4,7 @@
 # Misc
 TODO.txt
 .DS_Store
+readthedocs/
 
 # Shell scripts
 *.sh
