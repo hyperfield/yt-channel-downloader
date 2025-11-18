@@ -68,15 +68,19 @@ class NodeRuntimeNotifier:
         msg.setWindowTitle("Optional dependency recommended")
         msg.setText("Node.js is recommended for more complete YouTube format coverage.")
         msg.setInformativeText(
-            "yt-dlp reported that a JavaScript runtime is missing. "
-            "Installing Node.js reduces missing formats and silences related warnings.\n\n"
-            "See the README section “Recommended: Node.js runtime” for install steps."
+            "A JavaScript runtime to facilitate downloading of videos is missing. "
+            "Installing it reduces missing formats. It is recommended that you\n\n"
+            "install Deno, since node.js may still go undetected by yt-dlp."
         )
         msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        deno_btn = msg.addButton("Open Deno.com", QMessageBox.ButtonRole.ActionRole)
         dont_show = QCheckBox("Don't show again", msg)
         msg.setCheckBox(dont_show)
         msg.exec()
         self.prompted_this_session = True
+
+        if msg.clickedButton() == deno_btn:
+            QDesktopServices.openUrl(QUrl("https://deno.com/"))
 
         if dont_show.isChecked():
             settings['suppress_node_runtime_warning'] = True
