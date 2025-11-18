@@ -324,6 +324,8 @@ class MainWindow(QMainWindow):
         any_running = any(
             thread.isRunning() for thread in self.active_download_threads.values()
         )
+        # Show the button only if there is at least one tracked download
+        # (even if cancelling), but disable it when nothing is running.
         self.cancelDownloadsButton.setVisible(has_threads)
         self.cancelDownloadsButton.setEnabled(any_running)
 
@@ -341,8 +343,14 @@ class MainWindow(QMainWindow):
                 if progress_bar:
                     progress_bar.setRange(0, 0)
                     progress_bar.setFormat("Cancelling...")
+            else:
+                # Thread already stopped; clean up immediately.
+                self.cleanup_download_thread(index)
         self.ui.treeView.viewport().update()
+        self._cleanup_inactive_downloads()
         self.update_cancel_button_state()
+        if not self.active_download_threads:
+            self._set_fetch_controls_enabled(True)
 
     def cleanup_download_thread(self, index):
         """Remove finished or cancelled download threads from tracking."""
@@ -355,6 +363,12 @@ class MainWindow(QMainWindow):
         self.update_download_button_state()
         if not self.active_download_threads and not self.fetch_in_progress:
             self._set_fetch_controls_enabled(True)
+
+    def _cleanup_inactive_downloads(self):
+        """Clean up threads that are no longer running."""
+        inactive = [idx for idx, thread in self.active_download_threads.items() if not thread.isRunning()]
+        for idx in inactive:
+            self.cleanup_download_thread(idx)
 
     def on_download_complete(self, index):
         """Update UI after a download thread reports completion."""
@@ -1431,6 +1445,7 @@ class MainWindow(QMainWindow):
             dl_thread = DownloadThread(link, index, title, self)
             dl_thread.downloadCompleteSignal.connect(self.on_download_complete)
             dl_thread.downloadProgressSignal.connect(self.update_progress)
+            dl_thread.finished.connect(lambda idx=index: self.cleanup_download_thread(idx))
             self.dl_threads.append(dl_thread)
             self.active_download_threads[index] = dl_thread
             try:
