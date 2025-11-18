@@ -187,14 +187,16 @@ On Arch Linux:
 
     sudo pacman -S ffmpeg
 
-#### Recommended: Node.js runtime (improves YouTube format coverage)
+#### Recommended: JavaScript runtime (improves YouTube format coverage)
 
-yt-dlp can use a JavaScript runtime to parse YouTube player code; having Node.js installed reduces missing formats and silences runtime warnings. Install Node.js with your package manager:
+yt-dlp can use a JavaScript runtime to parse YouTube player code; having one installed reduces missing formats and silences runtime warnings. Install any of:
 
-- Debian/Ubuntu: `sudo apt update && sudo apt install nodejs npm`
-- Fedora: `sudo dnf install nodejs npm`
-- Arch Linux: `sudo pacman -S nodejs npm`
-- macOS (Homebrew): `brew install node`
+- **Node.js** via your package manager:
+  - Debian/Ubuntu: `sudo apt update && sudo apt install nodejs npm`
+  - Fedora: `sudo dnf install nodejs npm`
+  - Arch Linux: `sudo pacman -S nodejs npm`
+  - macOS (Homebrew): `brew install node`
+- **Deno** (alternative runtime): see install instructions at [deno.com](https://deno.com/)
 
 #### Install YT Channel Downloader
 
@@ -267,6 +269,7 @@ yt-dlp can use a JavaScript runtime to parse YouTube player code; having Node.js
 - Download and install the LTS version from [nodejs.org](https://nodejs.org/)
 - Or with Chocolatey: `choco install nodejs-lts`
 - Or with Scoop: `scoop install nodejs-lts`
+- Alternative runtime: [Deno](https://deno.com/) (install instructions on the homepage)
 
 #### How to install YT Channel Downloader
 
