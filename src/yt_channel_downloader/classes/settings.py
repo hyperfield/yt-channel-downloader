@@ -128,6 +128,8 @@ class SettingsDialog(QDialog):
             # Preserve opt-out flags that aren't represented in the UI
             'suppress_node_runtime_warning': self.settings_manager.settings.get('suppress_node_runtime_warning', False),
             'dont_show_login_prompt': self.settings_manager.settings.get('dont_show_login_prompt', False),
+            'downloads_completed': self.settings_manager.settings.get('downloads_completed', 0),
+            'support_prompt_next_at': self.settings_manager.settings.get('support_prompt_next_at', 50),
         }
         self.update_settings(new_settings)
 

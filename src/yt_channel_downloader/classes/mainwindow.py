@@ -370,6 +370,9 @@ class MainWindow(QMainWindow):
         selection_item = self.model.item(index, 0)
         if selection_item is not None:
             selection_item.setCheckState(Qt.CheckState.Unchecked)
+        self.user_settings['downloads_completed'] = self.user_settings.get('downloads_completed', 0) + 1
+        self.settings_manager.save_settings_to_file(self.user_settings)
+        self.maybe_show_support_prompt()
         self.cleanup_download_thread(index)
         self.ui.treeView.viewport().update()
         self.update_selection_size_summary()
@@ -381,6 +384,8 @@ class MainWindow(QMainWindow):
         self.user_settings = self.settings_manager.settings
         self._refresh_settings_signature()
         self.user_settings.setdefault('suppress_node_runtime_warning', False)
+        self.user_settings.setdefault('downloads_completed', 0)
+        self.user_settings.setdefault('support_prompt_next_at', 50)
 
     def setup_select_all_checkbox(self):
         """Sets up the Select All checkbox and adds it to the layout."""
@@ -429,6 +434,38 @@ class MainWindow(QMainWindow):
         if dont_show.isChecked():
             self.user_settings['suppress_node_runtime_warning'] = True
             self.settings_manager.save_settings_to_file(self.user_settings)
+
+    def maybe_show_support_prompt(self):
+        """Show a support prompt when download milestones are reached."""
+        next_at = self.user_settings.get('support_prompt_next_at', 50)
+        completed = self.user_settings.get('downloads_completed', 0)
+        if completed < next_at:
+            return
+
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setWindowTitle("Support YT Channel Downloader")
+        msg.setText("Enjoying the app? Supporting the project keeps it maintained and improves new features.")
+        msg.setInformativeText(
+            "If it’s saved you time, please consider a small Ko-Fi contribution. "
+            "You can also defer or opt out for a while."
+        )
+        support_btn = msg.addButton("Support", QMessageBox.ButtonRole.AcceptRole)
+        later_btn = msg.addButton("I'm not yet sure", QMessageBox.ButtonRole.DestructiveRole)
+        cannot_btn = msg.addButton("I cannot donate", QMessageBox.ButtonRole.RejectRole)
+        msg.exec()
+
+        if msg.clickedButton() == support_btn:
+            QDesktopServices.openUrl(QUrl("https://ko-fi.com/hyperfield"))
+            # Cannot detect actual donations; assume goodwill and snooze longer
+            self.user_settings['support_prompt_next_at'] = completed + 500
+        elif msg.clickedButton() == cannot_btn:
+            self.user_settings['support_prompt_next_at'] = completed + 150
+        else:
+            # "I'm not yet sure"
+            self.user_settings['support_prompt_next_at'] = completed + 50
+
+        self.settings_manager.save_settings_to_file(self.user_settings)
 
     def initialize_youtube_login(self):
         """Hook up menu action and restore previously saved browser config."""
@@ -810,7 +847,8 @@ class MainWindow(QMainWindow):
             return
 
         has_unknown = False
-        total_bytes = 0
+        total_bytes_estimated = 0
+        total_bytes_remaining = 0
         for row in selected_rows:
             link_item = self.model.item(row, ColumnIndexes.LINK)
             if link_item is None:
@@ -823,10 +861,16 @@ class MainWindow(QMainWindow):
             if estimate is None:
                 has_unknown = True
             else:
-                total_bytes += estimate
+                total_bytes_estimated += estimate
+                progress_item = self.model.item(row, ColumnIndexes.PROGRESS)
+                progress_val = progress_item.data(Qt.ItemDataRole.UserRole) if progress_item else None
+                remaining = estimate
+                if isinstance(progress_val, (int, float)) and 0 <= progress_val <= 100:
+                    remaining = max(estimate * (1 - progress_val / 100.0), 0)
+                total_bytes_remaining += remaining
 
-        eta_text = self._estimate_total_eta(total_bytes)
-        summary = f"Selected: {len(selected_rows)} | Est. download: {self._format_size(total_bytes)}"
+        eta_text = self._estimate_total_eta(total_bytes_remaining)
+        summary = f"Selected: {len(selected_rows)} | Est. download: {self._format_size(total_bytes_estimated)}"
         if has_unknown:
             summary += " (+unknown)"
         summary += f" | ETA: {eta_text}"
@@ -1116,12 +1160,12 @@ class MainWindow(QMainWindow):
         self.estimated_download_sizes[index] = estimate
         return estimate
 
-    def _estimate_total_eta(self, total_bytes: int) -> str:
+    def _estimate_total_eta(self, total_bytes_remaining: int) -> str:
         """Estimate total ETA for selected items based on recent speeds."""
         avg_speed = self._compute_average_speed()
-        if not avg_speed or avg_speed <= 0 or not total_bytes:
+        if not avg_speed or avg_speed <= 0 or not total_bytes_remaining:
             return "—"
-        eta_seconds = total_bytes / avg_speed
+        eta_seconds = total_bytes_remaining / avg_speed
         return self._format_eta(eta_seconds)
 
     def _compute_average_speed(self) -> Optional[float]:

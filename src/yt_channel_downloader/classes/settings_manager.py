@@ -64,6 +64,9 @@ class SettingsManager:
             'download_thumbnail': False,
             'audio_only': False,
             'suppress_node_runtime_warning': False,
+            # Download milestone prompts
+            'downloads_completed': 0,
+            'support_prompt_next_at': 50,
             'dont_show_login_prompt': False
         }
 
