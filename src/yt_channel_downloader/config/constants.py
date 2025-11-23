@@ -5,6 +5,8 @@
 # and DownloadThread.
 # License: MIT License
 
+from typing import Dict, Optional
+
 try:
     from .. import __version__ as APP_VERSION
 except Exception:  # noqa: BLE001
@@ -25,7 +27,7 @@ DEFAULT_AUDIO_FORMAT = 'mp3'
 DEFAULT_AUDIO_QUALITY = 'Best available'
 DEFAULT_VIDEO_QUALITY = '1080p (Full HD)'
 
-settings_map = {
+settings_map: Dict[str, Dict[str, Optional[str]]] = {
     'preferred_video_quality': {
         'Best available': 'bestvideo',
         '2160p (4K)': '2160p',

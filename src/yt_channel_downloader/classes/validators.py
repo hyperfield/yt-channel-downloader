@@ -6,6 +6,7 @@
 # License: MIT License
 
 import re
+from typing import Any, Dict, Optional
 from urllib.error import HTTPError
 import yt_dlp
 
@@ -158,7 +159,7 @@ class YouTubeURLValidator:
         return False, None
 
 
-def extract_single_media(url, auth_opts=None):
+def extract_single_media(url: str, auth_opts: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """
     Extract single media metadata for any yt-dlp supported URL.
 
@@ -203,6 +204,6 @@ def extract_single_media(url, auth_opts=None):
     return None
 
 
-def is_supported_media_url(url, auth_opts=None):
+def is_supported_media_url(url: str, auth_opts: Optional[Dict[str, Any]] = None) -> bool:
     """Check whether the provided URL is supported by yt-dlp."""
     return extract_single_media(url, auth_opts=auth_opts) is not None

@@ -11,14 +11,21 @@ import re
 import threading
 from collections import deque
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, TYPE_CHECKING
 
-from PyQt6.QtCore import Qt, pyqtSlot as Slot
+from PyQt6.QtCore import Qt
 from PyQt6 import QtGui, QtCore
+if TYPE_CHECKING:
+    TSlotFunc = TypeVar("TSlotFunc", bound=Callable[..., Any])
+
+    def Slot(*types: Any, **kwargs: Any) -> Callable[[TSlotFunc], TSlotFunc]:
+        ...
+else:  # pragma: no cover - import only for runtime use
+    from PyQt6.QtCore import pyqtSlot as Slot
 from PyQt6.QtWidgets import QHeaderView
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QDialog, QCheckBox,
                              QMessageBox, QPushButton, QHBoxLayout, QProgressBar,
-                             QLabel)
+                             QLabel, QWidget)
 from PyQt6.QtGui import QFont
 from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtGui import QStandardItem
@@ -26,7 +33,7 @@ from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QDesktopServices
 import yt_dlp
 
-from ..assets import resources_rc    # Qt resources
+from ..assets import resources_rc    # Qt resources  # noqa: F401  # pylint: disable=unused-import
 from ..ui.ui_form import Ui_MainWindow
 from ..ui.ui_about import Ui_aboutDialog
 from .settings_manager import SettingsManager
@@ -78,7 +85,7 @@ class MainWindow(QMainWindow):
                                         video data.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         """Initializes the main window and its components.
 
         Args:
@@ -111,7 +118,7 @@ class MainWindow(QMainWindow):
         self.set_icon()
         self.setup_ui()
         self.root_item = self.model.invisibleRootItem()
-        self.selection_summary_label = QLabel("")
+        self.selection_summary_label: QLabel = QLabel("")
         self.ui.statusbar.addPermanentWidget(self.selection_summary_label)
 
         self.setup_about_dialog()
@@ -176,6 +183,8 @@ class MainWindow(QMainWindow):
         self.bottomButtonLayout.addStretch()
         self.bottomButtonLayout.addWidget(self.cancelDownloadsButton)
         self.ui.verticalLayout.addLayout(self.bottomButtonLayout)
+        self.downloadSelectedVidsButton: QPushButton = self.ui.downloadSelectedVidsButton
+        self.getVidListButton: QPushButton = self.ui.getVidListButton
         self._setup_update_action()
         self.setup_buttons()
         self.setup_tree_view_delegate()
@@ -230,8 +239,8 @@ class MainWindow(QMainWindow):
 
     def setup_buttons(self):
         """Sets up specific buttons used in the main window."""
-        self.setup_button(self.ui.downloadSelectedVidsButton, self.dl_vids)
-        self.setup_button(self.ui.getVidListButton, self.show_vid_list)
+        self.setup_button(self.downloadSelectedVidsButton, self.dl_vids)
+        self.setup_button(self.getVidListButton, self.show_vid_list)
 
     def _setup_update_action(self) -> None:
         """Insert the Check for Updates action into the Help menu."""
@@ -724,7 +733,7 @@ class MainWindow(QMainWindow):
             enabled = False
         self.ui.chanUrlEdit.setEnabled(enabled)
         fetch_button_enabled = enabled and not self.fetch_in_progress
-        self.ui.getVidListButton.setEnabled(fetch_button_enabled)
+        self.getVidListButton.setEnabled(fetch_button_enabled)
 
     def update_download_button_state(self):
         """Enable or disable the download button based on item selection.
@@ -735,13 +744,13 @@ class MainWindow(QMainWindow):
         running the button remains disabled.
         """
         if self.active_download_threads:
-            self.ui.downloadSelectedVidsButton.setEnabled(False)
+            self.downloadSelectedVidsButton.setEnabled(False)
             return
-        self.ui.downloadSelectedVidsButton.setEnabled(False)
+        self.downloadSelectedVidsButton.setEnabled(False)
         for row in range(self.model.rowCount()):
             item = self.model.item(row, 0)
             if item.checkState() == Qt.CheckState.Checked:
-                self.ui.downloadSelectedVidsButton.setEnabled(True)
+                self.downloadSelectedVidsButton.setEnabled(True)
 
     def on_item_changed(self, item):
         """React to checkbox changes to refresh button state and size totals."""
@@ -860,44 +869,69 @@ class MainWindow(QMainWindow):
             self.selection_summary_label.setText("")
             return
 
-        selected_rows = []
-        for row in range(self.model.rowCount()):
-            checkbox_item = self.model.item(row, ColumnIndexes.DOWNLOAD)
-            if checkbox_item and checkbox_item.checkState() == Qt.CheckState.Checked:
-                selected_rows.append(row)
+        selected_rows = self._checked_row_indexes()
         if not selected_rows:
             self.selection_summary_label.setText("No items selected")
             return
 
+        total_estimated, total_remaining, has_unknown = self._calculate_selection_totals(selected_rows)
+        summary = self._format_selection_summary(len(selected_rows), total_estimated, total_remaining, has_unknown)
+        self.selection_summary_label.setText(summary)
+
+    def _checked_row_indexes(self):
+        """Return the row indexes that are marked for download."""
+        rows = []
+        for row in range(self.model.rowCount()):
+            checkbox_item = self.model.item(row, ColumnIndexes.DOWNLOAD)
+            if checkbox_item and checkbox_item.checkState() == Qt.CheckState.Checked:
+                rows.append(row)
+        return rows
+
+    def _calculate_selection_totals(self, selected_rows):
+        """Accumulate estimated and remaining bytes for selected rows."""
         has_unknown = False
         total_bytes_estimated = 0
         total_bytes_remaining = 0
+
         for row in selected_rows:
             link_item = self.model.item(row, ColumnIndexes.LINK)
             if link_item is None:
                 has_unknown = True
                 continue
-            duration_item = self.model.item(row, ColumnIndexes.DURATION)
-            duration_seconds = duration_item.data(Qt.ItemDataRole.UserRole) if duration_item else None
+
+            duration_seconds = self._item_user_role(self.model.item(row, ColumnIndexes.DURATION))
             estimate = self._get_or_estimate_size(link_item.text(), duration_seconds)
             self.estimated_download_sizes[row] = estimate
             if estimate is None:
                 has_unknown = True
-            else:
-                total_bytes_estimated += estimate
-                progress_item = self.model.item(row, ColumnIndexes.PROGRESS)
-                progress_val = progress_item.data(Qt.ItemDataRole.UserRole) if progress_item else None
-                remaining = estimate
-                if isinstance(progress_val, (int, float)) and 0 <= progress_val <= 100:
-                    remaining = max(estimate * (1 - progress_val / 100.0), 0)
-                total_bytes_remaining += remaining
+                continue
 
-        eta_text = self._estimate_total_eta(total_bytes_remaining)
-        summary = f"Selected: {len(selected_rows)} | Est. download: {self._format_size(total_bytes_estimated)}"
+            total_bytes_estimated += estimate
+            progress_val = self._item_user_role(self.model.item(row, ColumnIndexes.PROGRESS))
+            total_bytes_remaining += self._remaining_bytes(estimate, progress_val)
+
+        return total_bytes_estimated, total_bytes_remaining, has_unknown
+
+    @staticmethod
+    def _item_user_role(item):
+        """Fetch UserRole data safely."""
+        return item.data(Qt.ItemDataRole.UserRole) if item else None
+
+    @staticmethod
+    def _remaining_bytes(estimate: int, progress_val) -> int:
+        """Calculate remaining bytes based on progress percentage."""
+        if isinstance(progress_val, (int, float)) and 0 <= progress_val <= 100:
+            return max(int(estimate * (1 - progress_val / 100.0)), 0)
+        return estimate
+
+    def _format_selection_summary(self, selected_count, total_estimated, total_remaining, has_unknown):
+        """Compose the summary string for the selection label."""
+        eta_text = self._estimate_total_eta(total_remaining)
+        summary = f"Selected: {selected_count} | Est. download: {self._format_size(total_estimated)}"
         if has_unknown:
             summary += " (+unknown)"
         summary += f" | ETA: {eta_text}"
-        self.selection_summary_label.setText(summary)
+        return summary
 
     def _get_or_estimate_size(self, link: str, duration_seconds: Optional[int]) -> Optional[int]:
         """Return cached estimate when available or compute a fresh one."""
@@ -945,6 +979,7 @@ class MainWindow(QMainWindow):
             'skip_download': True,
             'noplaylist': True,
             'logger': QuietYDLLogger(),
+            'remote_components': ['ejs:github'],
         }
         auth_opts = self._get_auth_options() or {}
         proxy_url = self.settings_manager.build_proxy_url(self.user_settings)
@@ -969,28 +1004,47 @@ class MainWindow(QMainWindow):
             return self._guess_size_from_bitrate(duration_seconds)
 
         formats = info.get('formats') or []
-        audio_only = self.user_settings.get('audio_only')
+        if self.user_settings.get('audio_only'):
+            audio_quality = self._map_setting('preferred_audio_quality', 'bestaudio')
+            audio_ext = self._map_setting('preferred_audio_format', None)
+            return self._estimate_audio_only_size(formats, audio_ext, audio_quality, duration_seconds)
+
         video_quality = self._map_setting('preferred_video_quality', 'bestvideo')
         video_ext = self._map_setting('preferred_video_format', None)
-        audio_quality = self._map_setting('preferred_audio_quality', 'bestaudio')
-        audio_ext = self._map_setting('preferred_audio_format', None)
+        return self._estimate_video_size(formats, video_quality, video_ext, duration_seconds)
 
-        if audio_only:
-            audio_fmt = self._select_audio_format(formats, audio_ext, audio_quality)
-            estimate = self._estimate_stream_size(audio_fmt, duration_seconds)
-            if estimate is None:
-                return self._guess_size_from_bitrate(duration_seconds)
-            return estimate
+    def _estimate_audio_only_size(
+        self,
+        formats,
+        audio_ext: Optional[str],
+        audio_quality: Optional[str],
+        duration_seconds: Optional[int],
+    ) -> Optional[int]:
+        """Estimate size when only audio is requested."""
+        audio_fmt = self._select_audio_format(formats, audio_ext, audio_quality)
+        estimate = self._estimate_stream_size(audio_fmt, duration_seconds)
+        if estimate is None:
+            return self._guess_size_from_bitrate(duration_seconds)
+        return estimate
 
+    def _estimate_video_size(
+        self,
+        formats,
+        video_quality: str,
+        video_ext: Optional[str],
+        duration_seconds: Optional[int],
+    ) -> Optional[int]:
+        """Estimate size when video (and optionally separate audio) is requested."""
         video_fmt = self._select_video_format(formats, video_quality, video_ext)
-
         total = 0
+
         if video_fmt:
             video_size = self._estimate_stream_size(video_fmt, duration_seconds)
             if video_size:
                 total += video_size
-        audio_fmt = None
-        if not video_fmt or video_fmt.get('acodec') in (None, 'none'):
+
+        needs_audio = (not video_fmt) or video_fmt.get('acodec') in (None, 'none')
+        if needs_audio:
             audio_fmt = self._select_audio_format(formats, None, 'bestaudio')
             audio_size = self._estimate_stream_size(audio_fmt, duration_seconds)
             if audio_size:
@@ -1002,33 +1056,44 @@ class MainWindow(QMainWindow):
 
     def _select_video_format(self, formats, target_resolution: str, target_ext: Optional[str]):
         """Pick the best matching video stream (could be muxed) for estimates."""
-        ext_key = target_ext if target_ext not in (None, 'Any') else 'Any'
-        filtered = filter_formats(formats, ext_key)
-        if not filtered and ext_key != 'Any':
-            filtered = filter_formats(formats, 'Any')
-        filtered = [f for f in filtered if f.get('format_id') and f.get('url')]
+        filtered = self._filter_video_formats(formats, target_ext)
         if not filtered:
             return None
 
-        target_height = None
-        if target_resolution and target_resolution != 'bestvideo':
-            digits = ''.join(filter(str.isdigit, str(target_resolution)))
-            if digits:
-                try:
-                    target_height = int(digits)
-                except ValueError:
-                    target_height = None
+        target_height = self._parse_target_height(target_resolution)
+        sorted_formats = self._sort_video_formats_by_preference(filtered, target_height)
+        return sorted_formats[0] if sorted_formats else None
 
+    def _filter_video_formats(self, formats, target_ext: Optional[str]):
+        """Filter and sanitize video formats based on extension preference."""
+        ext_key = target_ext if target_ext not in (None, 'Any') else 'Any'
+        filtered = filter_formats(formats, ext_key) or []
+        if not filtered and ext_key != 'Any':
+            filtered = filter_formats(formats, 'Any') or []
+        return [f for f in filtered if f.get('format_id') and f.get('url')]
+
+    def _parse_target_height(self, target_resolution: Optional[str]) -> Optional[int]:
+        """Extract a numeric target height from a resolution label."""
+        if not target_resolution or target_resolution == 'bestvideo':
+            return None
+        digits = ''.join(filter(str.isdigit, str(target_resolution)))
+        if not digits:
+            return None
+        try:
+            return int(digits)
+        except ValueError:
+            return None
+
+    def _sort_video_formats_by_preference(self, formats, target_height: Optional[int]):
+        """Order formats closest to the desired height, then by quality."""
         if target_height:
             def sort_key(fmt):
                 height = fmt.get('height') or 0
                 delta = abs(height - target_height)
                 return (delta, -height, -(fmt.get('tbr') or 0))
-            filtered = sorted(filtered, key=sort_key)
-        else:
-            filtered = sorted(filtered, key=lambda f: (-(f.get('height') or 0), -(f.get('tbr') or 0)))
+            return sorted(formats, key=sort_key)
 
-        return filtered[0]
+        return sorted(formats, key=lambda f: (-(f.get('height') or 0), -(f.get('tbr') or 0)))
 
     def _select_audio_format(self, formats, preferred_ext: Optional[str], preferred_quality: Optional[str]):
         """Pick the audio stream closest to the requested quality/extension."""
@@ -1064,11 +1129,13 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _get_audio_bitrate(fmt) -> Optional[float]:
+        """Return audio bitrate (abr/tbr) in kbps if present."""
         abr = fmt.get('abr') or fmt.get('tbr')
         return float(abr) if abr is not None else None
 
     @staticmethod
     def _get_video_bitrate(fmt) -> Optional[float]:
+        """Return video bitrate (tbr/vbr) in kbps if present."""
         if fmt is None:
             return None
         for key in ('tbr', 'vbr'):
@@ -1078,6 +1145,7 @@ class MainWindow(QMainWindow):
         return None
 
     def _estimate_stream_size(self, fmt, duration_seconds: Optional[int]) -> Optional[int]:
+        """Estimate size in bytes for a stream using explicit size or bitrate×duration."""
         if fmt is None:
             return None
         for key in ('filesize', 'filesize_approx'):
@@ -1092,6 +1160,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _parse_bitrate_kbps(label: Optional[str]) -> Optional[int]:
+        """Parse a bitrate label like '320k' into an integer kbps."""
         if not label or label == 'bestaudio':
             return None
         digits = ''.join(filter(str.isdigit, label))
@@ -1127,6 +1196,7 @@ class MainWindow(QMainWindow):
         return int(bitrate_kbps * 1000 / 8 * duration_seconds)
 
     def _map_setting(self, key: str, default):
+        """Resolve a user setting through settings_map with a default fallback."""
         return settings_map.get(key, {}).get(self.user_settings.get(key), default)
 
     def _build_settings_signature(self) -> Tuple:
@@ -1201,6 +1271,7 @@ class MainWindow(QMainWindow):
         return sum(samples) / len(samples)
 
     def _create_progress_bar(self, completed=False):
+        """Create a styled progress bar, optionally pre-set to completed state."""
         bar = QProgressBar(self.ui.treeView)
         bar.setRange(0, 100)
         bar.setMinimumHeight(16)
@@ -1268,6 +1339,7 @@ class MainWindow(QMainWindow):
         self._cleanup_fetch_state()
 
     def _cleanup_fetch_state(self):
+        """Clear fetch state flags and re-enable controls when appropriate."""
         self.fetch_in_progress = False
         self.fetch_error_message = None
         if not self.active_download_threads:
@@ -1280,7 +1352,7 @@ class MainWindow(QMainWindow):
         if self.node_notifier:
             self.node_notifier.maybe_prompt()
         self.window_resize_needed = True
-        self.ui.getVidListButton.setEnabled(False)
+        self.getVidListButton.setEnabled(False)
         channel_url = self.ui.chanUrlEdit.text()
         logger.info("Fetching video list for URL: %s", channel_url)
         yt_channel = self._prepare_yt_channel()
@@ -1323,6 +1395,7 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _handle_channel_error(self, message):
+        """Handle errors emitted from YTChannel helper."""
         if self.fetch_in_progress:
             if not self.fetch_error_message:
                 self.fetch_error_message = message
@@ -1430,7 +1503,7 @@ class MainWindow(QMainWindow):
             )
             return
         self._set_fetch_controls_enabled(False)
-        self.ui.downloadSelectedVidsButton.setEnabled(False)
+        self.downloadSelectedVidsButton.setEnabled(False)
         for index in self.vid_dl_indexes:
             progress_bar = self.progress_widgets.get(index)
             if progress_bar is None:
