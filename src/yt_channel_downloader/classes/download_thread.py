@@ -87,6 +87,7 @@ class DownloadThread(QThread):
                 'quiet': True,
                 'no_warnings': True,
                 'logger': QuietYDLLogger(),
+                'remote_components': ['ejs:github'],
             }
 
             auth_opts = {}
@@ -131,6 +132,9 @@ class DownloadThread(QThread):
                     audio_filter = ''
                 ydl_opts['format'] = f"{audio_quality}{audio_filter}/bestaudio/best"
             else:
+                # Force yt-dlp to prefer formats that actually contain video
+                ydl_opts['format_sort'] = ['hasvid']
+                ydl_opts['format_sort_force'] = True
                 format_candidates = get_format_candidates(
                     self.url,
                     video_quality,
@@ -191,6 +195,7 @@ class DownloadThread(QThread):
                 format_string = self._build_format_selector(format_candidates, height_value, video_format)
                 primary_opts = dict(ydl_opts)
                 primary_opts['format'] = format_string
+                logger.debug("Format selector for index %s: %s", self.index, format_string)
                 try:
                     self._execute_download(primary_opts)
                 except yt_dlp.utils.DownloadError as err:
@@ -254,12 +259,11 @@ class DownloadThread(QThread):
             selectors.append(f"{fmt}+bestaudio")
         if height:
             selectors.append(f"bestvideo[height<={height}]+bestaudio")
-            selectors.append(f"best[height<={height}]")
+            selectors.append(f"bestvideo[height<={height}]")
         if file_ext and file_ext != 'Any':
             selectors.append(f"bestvideo[ext={file_ext}]+bestaudio")
-            selectors.append(f"best[ext={file_ext}]")
-        selectors.append("bestvideo+bestaudio")
-        selectors.append("best")
+            selectors.append(f"bestvideo[ext={file_ext}]")
+        selectors.append("bestvideo*+bestaudio/bestvideo*")
         seen = set()
         ordered = []
         for item in selectors:

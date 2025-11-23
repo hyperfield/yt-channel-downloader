@@ -50,6 +50,7 @@ class NodeRuntimeNotifier:
         self._show_prompt(settings)
 
     def _has_working_node(self) -> bool:
+        """Check for a usable node binary on PATH."""
         node_path = shutil.which("node")
         if not node_path:
             return False
@@ -63,6 +64,7 @@ class NodeRuntimeNotifier:
             return False
 
     def _show_prompt(self, settings):
+        """Render and handle the optional-runtime dialog."""
         msg = QMessageBox(self.parent)
         msg.setIcon(QMessageBox.Icon.Information)
         msg.setWindowTitle("Optional dependency recommended")

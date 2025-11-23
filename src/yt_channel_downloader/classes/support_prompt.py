@@ -27,11 +27,11 @@ class SupportPrompt:
         self.default_long_snooze = 500
 
     def should_prompt(self, completed: int, next_at: int) -> bool:
-        """Return True if we reached the threshold."""
+        """Return True if we reached the threshold for showing the support prompt."""
         return completed >= next_at
 
     def show_and_get_next_threshold(self, completed: int) -> int:
-        """Show prompt and return the next threshold."""
+        """Show prompt and return the next threshold based on user choice."""
         msg = QMessageBox(self.parent)
         msg.setIcon(QMessageBox.Icon.Information)
         msg.setWindowTitle("Support YT Channel Downloader")
