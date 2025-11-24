@@ -43,8 +43,9 @@ class GetListThread(QThread):
     finished = Signal(list)
     cancelled = Signal()
     error = Signal(str)
+    progress = Signal(int, object)
 
-    def __init__(self, channel_id, yt_channel, channel_url=None, parent=None):
+    def __init__(self, channel_id, yt_channel, channel_url=None, limit=None, start_index=1, parent=None):
         """
         Initializes the GetListThread with the necessary attributes.
 
@@ -60,6 +61,8 @@ class GetListThread(QThread):
         self.channel_id = channel_id
         self.yt_channel = yt_channel
         self.channel_url = channel_url
+        self.limit = limit
+        self.start_index = start_index
         self._is_cancelled = False
 
     def run(self):
@@ -77,11 +80,20 @@ class GetListThread(QThread):
             if not self.channel_id or self.channel_id == "short":
                 video_list = self.yt_channel.get_single_video(self.channel_url)
             elif self.channel_id == "playlist":
-                video_list = self.yt_channel.fetch_videos_from_playlist(
-                    self.channel_url)
+                video_list = self.yt_channel.fetch_videos_from_playlist_with_progress(
+                    self.channel_url,
+                    progress_callback=self._emit_progress,
+                    is_cancelled=lambda: self._is_cancelled,
+                    limit=self.limit,
+                )
             else:
                 video_list = self.yt_channel.fetch_all_videos_in_channel(
-                    self.channel_id)
+                    self.channel_id,
+                    limit=self.limit,
+                    progress_callback=self._emit_progress,
+                    is_cancelled=lambda: self._is_cancelled,
+                    start_index=self.start_index,
+                )
         except Exception as exc:  # noqa: BLE001
             logger.exception("Failed to fetch video list: %s", exc)
             self.error.emit(str(exc))
@@ -99,3 +111,6 @@ class GetListThread(QThread):
 
     def cancel(self):
         self._is_cancelled = True
+
+    def _emit_progress(self, count, total):
+        self.progress.emit(count, total)

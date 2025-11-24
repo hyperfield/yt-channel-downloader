@@ -11,6 +11,9 @@ try:
     from .. import __version__ as APP_VERSION
 except Exception:  # noqa: BLE001
     APP_VERSION = "0.0.0"
+DEFAULT_CHANNEL_FETCH_LIMIT = 500
+DEFAULT_PLAYLIST_FETCH_LIMIT = 50
+CHANNEL_FETCH_BATCH_SIZE = 200
 GITHUB_REPO_OWNER = "hyperfield"
 GITHUB_REPO_NAME = "yt-channel-downloader"
 GITHUB_RELEASES_API_URL = (

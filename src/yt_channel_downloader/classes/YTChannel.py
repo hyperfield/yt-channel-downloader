@@ -5,13 +5,14 @@
 # License: MIT License
 
 import re
+from urllib.parse import urlparse, parse_qs
 from urllib import error
 
 import requests
 
 from .validators import YouTubeURLValidator, extract_single_media, is_supported_media_url
 from .utils import QuietYDLLogger
-from ..config.constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID
+from ..config.constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID, DEFAULT_CHANNEL_FETCH_LIMIT, CHANNEL_FETCH_BATCH_SIZE
 from .settings_manager import SettingsManager
 
 import yt_dlp
@@ -134,47 +135,133 @@ class YTChannel(QObject):
             self.showError.emit(f"Failed to fetch video metadata: {e}")
             raise
 
-    def fetch_all_videos_in_channel(self, channel_id, limit=None):
+    def fetch_all_videos_in_channel(
+        self,
+        channel_id,
+        limit=DEFAULT_CHANNEL_FETCH_LIMIT,
+        batch_size=CHANNEL_FETCH_BATCH_SIZE,
+        progress_callback=None,
+        is_cancelled=None,
+        start_index=1,
+    ):
         """
-        Fetch all videos associated with the provided channel identifier using yt-dlp.
+        Fetch videos for a channel in batches so the UI can report progress
+        and users can cancel long-running requests.
 
         Args:
             channel_id (str): The resolved YouTube channel identifier (e.g. UCxxxx...).
-            limit (int | None): Optional maximum number of entries to fetch; None fetches all.
+            limit (int | None): Maximum number of entries to fetch; None fetches all.
+            batch_size (int): Number of videos to request per page/batch.
+            progress_callback (callable): Optional function accepting (fetched_count, target_count).
+            is_cancelled (callable): Optional function returning True when the user cancelled.
         """
-        channel_url = f"https://www.youtube.com/channel/{channel_id}/videos"
+        uploads_playlist_id = None
+        if channel_id and channel_id.startswith("UC") and len(channel_id) > 2:
+            uploads_playlist_id = f"UU{channel_id[2:]}"
+        channel_url = (
+            f"https://www.youtube.com/playlist?list={uploads_playlist_id}"
+            if uploads_playlist_id else f"https://www.youtube.com/channel/{channel_id}/videos"
+        )
         auth_opts = self._get_auth_params()
-        ydl_opts = {
-            'quiet': True,
-            'skip_download': True,
-            'extract_flat': True,
-        }
-        if limit is not None:
-            ydl_opts['playlistend'] = limit
+        items_to_fetch = None if limit in (None, 0) else max(1, int(limit))
+        batch_size = max(1, batch_size or CHANNEL_FETCH_BATCH_SIZE)
 
-        if auth_opts:
-            ydl_opts.update(auth_opts)
-        ydl_opts.setdefault('logger', QuietYDLLogger())
+        collected_entries = []
+        start = max(1, int(start_index) if start_index else 1)
 
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(channel_url, download=False)
-        except yt_dlp.utils.DownloadError as exc:
-            self.logger.exception("yt-dlp failed to fetch channel videos for %s: %s", channel_id, exc)
-            self.showError.emit("Failed to fetch channel videos: yt-dlp error")
-            return []
-        except Exception as exc:  # noqa: BLE001
-            self.logger.exception("Unexpected error while using yt-dlp for channel %s: %s", channel_id, exc)
-            self.showError.emit("Failed to fetch channel videos: unexpected error")
-            return []
+        while True:
+            if is_cancelled and is_cancelled():
+                self.logger.info("Channel fetch cancelled after %d items", len(collected_entries))
+                break
 
-        entries = info.get('entries') if isinstance(info, dict) else None
-        if not entries:
-            self.logger.warning("yt-dlp returned no entries for channel %s", channel_id)
-            return []
+            window_size = items_to_fetch or batch_size
+            end = start + window_size - 1
 
+            entries = self._fetch_channel_entries(
+                channel_url,
+                start,
+                end,
+                auth_opts=auth_opts,
+            )
+            if not entries:
+                # Fallback: refetch from the beginning up to the current end and slice.
+                fallback_entries = self._fetch_channel_entries(
+                    channel_url,
+                    1,
+                    end,
+                    auth_opts=auth_opts,
+                    slice_start=start,
+                )
+                entries = fallback_entries
+
+            if not entries:
+                self.logger.warning("No entries fetched for channel %s (start=%s)", channel_id, start)
+                break
+
+            collected_entries.extend(entries)
+            if progress_callback:
+                progress_callback(len(collected_entries), items_to_fetch)
+
+            if items_to_fetch is not None and len(collected_entries) >= items_to_fetch:
+                collected_entries = collected_entries[:items_to_fetch]
+                break
+
+            if len(entries) < window_size:
+                # No more pages to fetch
+                break
+
+            start = end + 1
+
+        return self._normalize_entries(collected_entries)
+
+    def _fetch_channel_entries(self, channel_url, start, end, auth_opts, slice_start=None):
+        """Internal helper to fetch a slice of channel entries."""
+        strategies = [
+            {'playlist_items': f"{start}-{end}", 'lazy_playlist': False, 'extract_flat': True},
+            {'playliststart': start, 'playlistend': end, 'lazy_playlist': False, 'extract_flat': True},
+        ]
+
+        for opts in strategies:
+            ydl_opts = {
+                'quiet': True,
+                'skip_download': True,
+                'extract_flat': True,
+                'retries': 3,
+                'socket_timeout': 10,
+            }
+            ydl_opts.update(opts)
+            if auth_opts:
+                ydl_opts.update(auth_opts)
+            ydl_opts.setdefault('logger', QuietYDLLogger())
+
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(channel_url, download=False)
+            except yt_dlp.utils.DownloadError as exc:
+                self.logger.exception("yt-dlp failed to fetch channel videos for %s with opts %s: %s", channel_url, opts, exc)
+                continue
+            except Exception as exc:  # noqa: BLE001
+                self.logger.exception("Unexpected error while using yt-dlp for %s with opts %s: %s", channel_url, opts, exc)
+                continue
+
+            entries = info.get('entries') if isinstance(info, dict) else None
+            if entries:
+                break
+        else:
+            entries = []
+
+        if slice_start and slice_start > 1:
+            slice_from = slice_start - 1
+            slice_to = end
+            entries = entries[slice_from:slice_to]
+
+        return entries
+
+    def _normalize_entries(self, entries):
+        """Normalize yt-dlp entries to a list of {title, url, duration}."""
         seen_urls = set()
         collected = []
+
         for entry in entries:
             if not entry:
                 continue
@@ -216,12 +303,29 @@ class YTChannel(QObject):
         return self.video_titles_links
 
     def fetch_videos_from_playlist(self, playlist_url):
+        return self.fetch_videos_from_playlist_with_progress(
+            playlist_url, progress_callback=None, is_cancelled=None
+        )
+
+    def fetch_videos_from_playlist_with_progress(self, playlist_url, progress_callback=None, is_cancelled=None, limit=None):
         auth_opts = self._get_auth_params()
+        playlist_url = self._canonical_playlist_url(playlist_url)
+        total_entries = self._get_playlist_total_count(playlist_url, auth_opts)
+        if progress_callback and total_entries:
+            progress_callback(0, total_entries)
+        self.logger.info("Starting playlist fetch for %s (reported total: %s)", playlist_url, total_entries or "unknown")
         if YouTubeURLValidator.playlist_exists(playlist_url, auth_opts):
             video_titles_links = []
             fallback_entries = YouTubeURLValidator.extract_playlist_entries(playlist_url, auth_opts)
+            total_entries = total_entries or len(fallback_entries)
             seen_urls = set()
+            count = 0
             for entry in fallback_entries:
+                if limit and count >= limit:
+                    break
+                if is_cancelled and is_cancelled():
+                    self.logger.info("Playlist fetch cancelled after %d items", count)
+                    break
                 entry_id = entry.get('id')
                 video_url = entry.get('webpage_url') or entry.get('url')
                 if video_url and not video_url.startswith('http'):
@@ -251,12 +355,57 @@ class YTChannel(QObject):
                     continue
                 if video_data:
                     video_titles_links.append(video_data)
-
+                count += 1
+                if progress_callback:
+                    progress_callback(count, total_entries)
+                if count == total_entries or count % 25 == 0:
+                    self.logger.info("Playlist fetch progress: %d/%s", count, total_entries or "unknown")
             if video_titles_links:
                 return video_titles_links
 
         self.showError.emit("The URL is incorrect or unreachable.")
         raise ValueError("Invalid playlist URL")
+
+    def _get_playlist_total_count(self, playlist_url, auth_opts):
+        """Return playlist_count if yt-dlp reports it; otherwise None."""
+        attempts = [
+            {'extract_flat': True, 'playlistend': 1},
+            {'extract_flat': False, 'playlistend': 1},
+        ]
+        for opts in attempts:
+            ydl_opts = {
+                'quiet': True,
+                'skip_download': True,
+                'playlist_items': '1',
+                'yes_playlist': True,
+            }
+            ydl_opts.update(opts)
+            if auth_opts:
+                ydl_opts.update(auth_opts)
+            ydl_opts.setdefault('logger', QuietYDLLogger())
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(playlist_url, download=False)
+                playlist_count = info.get('playlist_count') if isinstance(info, dict) else None
+                entries = info.get('entries') or []
+                if playlist_count:
+                    self.logger.info("yt-dlp reports playlist_count=%s for %s", playlist_count, playlist_url)
+                    return int(playlist_count)
+                if entries:
+                    self.logger.info("yt-dlp returned %d entries (no playlist_count) for %s", len(entries), playlist_url)
+                    return len(entries)
+            except Exception:
+                self.logger.debug("Could not determine playlist count for %s with opts %s", playlist_url, opts, exc_info=True)
+        return None
+
+    def _canonical_playlist_url(self, url):
+        """Ensure we query the playlist endpoint even if a watch URL was provided."""
+        parsed = urlparse(url)
+        qs = parse_qs(parsed.query)
+        list_id = qs.get('list', [None])[0]
+        if list_id:
+            return f"https://www.youtube.com/playlist?list={list_id}"
+        return url
 
     def get_single_video(self, video_url):
         auth_params = self._get_auth_params()

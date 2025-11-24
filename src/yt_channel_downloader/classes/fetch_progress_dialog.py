@@ -40,7 +40,7 @@ class FetchProgressDialog(QDialog):
     cancelled = Signal()
     error = Signal(str)
 
-    def __init__(self, channel_id, yt_channel, channel_url=None, parent=None):
+    def __init__(self, channel_id, yt_channel, channel_url=None, limit=None, start_index=1, parent=None):
         """
         Initializes the dialog and starts the fetch operation in a separate
         thread.
@@ -55,11 +55,15 @@ class FetchProgressDialog(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("Fetching items")
+        self.limit = limit
+        self.start_index = start_index
+        self.is_playlist = channel_id == "playlist"
 
         self.setFixedSize(400, 200)
         self.layout = QVBoxLayout(self)
 
-        self.message_label = QLabel("Fetching the list of items... This may take some time, depending on the number of items.")
+        limit_hint = f" (next {limit} items)" if start_index and start_index > 1 else (f" (first {limit} items by default)" if limit else "")
+        self.message_label = QLabel(f"Fetching the list of items{limit_hint}... This may take some time for large sources.")
         self.message_label.setWordWrap(True)
         self.layout.addWidget(self.message_label)
 
@@ -67,8 +71,13 @@ class FetchProgressDialog(QDialog):
         self.layout.addWidget(self.timer_label)
 
         self.progress_bar = QProgressBar(self)
-        # Set range to 0 to make the progress bar indefinite
-        self.progress_bar.setRange(0, 0)
+        # Set to determinate if a limit is known (non-playlist), otherwise keep it indefinite
+        if limit and not self.is_playlist:
+            self.progress_bar.setRange(0, limit)
+            self.progress_bar.setValue(0)
+            self.progress_bar.setFormat("%p%")
+        else:
+            self.progress_bar.setRange(0, 0)
         self.layout.addWidget(self.progress_bar)
 
         self.cancel_button = QPushButton("Cancel", self)
@@ -82,10 +91,11 @@ class FetchProgressDialog(QDialog):
             dialog_rect.moveCenter(parent_center)
             QTimer.singleShot(0, lambda: self.setGeometry(dialog_rect))
 
-        self.thread = GetListThread(channel_id, yt_channel, channel_url)
+        self.thread = GetListThread(channel_id, yt_channel, channel_url, limit=limit, start_index=start_index)
         self.thread.finished.connect(self.on_fetch_complete)
         self.thread.cancelled.connect(self.on_fetch_cancel)
         self.thread.error.connect(self.on_fetch_error)
+        self.thread.progress.connect(self.on_progress)
 
         # Timer setup
         self.elapsed_seconds = 0
@@ -124,6 +134,29 @@ class FetchProgressDialog(QDialog):
         self.timer.stop()
         self.error.emit(message)
         self.reject()
+
+    def on_progress(self, count, total):
+        """Update progress bar and text as batches are fetched."""
+        if self.is_playlist:
+            # Keep the bar indeterminate and show a friendly status message.
+            self.progress_bar.setRange(0, 0)
+            total_text = f"{total} items" if total else "items"
+            self.message_label.setText(f"Fetching {total_text}... Thank you for your patience.")
+            return
+
+        target = total or self.limit
+        if not target and count:
+            # If total unknown, use the running count to switch to determinate.
+            target = max(count, 1)
+        if target:
+            self.progress_bar.setRange(0, target)
+            self.progress_bar.setValue(min(count, target))
+            self.progress_bar.setFormat(f"{count}/{target}")
+        else:
+            # Keep indeterminate but still show count fetched
+            self.progress_bar.setRange(0, 0)
+        suffix = f" of {target}" if target else ""
+        self.message_label.setText(f"Fetched {count} items{suffix}...")
 
     def apply_style(self):
         """
