@@ -38,7 +38,7 @@ from ..ui.ui_form import Ui_MainWindow
 from ..ui.ui_about import Ui_aboutDialog
 from .settings_manager import SettingsManager
 from .enums import ColumnIndexes
-from ..config.constants import settings_map
+from ..config.constants import settings_map, DEFAULT_CHANNEL_FETCH_LIMIT, DEFAULT_PLAYLIST_FETCH_LIMIT, CHANNEL_FETCH_BATCH_SIZE
 from .download_thread import DownloadThread
 from .dialogs import CustomDialog, YoutubeCookiesDialog
 from .fetch_progress_dialog import FetchProgressDialog
@@ -107,6 +107,8 @@ class MainWindow(QMainWindow):
         self._suppress_item_changed = False
         self.node_notifier: Optional[NodeRuntimeNotifier] = None
         self.support_prompt: Optional[SupportPrompt] = None
+        self.channel_fetch_context: Dict[str, Any] | None = None
+        self.current_fetch_is_channel = False
         logger.info("Main window initialised")
 
         self.init_styles()
@@ -179,8 +181,17 @@ class MainWindow(QMainWindow):
         self.cancelDownloadsButton.setVisible(False)
         self.cancelDownloadsButton.setEnabled(False)
         self.cancelDownloadsButton.clicked.connect(self.cancel_active_downloads)
+        self.loadNextButton: QPushButton = QPushButton("Fetch Next", self)
+        self.loadNextButton.setObjectName("loadNextButton")
+        self.loadNextButton.setMinimumSize(QtCore.QSize(140, 32))
+        load_font = QFont("Courier New", 12)
+        load_font.setBold(True)
+        self.loadNextButton.setFont(load_font)
+        self.loadNextButton.setEnabled(False)
+        self.loadNextButton.clicked.connect(self.load_next_batch)
         self.bottomButtonLayout = QHBoxLayout()
         self.bottomButtonLayout.addStretch()
+        self.bottomButtonLayout.addWidget(self.loadNextButton)
         self.bottomButtonLayout.addWidget(self.cancelDownloadsButton)
         self.ui.verticalLayout.addLayout(self.bottomButtonLayout)
         self.downloadSelectedVidsButton: QPushButton = self.ui.downloadSelectedVidsButton
@@ -412,6 +423,9 @@ class MainWindow(QMainWindow):
         self.user_settings.setdefault('suppress_node_runtime_warning', False)
         self.user_settings.setdefault('downloads_completed', 0)
         self.user_settings.setdefault('support_prompt_next_at', 50)
+        self.user_settings.setdefault('channel_fetch_limit', DEFAULT_CHANNEL_FETCH_LIMIT)
+        self.user_settings.setdefault('playlist_fetch_limit', DEFAULT_PLAYLIST_FETCH_LIMIT)
+        self.user_settings.setdefault('channel_fetch_batch_size', CHANNEL_FETCH_BATCH_SIZE)
 
     def _init_node_notifier(self):
         """Set up the Node.js runtime notifier helper."""
@@ -734,6 +748,17 @@ class MainWindow(QMainWindow):
         self.ui.chanUrlEdit.setEnabled(enabled)
         fetch_button_enabled = enabled and not self.fetch_in_progress
         self.getVidListButton.setEnabled(fetch_button_enabled)
+        self._update_load_next_button_state()
+
+    def _update_load_next_button_state(self):
+        """Enable/disable and retitle the Load Next button based on context."""
+        if not hasattr(self, "loadNextButton"):
+            return
+        limit = self._get_channel_fetch_limit()
+        self.loadNextButton.setText(f"Fetch Next {limit}")
+        has_channel = bool(self.channel_fetch_context and self.channel_fetch_context.get("channel_id"))
+        enabled = has_channel and not self.fetch_in_progress and not self.active_download_threads
+        self.loadNextButton.setEnabled(enabled)
 
     def update_download_button_state(self):
         """Enable or disable the download button based on item selection.
@@ -791,8 +816,11 @@ class MainWindow(QMainWindow):
             fetched data.
         """
         self.yt_chan_vids_titles_links.clear()
-        self.yt_chan_vids_titles_links = \
-            yt_channel.fetch_all_videos_in_channel(channel_id)
+        limit = self.user_settings.get('channel_fetch_limit', DEFAULT_CHANNEL_FETCH_LIMIT)
+        self.yt_chan_vids_titles_links = yt_channel.fetch_all_videos_in_channel(
+            channel_id,
+            limit=limit,
+        )
 
     def populate_window_list(self):
         """Populates the main window's list view with video details."""
@@ -1302,12 +1330,13 @@ class MainWindow(QMainWindow):
         return bar
 
     def _start_fetch_dialog(self, channel_id, yt_channel, channel_url=None,
-                            finish_handler=None):
+                            finish_handler=None, limit=None, start_index=1):
         """Helper method to start FetchProgressDialog and connect finished
         signal."""
         self.fetch_in_progress = True
         self.fetch_error_message = None
         fetch_dialog = FetchProgressDialog(channel_id, yt_channel, channel_url,
+                                           limit=limit, start_index=start_index,
                                            parent=self)
 
         if finish_handler:
@@ -1359,13 +1388,19 @@ class MainWindow(QMainWindow):
 
         if self._is_playlist_or_video_with_playlist(yt_channel, channel_url):
             logger.debug("Detected playlist URL")
+            self.current_fetch_is_channel = False
+            self.channel_fetch_context = None
+            playlist_limit = self._get_playlist_fetch_limit()
             self._start_fetch_dialog("playlist", yt_channel, channel_url,
-                                     self.handle_video_list)
+                                     self.handle_video_list,
+                                     limit=playlist_limit)
 
         elif self._is_video(yt_channel, channel_url):
             fetch_type = "short" if yt_channel.is_short_video_url(
                 channel_url) else None
             logger.debug("Detected single video URL (short=%s)", bool(fetch_type))
+            self.current_fetch_is_channel = False
+            self.channel_fetch_context = None
             self._start_fetch_dialog(fetch_type, yt_channel, channel_url,
                                      self.handle_single_video)
         else:
@@ -1402,6 +1437,28 @@ class MainWindow(QMainWindow):
         else:
             self.display_error_dialog(message)
 
+    def _get_channel_fetch_limit(self):
+        """Return the configured channel fetch limit with a sane fallback."""
+        limit = self.user_settings.get('channel_fetch_limit', DEFAULT_CHANNEL_FETCH_LIMIT)
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            limit = DEFAULT_CHANNEL_FETCH_LIMIT
+        if limit <= 0:
+            limit = DEFAULT_CHANNEL_FETCH_LIMIT
+        return limit
+
+    def _get_playlist_fetch_limit(self):
+        """Return the configured playlist fetch limit with a sane fallback."""
+        limit = self.user_settings.get('playlist_fetch_limit', DEFAULT_PLAYLIST_FETCH_LIMIT)
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            limit = DEFAULT_PLAYLIST_FETCH_LIMIT
+        if limit <= 0:
+            limit = DEFAULT_PLAYLIST_FETCH_LIMIT
+        return limit
+
     def _is_playlist_or_video_with_playlist(self, yt_channel, url):
         """Checks if the URL is a playlist or a video with a playlist."""
         return yt_channel.is_video_with_playlist_url(url) or \
@@ -1416,9 +1473,17 @@ class MainWindow(QMainWindow):
         """Handles the logic for fetching a channel."""
         try:
             channel_id = yt_channel.get_channel_id(channel_url)
-            logger.debug("Resolved channel ID: %s", channel_id)
+            limit = self._get_channel_fetch_limit()
+            logger.debug("Resolved channel ID: %s (limit=%s)", channel_id, limit)
+            self.current_fetch_is_channel = True
+            self.channel_fetch_context = {
+                "channel_id": channel_id,
+                "channel_url": channel_url,
+            }
             self._start_fetch_dialog(channel_id, yt_channel,
-                                     finish_handler=self.handle_video_list)
+                                     finish_handler=self.handle_video_list,
+                                     limit=limit,
+                                     start_index=1)
         except (ValueError, error.URLError) as exc:
             logger.warning("Failed to resolve channel from URL %s: %s", channel_url, exc)
             self.display_error_dialog("Please check your URL")
@@ -1442,7 +1507,12 @@ class MainWindow(QMainWindow):
         """
         self.yt_chan_vids_titles_links = video_list
         logger.info("Loaded %d videos into list", len(video_list))
+        if self.current_fetch_is_channel and self.channel_fetch_context:
+            self.channel_fetch_context["fetched"] = len(self.yt_chan_vids_titles_links)
+        else:
+            self.channel_fetch_context = None
         self.populate_window_list()
+        self._update_load_next_button_state()
 
     @Slot(list)
     def handle_single_video(self, video_list):
@@ -1455,6 +1525,46 @@ class MainWindow(QMainWindow):
         self.yt_chan_vids_titles_links = video_list
         logger.info("Loaded single video into list")
         self.populate_window_list()
+        self.channel_fetch_context = None
+        self._update_load_next_button_state()
+
+    @Slot()
+    def load_next_batch(self):
+        """Load the next batch of channel videos using the configured limit."""
+        if self.fetch_in_progress:
+            return
+        if not self.channel_fetch_context or not self.channel_fetch_context.get("channel_id"):
+            return
+        limit = self._get_channel_fetch_limit()
+        channel_id = self.channel_fetch_context["channel_id"]
+        start_index = len(self.yt_chan_vids_titles_links) + 1
+        yt_channel = self._prepare_yt_channel()
+        logger.info("Fetching next %s items for channel %s starting at %s", limit, channel_id, start_index)
+        self.current_fetch_is_channel = True
+        self._start_fetch_dialog(channel_id, yt_channel, finish_handler=self.handle_next_batch,
+                                 limit=limit, start_index=start_index)
+
+    @Slot(list)
+    def handle_next_batch(self, video_list):
+        """Append newly fetched channel videos to the current list and UI."""
+        if not video_list:
+            QMessageBox.information(
+                self,
+                "No more videos",
+                "No additional videos were fetched for this channel.",
+            )
+            return
+        start_index = len(self.yt_chan_vids_titles_links)
+        self.yt_chan_vids_titles_links.extend(video_list)
+        for entry in video_list:
+            self._add_video_item_to_list(entry)
+        self._finalize_list_view()
+        self.update_selection_size_summary()
+        self._maybe_prompt_on_js_warning()
+        if self.channel_fetch_context:
+            self.channel_fetch_context["fetched"] = len(self.yt_chan_vids_titles_links)
+        logger.info("Appended %d videos (total now %d)", len(video_list), len(self.yt_chan_vids_titles_links))
+        self._update_load_next_button_state()
 
     @Slot()
     def enable_get_vid_list_button(self):

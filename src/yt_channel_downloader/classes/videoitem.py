@@ -47,9 +47,10 @@ class VideoItem:
         """
         self.item_checkbox = QtGui.QStandardItem()
         self.item_checkbox.setCheckable(True)
-        self.item_checkbox.setCheckState(QtCore.Qt.CheckState.Checked if
-                                         self.is_download_complete else
-                                         QtCore.Qt.CheckState.Unchecked)
+        self.item_checkbox.setCheckState(
+            QtCore.Qt.CheckState.Unchecked if self.is_download_complete
+            else QtCore.Qt.CheckState.Unchecked
+        )
         item_title = QtGui.QStandardItem(self.title)
         item_link = QtGui.QStandardItem(self.link)
         duration_value = self._coerce_duration_value(self.duration_seconds)
@@ -85,8 +86,8 @@ class VideoItem:
         gray_brush = QtGui.QBrush(QtGui.QColor('grey'))
         for subitem in self.qt_item[:-1]:
             subitem.setForeground(gray_brush)
-        self.item_checkbox.setFlags(QtCore.Qt.ItemFlag.ItemIsSelectable |
-                                    QtCore.Qt.ItemFlag.ItemIsUserTristate)
+        self.item_checkbox.setCheckState(QtCore.Qt.CheckState.Unchecked)
+        self.item_checkbox.setFlags(QtCore.Qt.ItemFlag.ItemIsSelectable)
         speed_item = self.qt_item[-2]
         speed_item.setData("—", QtCore.Qt.ItemDataRole.DisplayRole)
         progress_item = self.qt_item[-1]

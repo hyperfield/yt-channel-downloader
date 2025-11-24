@@ -6,7 +6,8 @@ from pathlib import Path
 from appdirs import user_config_dir
 
 from ..config.constants import DEFAULT_VIDEO_FORMAT, DEFAULT_AUDIO_FORMAT, \
-    DEFAULT_VIDEO_QUALITY, DEFAULT_AUDIO_QUALITY
+    DEFAULT_VIDEO_QUALITY, DEFAULT_AUDIO_QUALITY, DEFAULT_CHANNEL_FETCH_LIMIT, \
+    DEFAULT_PLAYLIST_FETCH_LIMIT, CHANNEL_FETCH_BATCH_SIZE
 
 
 class SettingsManager:
@@ -31,8 +32,10 @@ class SettingsManager:
 
     def load_settings(self):
         settings = self.read_settings_from_file()
-        self._apply_environment_proxy(settings)
-        return settings
+        defaults = self.load_default_settings()
+        merged_settings = {**defaults, **settings}
+        self._apply_environment_proxy(merged_settings)
+        return merged_settings
 
     def read_settings_from_file(self):
         try:
@@ -67,7 +70,10 @@ class SettingsManager:
             # Download milestone prompts
             'downloads_completed': 0,
             'support_prompt_next_at': 50,
-            'dont_show_login_prompt': False
+            'dont_show_login_prompt': False,
+            'channel_fetch_limit': DEFAULT_CHANNEL_FETCH_LIMIT,
+            'playlist_fetch_limit': DEFAULT_PLAYLIST_FETCH_LIMIT,
+            'channel_fetch_batch_size': CHANNEL_FETCH_BATCH_SIZE,
         }
 
     def save_settings_to_file(self, settings):

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yt-channel-downloader"
-version = "0.5.5"
+version = "0.7.0"
 description = "Desktop app for downloading entire YouTube channels or playlists via yt-dlp."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -31,7 +31,7 @@ classifiers = [
 dependencies = [
   "appdirs>=1.4.4",
   "requests>=2.31",
-  "yt-dlp>=2024.8.6",
+  "yt-dlp>=2025.11.12",
   "PyQt6>=6.6.0",
 ]
 
