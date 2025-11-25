@@ -160,6 +160,21 @@ pip install --upgrade yt-channel-downloader
 yt-channel-downloader
 ```
 
+### Install the .deb (Debian/Ubuntu)
+
+1. Download the latest `.deb` from the releases page (or build one with `./scripts/create_binary.sh` then `./scripts/create_deb.sh`).
+2. Install it with `apt` so dependencies are resolved:
+
+```bash
+sudo apt install ./yt-channel-downloader_<version>_<arch>.deb
+```
+
+3. Launch with:
+
+```bash
+yt-channel-downloader
+```
+
 ### MacOS or Linux (from source)
 
 `ffmpeg` is needed for the app to work correctly, so make sure you have it on your system. Check in your terminal emulator if `ffmpeg` is installed:
