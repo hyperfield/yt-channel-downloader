@@ -167,6 +167,7 @@ class MainWindow(QMainWindow):
         self.setup_ui()
         self.root_item = self.model.invisibleRootItem()
         self.selection_summary_label: QLabel = QLabel("")
+        self.size_estimate_toggle: Optional[QCheckBox] = None
         self.recalc_status_widget: QWidget = self._build_recalc_status_widget()
         self.ui.statusbar.addPermanentWidget(self.recalc_status_widget)
         self.ui.statusbar.addPermanentWidget(self.selection_summary_label)
@@ -488,6 +489,12 @@ class MainWindow(QMainWindow):
         self.select_all_checkbox = QCheckBox("Select All", self)
         self.select_all_checkbox.setVisible(False)
         self.ui.verticalLayout.addWidget(self.select_all_checkbox)
+        self.ui.verticalLayout.addSpacing(12)
+        self.size_estimate_toggle = QCheckBox("Calculate estimated sizes", self)
+        self.size_estimate_toggle.setVisible(False)
+        self.size_estimate_toggle.setChecked(True)
+        self.size_estimate_toggle.toggled.connect(self.on_size_estimation_toggled)
+        self.ui.verticalLayout.addWidget(self.size_estimate_toggle)
         self.select_all_checkbox.stateChanged.connect(
             self.on_select_all_state_changed)
 
@@ -668,10 +675,10 @@ class MainWindow(QMainWindow):
         excluded from selection toggling.
         """
         new_value = state == 2
-        if new_value and self._size_recalc_worker_thread and self._size_recalc_worker_thread.isRunning():
-            # Restart estimation for the new selection set.
-            self._cancel_selection_recalc()
-        if new_value:
+        if new_value and self._is_size_estimation_enabled():
+            if self._size_recalc_worker_thread and self._size_recalc_worker_thread.isRunning():
+                # Restart estimation for the new selection set.
+                self._cancel_selection_recalc()
             self._size_recalc_indicator_needed = True
         self._suppress_item_changed = True
         for row in range(self.model.rowCount()):
@@ -754,6 +761,8 @@ class MainWindow(QMainWindow):
         self.ui.treeView.setColumnWidth(ColumnIndexes.DURATION, duration_width)
 
         self.select_all_checkbox.setVisible(False)
+        if self.size_estimate_toggle:
+            self.size_estimate_toggle.setVisible(False)
 
     def show_settings_dialog(self):
         """Display the settings dialog window.
@@ -920,6 +929,8 @@ class MainWindow(QMainWindow):
         self._apply_tree_view_styles()
         if self.model.rowCount() > 0:
             self.select_all_checkbox.setVisible(True)
+            if self.size_estimate_toggle:
+                self.size_estimate_toggle.setVisible(True)
             if self.window_resize_needed:
                 self.auto_adjust_window_size()
                 self.window_resize_needed = False
@@ -956,6 +967,13 @@ class MainWindow(QMainWindow):
         selected_rows = self._checked_row_indexes()
         if not selected_rows:
             self.selection_summary_label.setText("No items selected")
+            return
+
+        if not self._is_size_estimation_enabled():
+            summary = f"Selected: {len(selected_rows)} | Size estimation disabled"
+            self.selection_summary_label.setText(summary)
+            self._hide_recalc_status()
+            self._stop_recalc_watchdog()
             return
 
         if self._size_recalc_indicator_needed and selected_rows:
@@ -1002,6 +1020,8 @@ class MainWindow(QMainWindow):
 
     def _start_async_selection_summary(self, selected_rows) -> bool:
         """Kick off selection size recalculation in a background thread."""
+        if not self._is_size_estimation_enabled():
+            return False
         if self._size_recalc_worker_thread and self._size_recalc_worker_thread.isRunning():
             return True
 
@@ -1059,6 +1079,21 @@ class MainWindow(QMainWindow):
         self._size_recalc_indicator_needed = False
         self._stop_recalc_watchdog()
         self._hide_recalc_status()
+
+    def _is_size_estimation_enabled(self) -> bool:
+        """Return whether the user enabled size/ETA estimation."""
+        try:
+            return bool(self.size_estimate_toggle.isChecked())
+        except Exception:  # noqa: BLE001
+            return False
+
+    def on_size_estimation_toggled(self, checked: bool):
+        """Handle user toggling size estimation on/off."""
+        if not checked:
+            self._cancel_selection_recalc()
+        else:
+            self._size_recalc_indicator_needed = True
+        self.update_selection_size_summary()
 
     @Slot(object, object, bool, dict, int, int, bool)
     def _on_async_selection_summary_finished(self, total_estimated, total_remaining, has_unknown, per_row_estimates, selected_count, generation, cancelled):
@@ -1507,7 +1542,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        self.recalc_status_label = QLabel("Recalculating download size estimates...", widget)
+        self.recalc_status_label = QLabel("Calculating download size estimates...", widget)
         self.recalc_status_bar = QProgressBar(widget)
         self.recalc_status_bar.setRange(0, 0)
         self.recalc_status_bar.setTextVisible(False)
