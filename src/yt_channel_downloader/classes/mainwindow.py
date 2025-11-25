@@ -62,7 +62,7 @@ logger = get_logger("MainWindow")
 class SelectionSizeWorker(QtCore.QObject):
     """Background worker to compute selection size totals without blocking UI."""
 
-    finished = QtCore.pyqtSignal(object, object, bool, dict, int, int)
+    finished = QtCore.pyqtSignal(object, object, bool, dict, int, int, bool)
 
     def __init__(self, rows_data, estimate_func, remaining_func, generation: int):
         super().__init__()
@@ -70,6 +70,11 @@ class SelectionSizeWorker(QtCore.QObject):
         self.estimate_func = estimate_func
         self.remaining_func = remaining_func
         self.generation = generation
+        self._cancelled = False
+
+    def cancel(self):
+        """Request cancellation."""
+        self._cancelled = True
 
     @QtCore.pyqtSlot()
     def run(self):
@@ -77,8 +82,12 @@ class SelectionSizeWorker(QtCore.QObject):
         total_remaining = 0
         has_unknown = False
         per_row_estimates = {}
+        cancelled = False
 
         for data in self.rows_data:
+            if self._cancelled:
+                cancelled = True
+                break
             estimate = self.estimate_func(data["link"], data["duration"])
             per_row_estimates[data["row"]] = estimate
             if estimate is None:
@@ -88,7 +97,7 @@ class SelectionSizeWorker(QtCore.QObject):
             total_estimated += estimate
             total_remaining += self.remaining_func(estimate, data["progress"])
 
-        self.finished.emit(total_estimated, total_remaining, has_unknown, per_row_estimates, len(self.rows_data), self.generation)
+        self.finished.emit(total_estimated, total_remaining, has_unknown, per_row_estimates, len(self.rows_data), self.generation, cancelled)
 
 
 class MainWindow(QMainWindow):
@@ -983,9 +992,6 @@ class MainWindow(QMainWindow):
             total_bytes_estimated += estimate
             progress_val = self._item_user_role(self.model.item(row, ColumnIndexes.PROGRESS))
             total_bytes_remaining += self._remaining_bytes(estimate, progress_val)
-            # Keep the event loop alive so the busy bar can animate during recalculation.
-            if self._size_recalc_indicator_needed and idx % 2 == 0:
-                QApplication.processEvents(QtCore.QEventLoop.ProcessEventsFlag.AllEvents)
 
         return total_bytes_estimated, total_bytes_remaining, has_unknown
 
@@ -1032,14 +1038,33 @@ class MainWindow(QMainWindow):
         thread.finished.connect(lambda: self._cleanup_async_thread(thread))
         self._size_recalc_worker_thread = thread
         thread.start()
-        self._start_recalc_watchdog()
+        per_item_ms = 2000
+        timeout_ms = max(5000, len(rows_data) * per_item_ms)
+        self._start_recalc_watchdog(timeout_ms)
         return True
 
-    @Slot(object, object, bool, dict, int, int)
-    def _on_async_selection_summary_finished(self, total_estimated, total_remaining, has_unknown, per_row_estimates, selected_count, generation):
+    def _cancel_selection_recalc(self):
+        """User-requested cancellation of size recalculation."""
+        self._size_recalc_generation += 1
+        if self._size_recalc_worker:
+            self._size_recalc_worker.cancel()
+        if self._size_recalc_worker_thread and self._size_recalc_worker_thread.isRunning():
+            self._size_recalc_worker_thread = None
+        self._size_recalc_worker = None
+        self._size_recalc_indicator_needed = False
+        self._stop_recalc_watchdog()
+        self._hide_recalc_status()
+
+    @Slot(object, object, bool, dict, int, int, bool)
+    def _on_async_selection_summary_finished(self, total_estimated, total_remaining, has_unknown, per_row_estimates, selected_count, generation, cancelled):
         """Handle completion of background selection size calculation."""
         if generation != self._size_recalc_generation:
             logger.debug("Ignoring stale selection size result (generation %s != %s)", generation, self._size_recalc_generation)
+            return
+        if cancelled:
+            self._size_recalc_indicator_needed = False
+            self._stop_recalc_watchdog()
+            self._hide_recalc_status()
             return
         if per_row_estimates:
             self.estimated_download_sizes.update(per_row_estimates)
@@ -1486,8 +1511,14 @@ class MainWindow(QMainWindow):
                                              QSizePolicy.Policy.Preferred)
         self.recalc_status_bar.setStyleSheet(self._indeterminate_progress_stylesheet())
 
+        self.recalc_cancel_button = QPushButton("Cancel", widget)
+        self.recalc_cancel_button.setObjectName("recalcCancelButton")
+        self.recalc_cancel_button.setFixedHeight(22)
+        self.recalc_cancel_button.clicked.connect(self._cancel_selection_recalc)
+
         layout.addWidget(self.recalc_status_label)
         layout.addWidget(self.recalc_status_bar, 1)
+        layout.addWidget(self.recalc_cancel_button)
         widget.setVisible(False)
         return widget
 
@@ -1504,7 +1535,7 @@ class MainWindow(QMainWindow):
             self.recalc_status_widget.setVisible(False)
             self.selection_summary_label.setVisible(True)
 
-    def _start_recalc_watchdog(self, timeout_ms: int = 20000):
+    def _start_recalc_watchdog(self, timeout_ms: int):
         """Start a watchdog timer to hide the spinner if work stalls."""
         self._stop_recalc_watchdog()
         timer = QtCore.QTimer(self)
@@ -1526,6 +1557,8 @@ class MainWindow(QMainWindow):
         if self._size_recalc_worker_thread and self._size_recalc_worker_thread.isRunning():
             logger.warning("Selection size recalculation exceeded timeout; hiding indicator.")
             # Allow a new recalculation to start even if the old worker lingers.
+            if self._size_recalc_worker:
+                self._size_recalc_worker.cancel()
             self._size_recalc_worker_thread = None
             self._size_recalc_worker = None
             self._size_recalc_generation += 1
