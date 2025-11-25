@@ -28,8 +28,8 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QDialog, QCheckBox,
                              QLabel, QWidget, QSizePolicy)
 from PyQt6.QtGui import QFont
 from PyQt6.QtGui import QFontMetrics
-from PyQt6.QtGui import QStandardItem
-from PyQt6.QtCore import QUrl
+from PyQt6.QtGui import QStandardItem, QPixmap
+from PyQt6.QtCore import QUrl, QSize
 from PyQt6.QtGui import QDesktopServices
 import yt_dlp
 
@@ -46,7 +46,8 @@ from .fetch_progress_dialog import FetchProgressDialog
 from .login_prompt_dialog import LoginPromptDialog
 from .checkbox_delegate import CheckBoxDelegate
 from .YTChannel import YTChannel
-from .videoitem import VideoItem
+from .videoitem import VideoItem, THUMBNAIL_URL_ROLE
+from .thumbnail_loader import ThumbnailLoader
 from .settings import SettingsDialog
 from .youtube_auth_manager import YoutubeAuthManager
 from .validators import is_supported_media_url
@@ -111,6 +112,9 @@ class MainWindow(QMainWindow):
         self.estimated_download_sizes: Dict[int, Optional[int]] = {}
         self._settings_signature: Optional[Tuple] = None
         self._suppress_item_changed = False
+        self.thumbnail_loader: Optional[ThumbnailLoader] = None
+        self.thumbnail_targets: Dict[int, str] = {}
+        self.prefetched_thumbnails: Dict[int, QPixmap] = {}
         self._size_recalc_indicator_needed = False
         self._size_recalc_worker: Optional[SelectionSizeWorker] = None
         self._size_recalc_watchdog: Optional[QtCore.QTimer] = None
@@ -147,6 +151,8 @@ class MainWindow(QMainWindow):
         self.setup_select_all_checkbox()
         self.initialize_youtube_login()
         self._schedule_auto_update_check()
+        self._init_thumbnail_loader()
+        QtCore.QCoreApplication.instance().aboutToQuit.connect(self._shutdown_background_workers)
 
     def init_styles(self):
         """Applies global styles and element-specific styles for the main
@@ -442,6 +448,7 @@ class MainWindow(QMainWindow):
         self.user_settings.setdefault('channel_fetch_limit', DEFAULT_CHANNEL_FETCH_LIMIT)
         self.user_settings.setdefault('playlist_fetch_limit', DEFAULT_PLAYLIST_FETCH_LIMIT)
         self.user_settings.setdefault('channel_fetch_batch_size', CHANNEL_FETCH_BATCH_SIZE)
+        self.user_settings.setdefault('show_thumbnails', True)
         self.user_settings.setdefault('enable_size_estimation', True)
 
     def _init_node_notifier(self):
@@ -463,6 +470,11 @@ class MainWindow(QMainWindow):
         self.size_estimate_toggle.setChecked(self.user_settings.get('enable_size_estimation', True))
         self.size_estimate_toggle.toggled.connect(self.on_size_estimation_toggled)
         self.ui.verticalLayout.addWidget(self.size_estimate_toggle)
+        self.show_thumbnails_toggle = QCheckBox("Show thumbnails", self)
+        self.show_thumbnails_toggle.setVisible(False)
+        self.show_thumbnails_toggle.setChecked(self.user_settings.get('show_thumbnails', True))
+        self.show_thumbnails_toggle.toggled.connect(self.on_show_thumbnails_toggled)
+        self.ui.verticalLayout.addWidget(self.show_thumbnails_toggle)
         self.select_all_checkbox.stateChanged.connect(
             self.on_select_all_state_changed)
 
@@ -699,6 +711,8 @@ class MainWindow(QMainWindow):
         self.progress_widgets.clear()
         self.estimated_download_sizes.clear()
         self.speed_history.clear()
+        self.thumbnail_targets.clear()
+        self.prefetched_thumbnails.clear()
 
         # Set proportional widths
         header = self.ui.treeView.header()
@@ -731,6 +745,8 @@ class MainWindow(QMainWindow):
         self.select_all_checkbox.setVisible(False)
         if self.size_estimate_toggle:
             self.size_estimate_toggle.setVisible(False)
+        if hasattr(self, "show_thumbnails_toggle") and self.show_thumbnails_toggle:
+            self.show_thumbnails_toggle.setVisible(False)
 
     def show_settings_dialog(self):
         """Display the settings dialog window.
@@ -855,6 +871,14 @@ class MainWindow(QMainWindow):
     def populate_window_list(self):
         """Populates the main window's list view with video details."""
         self.reinit_model()
+        if self._is_thumbnail_enabled() and self.thumbnail_loader:
+            thumb_items = []
+            for idx, entry in enumerate(self.yt_chan_vids_titles_links):
+                url = self._thumbnail_url_for_entry(entry)
+                thumb_items.append((idx, url))
+            self.prefetched_thumbnails = self.thumbnail_loader.preload_bulk(thumb_items)
+        else:
+            self.prefetched_thumbnails = {}
         for entry in self.yt_chan_vids_titles_links:
             self._add_video_item_to_list(entry)
 
@@ -862,6 +886,9 @@ class MainWindow(QMainWindow):
         self.update_selection_size_summary()
         self._maybe_prompt_on_js_warning()
         self._maybe_prompt_on_js_warning()
+        # Ensure thumbnails queue after the view is built when enabled.
+        if self._is_thumbnail_enabled():
+            QtCore.QTimer.singleShot(0, self._warm_thumbnails_for_current_rows)
 
     def _add_video_item_to_list(self, video_entry):
         """
@@ -872,15 +899,24 @@ class MainWindow(QMainWindow):
         link = video_entry.get('url', '')
         duration = video_entry.get('duration')
         download_path = self._get_video_filepath(title)
-        video_item = VideoItem(title, link, duration, download_path)
+        thumbnail_url = self._thumbnail_url_for_entry(video_entry)
+        video_item = VideoItem(title, link, duration, download_path, thumbnail_url=thumbnail_url)
         self.root_item.appendRow(video_item.get_qt_item())
         self.dl_path_correspondences[title] = download_path
         row_index = self.model.rowCount() - 1
+        self._apply_row_height_hint(row_index)
         progress_index = self.model.index(row_index, ColumnIndexes.PROGRESS)
         completed = DownloadThread.is_download_complete(download_path)
         progress_bar = self._create_progress_bar(completed=completed)
         self.ui.treeView.setIndexWidget(progress_index, progress_bar)
         self.progress_widgets[row_index] = progress_bar
+        preloaded = self.prefetched_thumbnails.get(row_index)
+        if preloaded:
+            title_item = self.model.item(row_index, ColumnIndexes.TITLE)
+            if title_item:
+                title_item.setData(preloaded, Qt.ItemDataRole.DecorationRole)
+        else:
+            self._maybe_queue_thumbnail(row_index)
 
     def _get_video_filepath(self, title):
         """Generates the file path for a given video title based on user
@@ -888,6 +924,195 @@ class MainWindow(QMainWindow):
         filename = DownloadThread.sanitize_filename(title)
         download_dir = self.user_settings.get('download_directory', './')
         return os.path.join(download_dir, filename)
+
+    def _thumbnail_url_for_entry(self, video_entry: dict) -> Optional[str]:
+        """Return a best-effort thumbnail URL for a video entry."""
+        thumb = video_entry.get('thumbnail')
+        if isinstance(thumb, str) and thumb:
+            return thumb
+
+        thumbs = video_entry.get('thumbnails')
+        if isinstance(thumbs, list):
+            for cand in thumbs:
+                url = None
+                if isinstance(cand, dict):
+                    url = cand.get('url') or cand.get('thumb')
+                elif isinstance(cand, str):
+                    url = cand
+                if url:
+                    return url
+
+        link = video_entry.get('url') or ""
+        video_id = self._extract_youtube_id(link)
+        if video_id:
+            return f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+        return None
+
+    def _update_icon_size(self):
+        """Set icon size based on thumbnail toggle to avoid oversized rows."""
+        if self._is_thumbnail_enabled():
+            self.ui.treeView.setIconSize(QSize(96, 54))
+        else:
+            self.ui.treeView.setIconSize(QSize(0, 0))
+        self.ui.treeView.scheduleDelayedItemsLayout()
+
+    def _row_height_target(self) -> int:
+        """Compute a target row height for current mode."""
+        base = QFontMetrics(self.ui.treeView.font()).height() + 12
+        if self._is_thumbnail_enabled():
+            return max(base, self.ui.treeView.iconSize().height() + 8)
+        return base
+
+    def _apply_row_height_hint(self, row_index: int):
+        """Set a size hint on row to encourage correct row height."""
+        height = self._row_height_target()
+        # Apply to the title item; Qt will use the largest sizeHint in the row.
+        title_item = self.model.item(row_index, ColumnIndexes.TITLE)
+        if title_item:
+            title_item.setSizeHint(QSize(0, height))
+        checkbox_item = self.model.item(row_index, ColumnIndexes.DOWNLOAD)
+        if checkbox_item:
+            checkbox_item.setSizeHint(QSize(0, height))
+
+    def _refresh_row_heights(self):
+        """Trigger a relayout after icon size changes."""
+        target = self._row_height_target()
+        for row in range(self.model.rowCount()):
+            title_item = self.model.item(row, ColumnIndexes.TITLE)
+            if title_item:
+                title_item.setSizeHint(QSize(0, target))
+            checkbox_item = self.model.item(row, ColumnIndexes.DOWNLOAD)
+            if checkbox_item:
+                checkbox_item.setSizeHint(QSize(0, target))
+        self.ui.treeView.doItemsLayout()
+        self.ui.treeView.viewport().update()
+
+    def _init_thumbnail_loader(self):
+        """Set up the thumbnail loader helper."""
+        self.thumbnail_loader = ThumbnailLoader(self)
+        self.thumbnail_loader.thumbnail_ready.connect(self._on_thumbnail_ready)
+        self.thumbnail_loader.thumbnail_failed.connect(self._on_thumbnail_failed)
+        # Honor the saved preference if toggle not yet created.
+        if hasattr(self, "show_thumbnails_toggle") and self.show_thumbnails_toggle:
+            self.show_thumbnails_toggle.setChecked(self.user_settings.get('show_thumbnails', True))
+
+    def _is_thumbnail_enabled(self) -> bool:
+        """Return whether thumbnail display is enabled."""
+        if not self.user_settings.get('show_thumbnails', True):
+            return False
+        if self.show_thumbnails_toggle:
+            return self.show_thumbnails_toggle.isChecked()
+        # Fallback to enabled when toggle not yet constructed
+        return True
+
+    def _clear_all_thumbnails(self):
+        """Remove decoration role thumbnails from current rows."""
+        for row in range(self.model.rowCount()):
+            item = self.model.item(row, ColumnIndexes.TITLE)
+            if item:
+                item.setData(None, Qt.ItemDataRole.DecorationRole)
+        self._update_icon_size()
+        self.ui.treeView.doItemsLayout()
+
+    def _warm_thumbnails_for_current_rows(self, force: bool = False):
+        """Queue thumbnails for all current rows (lazy)."""
+        rows = range(self.model.rowCount())
+        self._warm_thumbnails_for_rows(rows, force=force)
+
+    def _warm_thumbnails_for_rows(self, rows, force: bool = False):
+        """Queue thumbnails for the specified rows."""
+        if not force and not self._is_thumbnail_enabled():
+            return
+        for row in rows:
+            self._maybe_queue_thumbnail(row, force=force)
+
+    def _maybe_queue_thumbnail(self, row_index: int, force: bool = False):
+        """Request thumbnail fetch for a row if enabled and url available."""
+        if not force and not self._is_thumbnail_enabled():
+            logger.info("Thumbnail queue skipped (disabled): row=%s", row_index)
+            return
+        title_item = self.model.item(row_index, ColumnIndexes.TITLE)
+        if not title_item:
+            logger.info("Thumbnail queue skipped (no title item): row=%s", row_index)
+            return
+        url = title_item.data(THUMBNAIL_URL_ROLE)
+        if not url:
+            logger.info("Thumbnail queue skipped (no url): row=%s", row_index)
+            return
+        self.thumbnail_targets[row_index] = url
+        if self.thumbnail_loader:
+            logger.info("Queueing thumbnail fetch: row=%s url=%s", row_index, url)
+            self.thumbnail_loader.fetch(row_index, url)
+        else:
+            logger.info("Thumbnail loader not initialized; skipping fetch for row=%s", row_index)
+
+    @Slot(int, QtGui.QPixmap)
+    def _on_thumbnail_ready(self, row_index: int, pixmap: QPixmap):
+        """Apply thumbnail when fetch completes."""
+        if not self._is_thumbnail_enabled():
+            return
+        title_item = self.model.item(row_index, ColumnIndexes.TITLE)
+        if not title_item:
+            return
+        current_url = title_item.data(THUMBNAIL_URL_ROLE)
+        expected_url = self.thumbnail_targets.get(row_index)
+        if expected_url and current_url == expected_url:
+            logger.info("Thumbnail ready: row=%s url=%s", row_index, expected_url)
+            title_item.setData(pixmap, Qt.ItemDataRole.DecorationRole)
+            try:
+                idx = self.model.index(row_index, ColumnIndexes.TITLE)
+                self.ui.treeView.update(idx)
+            except Exception:  # noqa: BLE001
+                pass
+        else:
+            logger.info("Thumbnail ready discarded (mismatch): row=%s current_url=%s expected=%s", row_index, current_url, expected_url)
+
+    @Slot(int)
+    def _on_thumbnail_failed(self, row_index: int):
+        """Handle thumbnail failure silently."""
+        url = self.thumbnail_targets.get(row_index)
+        logger.info("Thumbnail fetch failed: row=%s url=%s", row_index, url)
+
+    def _shutdown_background_workers(self):
+        """Ensure background threads/executors are stopped before exit."""
+        if self._size_recalc_worker_thread and self._size_recalc_worker_thread.isRunning():
+            self._size_recalc_worker_thread.quit()
+            self._size_recalc_worker_thread.wait(1500)
+        self._size_recalc_worker_thread = None
+        self._size_recalc_worker = None
+
+        if self._auto_update_thread and self._auto_update_thread.isRunning():
+            self._auto_update_thread.quit()
+            self._auto_update_thread.wait(1500)
+        self._auto_update_thread = None
+
+        if self.thumbnail_loader:
+            try:
+                self.thumbnail_loader.shutdown()
+            except Exception:  # noqa: BLE001
+                pass
+
+    @staticmethod
+    def _extract_youtube_id(link: str) -> Optional[str]:
+        """Extract a YouTube video ID from common URL shapes."""
+        if not link:
+            return None
+        if "youtu.be/" in link:
+            parts = link.split("youtu.be/")
+            if len(parts) > 1:
+                vid = parts[1].split("?")[0].split("&")[0]
+                return vid or None
+        if "watch?v=" in link:
+            parts = link.split("watch?v=")
+            if len(parts) > 1:
+                vid = parts[1].split("&")[0]
+                return vid or None
+        if "/shorts/" in link:
+            parts = link.split("/shorts/")
+            if len(parts) > 1:
+                vid = parts[1].split("?")[0].split("&")[0]
+                return vid or None
+        return None
 
     def _finalize_list_view(self):
         """Adjusts and displays the list view once all items are populated."""
@@ -899,6 +1124,10 @@ class MainWindow(QMainWindow):
             self.select_all_checkbox.setVisible(True)
             if self.size_estimate_toggle:
                 self.size_estimate_toggle.setVisible(True)
+            if self.show_thumbnails_toggle:
+                self.show_thumbnails_toggle.setVisible(True)
+            if self._is_thumbnail_enabled():
+                self._warm_thumbnails_for_current_rows()
             if self.window_resize_needed:
                 self.auto_adjust_window_size()
                 self.window_resize_needed = False
@@ -917,6 +1146,8 @@ class MainWindow(QMainWindow):
 
     def _apply_tree_view_styles(self):
         """Applies styles to the tree view for a consistent appearance."""
+        self._update_icon_size()
+        self._refresh_row_heights()
         self.ui.treeView.setStyleSheet("""
         QTreeView::indicator:disabled {
             background-color: gray;
@@ -1067,6 +1298,22 @@ class MainWindow(QMainWindow):
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to persist size estimation toggle: %s", exc)
         self.update_selection_size_summary()
+
+    def on_show_thumbnails_toggled(self, checked: bool):
+        """Handle user toggle for showing thumbnails in the list."""
+        self.user_settings['show_thumbnails'] = checked
+        try:
+            self.settings_manager.save_settings_to_file(self.user_settings)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to persist show_thumbnails toggle: %s", exc)
+
+        if not checked:
+            self._clear_all_thumbnails()
+        else:
+            self.thumbnail_targets.clear()
+            QtCore.QTimer.singleShot(0, lambda: self._warm_thumbnails_for_current_rows(force=True))
+        self._update_icon_size()
+        self._refresh_row_heights()
 
     def _schedule_auto_update_check(self):
         """Start an automatic update check shortly after launch."""
@@ -1836,10 +2083,25 @@ class MainWindow(QMainWindow):
             )
             return
         start_index = len(self.yt_chan_vids_titles_links)
+        # Preload thumbnails for the incoming batch before adding rows.
+        if self._is_thumbnail_enabled() and self.thumbnail_loader:
+            thumb_items = []
+            for offset, entry in enumerate(video_list):
+                url = self._thumbnail_url_for_entry(entry)
+                thumb_items.append((start_index + offset, url))
+            try:
+                prefetched = self.thumbnail_loader.preload_bulk(thumb_items)
+                self.prefetched_thumbnails.update(prefetched)
+            except Exception as exc:  # noqa: BLE001
+                logger.info("Thumbnail preload for next batch failed: %s", exc)
+
         self.yt_chan_vids_titles_links.extend(video_list)
         for entry in video_list:
             self._add_video_item_to_list(entry)
         self._finalize_list_view()
+        if self._is_thumbnail_enabled():
+            new_rows = range(start_index, self.model.rowCount())
+            QtCore.QTimer.singleShot(0, lambda: self._warm_thumbnails_for_rows(new_rows, force=True))
         self.update_selection_size_summary()
         self._maybe_prompt_on_js_warning()
         if self.channel_fetch_context:
@@ -1996,4 +2258,10 @@ class MainWindow(QMainWindow):
         """
         Exits the application by closing the PyQt main window.
         """
+        self._shutdown_background_workers()
         QApplication.quit()
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:  # noqa: D401
+        """Ensure background threads are stopped before window closes."""
+        self._shutdown_background_workers()
+        super().closeEvent(event)
