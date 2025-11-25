@@ -259,6 +259,8 @@ settings_ui.py
 # A listing of all the files included in the project
 *.files
 
+update_version.py
+
 # Include directories
 *.includes
 
