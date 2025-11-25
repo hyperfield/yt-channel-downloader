@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-import enum
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-
-class RuntimeMode(enum.Enum):
-    SOURCE = "source"
-    FROZEN = "frozen"
+from .runtime_mode import RuntimeMode
 
 
 @dataclass(frozen=True)

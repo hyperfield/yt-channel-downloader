@@ -1,7 +1,7 @@
 # Author: hyperfield
 # Email: inbox@quicknode.net
 # Project: YT Channel Downloader
-# Description: This module contains dialog helpers for the UI.
+# Description: Dialog allowing the user to configure cookies-from-browser settings.
 # License: MIT License
 
 from PyQt6.QtWidgets import (
@@ -11,13 +11,12 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QLabel,
     QLineEdit,
-    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 from PyQt6.QtCore import Qt
 
-from .youtube_auth import BrowserConfig
+from .browser_config import BrowserConfig
 
 BROWSER_CHOICES = [
     ('chrome', 'Chrome / Chromium'),
@@ -29,34 +28,6 @@ BROWSER_CHOICES = [
     ('vivaldi', 'Vivaldi'),
     ('whale', 'Naver Whale'),
 ]
-
-
-class CustomDialog(QDialog):
-    def __init__(self, title, message, icon=None, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle(title)
-
-        QBtn = QDialogButtonBox.StandardButton.Ok
-        self.buttonBox = QDialogButtonBox(QBtn)
-        self.buttonBox.accepted.connect(self.accept)
-
-        self.layout = QVBoxLayout()
-
-        if icon:
-            icon_label = QLabel()
-            icon_label.setPixmap(icon.pixmap(32, 32))
-            self.layout.addWidget(icon_label)
-
-        dlg_message = QTextBrowser()
-        dlg_message.setOpenExternalLinks(True)
-        dlg_message.setText(message)
-        dlg_message.setMinimumWidth(380)
-        dlg_message.setMinimumHeight(120)
-        dlg_message.setSizeAdjustPolicy(QTextBrowser.SizeAdjustPolicy.AdjustToContents)
-
-        self.layout.addWidget(dlg_message)
-        self.layout.addWidget(self.buttonBox)
-        self.setLayout(self.layout)
 
 
 class YoutubeCookiesDialog(QDialog):

@@ -10,7 +10,8 @@ import re
 import time
 import unicodedata
 
-from .utils import get_format_candidates, QuietYDLLogger
+from .utils import get_format_candidates
+from .quiet_ydl_logger import QuietYDLLogger
 from .settings_manager import SettingsManager
 from ..config.constants import settings_map
 from .logger import get_logger

@@ -3,15 +3,19 @@ from __future__ import annotations
 import html
 import logging
 import re
-import enum
-from dataclasses import dataclass
 from typing import Any, Optional
 
 import requests
 from PyQt6.QtWidgets import QWidget
 
-from .dialogs import CustomDialog
-from .runtime_info import RuntimeInfo, RuntimeMode, detect_runtime
+from .custom_dialog import CustomDialog
+from .runtime_info import RuntimeInfo, detect_runtime
+from .runtime_mode import RuntimeMode
+from .update_context import UpdateContext
+from .release_info import ReleaseInfo
+from .update_status import UpdateStatus
+from .update_result import UpdateResult
+from .update_fetch_error import UpdateFetchError
 from ..config.constants import (
     APP_VERSION,
     GITHUB_RELEASES_API_URL,
@@ -22,44 +26,6 @@ from ..config.constants import (
 
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class UpdateContext:
-    runtime: RuntimeInfo
-    current_version: str
-    download_url: str
-
-
-@dataclass(frozen=True)
-class ReleaseInfo:
-    version: str
-    tag_name: str
-    html_url: str
-    body: Optional[str]
-    asset_url: Optional[str]
-    asset_name: Optional[str]
-
-    @property
-    def display_version(self) -> str:
-        return self.tag_name or self.version
-
-
-class UpdateStatus(enum.Enum):
-    AVAILABLE = "available"
-    UP_TO_DATE = "up_to_date"
-    ERROR = "error"
-
-
-@dataclass(frozen=True)
-class UpdateResult:
-    status: UpdateStatus
-    release: Optional[ReleaseInfo] = None
-    error: Optional[str] = None
-
-
-class UpdateFetchError(RuntimeError):
-    """Raised when the GitHub release metadata cannot be retrieved."""
 
 
 class Updater:

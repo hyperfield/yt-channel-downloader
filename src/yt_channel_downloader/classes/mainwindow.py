@@ -40,64 +40,29 @@ from .settings_manager import SettingsManager
 from .enums import ColumnIndexes
 from ..config.constants import settings_map, DEFAULT_CHANNEL_FETCH_LIMIT, DEFAULT_PLAYLIST_FETCH_LIMIT, CHANNEL_FETCH_BATCH_SIZE
 from .download_thread import DownloadThread
-from .dialogs import CustomDialog, YoutubeCookiesDialog
+from .custom_dialog import CustomDialog
+from .youtube_cookies_dialog import YoutubeCookiesDialog
 from .fetch_progress_dialog import FetchProgressDialog
 from .login_prompt_dialog import LoginPromptDialog
-from .delegates import CheckBoxDelegate
+from .checkbox_delegate import CheckBoxDelegate
 from .YTChannel import YTChannel
 from .videoitem import VideoItem
 from .settings import SettingsDialog
-from .youtube_auth import YoutubeAuthManager
+from .youtube_auth_manager import YoutubeAuthManager
 from .validators import is_supported_media_url
-from .utils import QuietYDLLogger, filter_formats, js_warning_tracker
+from .quiet_ydl_logger import QuietYDLLogger
+from .utils import filter_formats
+from .js_warning_tracker import js_warning_tracker
 from .node_runtime_notifier import NodeRuntimeNotifier
 from .support_prompt import SupportPrompt
 from .logger import get_logger
 from .updater import Updater
+from .update_status import UpdateStatus
+from .selection_size_worker import SelectionSizeWorker
+from .auto_update_worker import AutoUpdateWorker
 
 
 logger = get_logger("MainWindow")
-
-
-class SelectionSizeWorker(QtCore.QObject):
-    """Background worker to compute selection size totals without blocking UI."""
-
-    finished = QtCore.pyqtSignal(object, object, bool, dict, int, int, bool)
-
-    def __init__(self, rows_data, estimate_func, remaining_func, generation: int):
-        super().__init__()
-        self.rows_data = rows_data
-        self.estimate_func = estimate_func
-        self.remaining_func = remaining_func
-        self.generation = generation
-        self._cancelled = False
-
-    def request_size_eta_cancellation(self):
-        """Request cancellation of the current selection size estimation run."""
-        self._cancelled = True
-
-    @QtCore.pyqtSlot()
-    def run(self):
-        total_estimated = 0
-        total_remaining = 0
-        has_unknown = False
-        per_row_estimates = {}
-        cancelled = False
-
-        for data in self.rows_data:
-            if self._cancelled:
-                cancelled = True
-                break
-            estimate = self.estimate_func(data["link"], data["duration"])
-            per_row_estimates[data["row"]] = estimate
-            if estimate is None:
-                has_unknown = True
-                continue
-
-            total_estimated += estimate
-            total_remaining += self.remaining_func(estimate, data["progress"])
-
-        self.finished.emit(total_estimated, total_remaining, has_unknown, per_row_estimates, len(self.rows_data), self.generation, cancelled)
 
 
 class MainWindow(QMainWindow):
@@ -153,6 +118,7 @@ class MainWindow(QMainWindow):
         self._size_recalc_generation: int = 0
         self.node_notifier: Optional[NodeRuntimeNotifier] = None
         self.support_prompt: Optional[SupportPrompt] = None
+        self._auto_update_thread: Optional[QtCore.QThread] = None
         self.channel_fetch_context: Dict[str, Any] | None = None
         self.current_fetch_is_channel = False
         logger.info("Main window initialised")
@@ -180,6 +146,7 @@ class MainWindow(QMainWindow):
         self._init_support_prompt()
         self.setup_select_all_checkbox()
         self.initialize_youtube_login()
+        self._schedule_auto_update_check()
 
     def init_styles(self):
         """Applies global styles and element-specific styles for the main
@@ -1100,6 +1067,37 @@ class MainWindow(QMainWindow):
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to persist size estimation toggle: %s", exc)
         self.update_selection_size_summary()
+
+    def _schedule_auto_update_check(self):
+        """Start an automatic update check shortly after launch."""
+        QtCore.QTimer.singleShot(1200, self._start_auto_update_check)
+
+    def _start_auto_update_check(self):
+        """Run the update check in the background; notify only on availability."""
+        if self._auto_update_thread:
+            return
+        thread = QtCore.QThread(self)
+        worker = AutoUpdateWorker(self.updater)
+        worker.moveToThread(thread)
+        worker.finished.connect(self._handle_auto_update_result)
+        worker.finished.connect(worker.deleteLater)
+        thread.started.connect(worker.run)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(lambda: setattr(self, "_auto_update_thread", None))
+        self._auto_update_thread = thread
+        thread.start()
+
+    @Slot(object)
+    def _handle_auto_update_result(self, result):
+        """Show update notice only when a newer release is available."""
+        if not result or result.status != UpdateStatus.AVAILABLE:
+            return
+        try:
+            title, message = self.updater._build_dialog_content(result)
+            dialog = CustomDialog(title, message, parent=self)
+            dialog.exec()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to display update dialog: %s", exc)
 
     @Slot(object, object, bool, dict, int, int, bool)
     def _on_async_selection_summary_finished(self, total_estimated, total_remaining, has_unknown, per_row_estimates, selected_count, generation, cancelled):
