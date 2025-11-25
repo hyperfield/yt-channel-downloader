@@ -7,6 +7,8 @@ from .download_thread import DownloadThread
 
 from PyQt6 import QtGui, QtCore
 
+THUMBNAIL_URL_ROLE = QtCore.Qt.ItemDataRole.UserRole + 10
+
 
 class VideoItem:
     """
@@ -21,7 +23,7 @@ class VideoItem:
                                      downloaded.
         qt_item (list): List of QStandardItem objects for UI representation.
     """
-    def __init__(self, title, link, duration_seconds, download_path):
+    def __init__(self, title, link, duration_seconds, download_path, thumbnail_url=None):
         """
         Initializes a VideoItem instance, checks the download status,
         and creates the corresponding UI items.
@@ -31,11 +33,13 @@ class VideoItem:
             link (str): The link to the video.
             duration_seconds (int | None): Video length in seconds if known.
             download_path (str): The file path of the video download.
+            thumbnail_url (str | None): URL to a representative thumbnail image.
         """
         self.title = title
         self.link = link
         self.duration_seconds = duration_seconds
         self.download_path = download_path
+        self.thumbnail_url = thumbnail_url
         self.is_download_complete = DownloadThread.is_download_complete(
             self.download_path)
         self._create_qt_item()
@@ -52,6 +56,8 @@ class VideoItem:
             else QtCore.Qt.CheckState.Unchecked
         )
         item_title = QtGui.QStandardItem(self.title)
+        if self.thumbnail_url:
+            item_title.setData(self.thumbnail_url, THUMBNAIL_URL_ROLE)
         item_link = QtGui.QStandardItem(self.link)
         duration_value = self._coerce_duration_value(self.duration_seconds)
         duration_display = self._format_duration(duration_value)

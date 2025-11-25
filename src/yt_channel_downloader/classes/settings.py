@@ -162,6 +162,7 @@ class SettingsDialog(QDialog):
         self.ui.proxy_server_port.setText(user_settings.get('proxy_server_port'))
         self.ui.check_audio_only.setChecked(user_settings.get('audio_only'))
         self.ui.check_download_thumbnails.setChecked(user_settings.get('download_thumbnail', False))
+        # show_thumbnails currently managed via main window toggle; keep in sync with stored value
         channel_limit = user_settings.get('channel_fetch_limit')
         if channel_limit:
             try:
@@ -203,6 +204,7 @@ class SettingsDialog(QDialog):
             'proxy_server_addr': proxy_addr,
             'proxy_server_port': proxy_port,
             'download_thumbnail': self.ui.check_download_thumbnails.isChecked(),
+            'show_thumbnails': self.settings_manager.settings.get('show_thumbnails', True),
             'audio_only': self.ui.check_audio_only.isChecked(),
             # Preserve opt-out flags that aren't represented in the UI
             'suppress_node_runtime_warning': self.settings_manager.settings.get('suppress_node_runtime_warning', False),

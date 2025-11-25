@@ -66,6 +66,7 @@ class SettingsManager:
             'proxy_server_port': '',
             'download_thumbnail': False,
             'audio_only': False,
+            'show_thumbnails': True,
             'suppress_node_runtime_warning': False,
             # Download milestone prompts
             'downloads_completed': 0,
