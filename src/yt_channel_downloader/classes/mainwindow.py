@@ -475,6 +475,7 @@ class MainWindow(QMainWindow):
         self.user_settings.setdefault('channel_fetch_limit', DEFAULT_CHANNEL_FETCH_LIMIT)
         self.user_settings.setdefault('playlist_fetch_limit', DEFAULT_PLAYLIST_FETCH_LIMIT)
         self.user_settings.setdefault('channel_fetch_batch_size', CHANNEL_FETCH_BATCH_SIZE)
+        self.user_settings.setdefault('enable_size_estimation', True)
 
     def _init_node_notifier(self):
         """Set up the Node.js runtime notifier helper."""
@@ -492,7 +493,7 @@ class MainWindow(QMainWindow):
         self.ui.verticalLayout.addSpacing(12)
         self.size_estimate_toggle = QCheckBox("Calculate estimated sizes", self)
         self.size_estimate_toggle.setVisible(False)
-        self.size_estimate_toggle.setChecked(True)
+        self.size_estimate_toggle.setChecked(self.user_settings.get('enable_size_estimation', True))
         self.size_estimate_toggle.toggled.connect(self.on_size_estimation_toggled)
         self.ui.verticalLayout.addWidget(self.size_estimate_toggle)
         self.select_all_checkbox.stateChanged.connect(
@@ -1093,6 +1094,11 @@ class MainWindow(QMainWindow):
             self._cancel_selection_recalc()
         else:
             self._size_recalc_indicator_needed = True
+        self.user_settings['enable_size_estimation'] = checked
+        try:
+            self.settings_manager.save_settings_to_file(self.user_settings)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to persist size estimation toggle: %s", exc)
         self.update_selection_size_summary()
 
     @Slot(object, object, bool, dict, int, int, bool)
