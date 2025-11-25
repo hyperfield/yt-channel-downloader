@@ -76,183 +76,209 @@ class DownloadThread(QThread):
         """
         self.main_window.download_semaphore.acquire()
         try:
-            logger.info("Download started for index %s", self.index)
-            sanitized_title = self.sanitize_filename(self.title)
-            download_directory = self.user_settings.get('download_directory')
-            write_thumbnail = self.user_settings.get('download_thumbnail')
-
-            ydl_opts = {
-                'outtmpl': os.path.join(download_directory, f'{sanitized_title}.%(ext)s'),
-                'progress_hooks': [self.dl_hook],
-                'writethumbnail': write_thumbnail,
-                'quiet': True,
-                'no_warnings': True,
-                'logger': QuietYDLLogger(),
-                'remote_components': ['ejs:github'],
-            }
-
-            auth_opts = {}
-            if self.main_window.youtube_auth_manager and \
-                    self.main_window.youtube_auth_manager.is_configured:
-                auth_opts = self.main_window.youtube_auth_manager.get_yt_dlp_options()
-
-            proxy_url = self.settings_manager.build_proxy_url(self.user_settings)
-            if proxy_url:
-                auth_opts = dict(auth_opts) if auth_opts else {}
-                auth_opts['proxy'] = proxy_url
-                ydl_opts['proxy'] = proxy_url
-
-            if auth_opts:
-                ydl_opts.update(auth_opts)
-
-            # Set video/audio format preferences
-            video_format = settings_map['preferred_video_format'].get(
-                self.user_settings.get('preferred_video_format', 'Any'), 'Any')
-            video_quality = settings_map['preferred_video_quality'].get(
-                self.user_settings.get('preferred_video_quality', 'bestvideo'),
-                'Any')
-            if video_format == 'Any':
-                video_format = None
-            if video_quality in ('Any', None):
-                video_quality = 'bestvideo'
-
-            if self.user_settings.get('audio_only'):
-                audio_format = settings_map['preferred_audio_format'].get(
-                    self.user_settings.get('preferred_audio_format', 'Any'),
-                    'Any')
-                audio_quality = settings_map['preferred_audio_quality'].get(
-                    self.user_settings.get('preferred_audio_quality',
-                                           'Best available'), 'bestaudio')
-                if audio_format and audio_format != 'Any':
-                    audio_filter = f"[ext={audio_format}]"
-                    ydl_opts['postprocessors'] = [{
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': audio_format
-                    }]
-                else:
-                    audio_filter = ''
-                ydl_opts['format'] = f"{audio_quality}{audio_filter}/bestaudio/best"
-            else:
-                # Force yt-dlp to prefer formats that actually contain video
-                ydl_opts['format_sort'] = ['hasvid']
-                ydl_opts['format_sort_force'] = True
-                format_candidates = get_format_candidates(
-                    self.url,
-                    video_quality,
-                    video_format,
-                    auth_opts,
-                )
-                if not format_candidates:
-                    logger.warning(
-                        "No exact format candidates for index %s (requested=%s/%s). Will attempt generic fallback.",
-                        self.index,
-                        video_quality,
-                        video_format or 'Any',
-                    )
-                ydl_opts['format_candidates'] = format_candidates
-
-            if self.user_settings.get('audio_only'):
-                try:
-                    self._execute_download(ydl_opts)
-                except yt_dlp.utils.DownloadError as err:
-                    err_str = str(err)
-                    if any(token in err_str for token in (
-                        "Requested format is not available",
-                        "HTTP Error 403",
-                        "HTTP Error 404",
-                    )):
-                        fallback_opts = dict(ydl_opts)
-                        fallback_opts['format'] = 'best'
-                        postprocessors = fallback_opts.get('postprocessors')
-                        if not postprocessors:
-                            preferred_codec = audio_format if audio_format and audio_format != 'Any' else 'mp3'
-                            fallback_opts['postprocessors'] = [{
-                                'key': 'FFmpegExtractAudio',
-                                'preferredcodec': preferred_codec
-                            }]
-                        logger.warning(
-                            "Audio-only format unavailable for index %s (%s); falling back to progressive best.",
-                            self.index,
-                            err_str,
-                        )
-                        self._execute_download(fallback_opts)
-                    else:
-                        raise
-            else:
-                format_candidates = get_format_candidates(
-                    self.url,
-                    video_quality,
-                    video_format,
-                    auth_opts,
-                )
-                height_value = None
-                if video_quality and video_quality != 'bestvideo':
-                    digits = ''.join(filter(str.isdigit, video_quality))
-                    if digits:
-                        try:
-                            height_value = int(digits)
-                        except ValueError:
-                            height_value = None
-                format_string = self._build_format_selector(format_candidates, height_value, video_format)
-                primary_opts = dict(ydl_opts)
-                primary_opts['format'] = format_string
-                logger.debug("Format selector for index %s: %s", self.index, format_string)
-                try:
-                    self._execute_download(primary_opts)
-                except yt_dlp.utils.DownloadError as err:
-                    err_str = str(err)
-                    if any(token in err_str for token in (
-                        "Requested format is not available",
-                        "HTTP Error 403",
-                    )):
-                        fallback_opts = dict(ydl_opts)
-                        fallback_opts.pop('postprocessors', None)
-                        fallback_opts['format'] = 'best'
-                        logger.warning(
-                            "Preferred format unavailable for index %s (%s); falling back to generic best.",
-                            self.index,
-                            err_str,
-                        )
-                        self._execute_download(fallback_opts)
-                    else:
-                        raise
-
-            # Emit signal on successful download
-            self.downloadCompleteSignal.emit(self.index)
-            logger.info("Download finished successfully for index %s", self.index)
+            self._perform_download()
 
         except yt_dlp.utils.DownloadCancelled:
-            self.downloadProgressSignal.emit({"index": str(self.index),
-                                              "error": "Cancelled",
-                                              "progress": self._last_progress,
-                                              "speed": "—"})
-            logger.info("Download cancelled for index %s", self.index)
+            self._emit_cancelled_progress()
 
         except yt_dlp.utils.DownloadError as e:
-            # Handle yt-dlp-specific download errors
             logger.exception("Download error for %s: %s", self.url, e)
-            self.downloadProgressSignal.emit({"index": str(self.index),
-                                              "error": "Download error",
-                                              "speed": "—"})
+            self._emit_progress_error("Download error")
 
         except (ConnectionError, TimeoutError) as e:
-            # Handle network-related errors
             logger.exception("Network error for %s: %s", self.url, e)
-            self.downloadProgressSignal.emit({"index": str(self.index),
-                                              "error": "Network error",
-                                              "speed": "—"})
+            self._emit_progress_error("Network error")
 
         except Exception as e:
-            # Handle any other unforeseen errors
             logger.exception("Unexpected error for %s: %s", self.url, e)
-            self.downloadProgressSignal.emit({"index": str(self.index),
-                                              "error": "Unexpected error",
-                                              "speed": "—"})
+            self._emit_progress_error("Unexpected error")
 
         finally:
             # Release semaphore regardless of outcome
             self.main_window.download_semaphore.release()
             logger.debug("Released download semaphore for index %s", self.index)
+
+    def _perform_download(self):
+        logger.info("Download started for index %s", self.index)
+        sanitized_title = self.sanitize_filename(self.title)
+        ydl_opts, auth_opts = self._build_download_options(sanitized_title)
+
+        if self.user_settings.get('audio_only'):
+            self._download_audio_only_flow(ydl_opts)
+        else:
+            self._download_video_flow(ydl_opts, auth_opts)
+
+        self.downloadCompleteSignal.emit(self.index)
+        logger.info("Download finished successfully for index %s", self.index)
+
+    def _build_download_options(self, sanitized_title):
+        download_directory = self.user_settings.get('download_directory')
+        write_thumbnail = self.user_settings.get('download_thumbnail')
+        ydl_opts = {
+            'outtmpl': os.path.join(download_directory, f'{sanitized_title}.%(ext)s'),
+            'progress_hooks': [self.dl_hook],
+            'writethumbnail': write_thumbnail,
+            'quiet': True,
+            'no_warnings': True,
+            'logger': QuietYDLLogger(),
+            'remote_components': ['ejs:github'],
+        }
+
+        auth_opts = self._build_auth_options()
+        proxy_url = self.settings_manager.build_proxy_url(self.user_settings)
+        if proxy_url:
+            auth_opts = dict(auth_opts) if auth_opts else {}
+            auth_opts['proxy'] = proxy_url
+            ydl_opts['proxy'] = proxy_url
+
+        if auth_opts:
+            ydl_opts.update(auth_opts)
+
+        return ydl_opts, auth_opts
+
+    def _build_auth_options(self):
+        auth_opts = {}
+        manager = getattr(self.main_window, "youtube_auth_manager", None)
+        if manager and manager.is_configured:
+            auth_opts = manager.get_yt_dlp_options()
+        return auth_opts
+
+    def _download_audio_only_flow(self, ydl_opts):
+        audio_format, audio_quality = self._audio_preferences()
+        audio_filter = f"[ext={audio_format}]" if audio_format and audio_format != 'Any' else ''
+        if audio_filter:
+            ydl_opts['postprocessors'] = [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': audio_format
+            }]
+        ydl_opts['format'] = f"{audio_quality}{audio_filter}/bestaudio/best"
+
+        try:
+            self._execute_download(ydl_opts)
+        except yt_dlp.utils.DownloadError as err:
+            self._download_audio_fallback(err, ydl_opts, audio_format)
+
+    def _download_audio_fallback(self, err, ydl_opts, audio_format):
+        err_str = str(err)
+        if not any(token in err_str for token in (
+            "Requested format is not available",
+            "HTTP Error 403",
+            "HTTP Error 404",
+        )):
+            raise err
+
+        fallback_opts = dict(ydl_opts)
+        fallback_opts['format'] = 'best'
+        postprocessors = fallback_opts.get('postprocessors')
+        if not postprocessors:
+            preferred_codec = audio_format if audio_format and audio_format != 'Any' else 'mp3'
+            fallback_opts['postprocessors'] = [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': preferred_codec
+            }]
+        logger.warning(
+            "Audio-only format unavailable for index %s (%s); falling back to progressive best.",
+            self.index,
+            err_str,
+        )
+        self._execute_download(fallback_opts)
+
+    def _audio_preferences(self):
+        audio_format = settings_map['preferred_audio_format'].get(
+            self.user_settings.get('preferred_audio_format', 'Any'),
+            'Any')
+        audio_quality = settings_map['preferred_audio_quality'].get(
+            self.user_settings.get('preferred_audio_quality', 'Best available'),
+            'bestaudio')
+        return audio_format, audio_quality
+
+    def _download_video_flow(self, ydl_opts, auth_opts):
+        video_format, video_quality = self._video_preferences()
+        ydl_opts['format_sort'] = ['hasvid']
+        ydl_opts['format_sort_force'] = True
+        format_candidates = get_format_candidates(
+            self.url,
+            video_quality,
+            video_format,
+            auth_opts,
+        )
+        if not format_candidates:
+            logger.warning(
+                "No exact format candidates for index %s (requested=%s/%s). Will attempt generic fallback.",
+                self.index,
+                video_quality,
+                video_format or 'Any',
+            )
+        ydl_opts['format_candidates'] = format_candidates
+
+        height_value = self._parse_height(video_quality)
+        format_string = self._build_format_selector(format_candidates, height_value, video_format)
+        primary_opts = dict(ydl_opts)
+        primary_opts['format'] = format_string
+        logger.debug("Format selector for index %s: %s", self.index, format_string)
+
+        try:
+            self._execute_download(primary_opts)
+        except yt_dlp.utils.DownloadError as err:
+            self._download_video_fallback(err, ydl_opts)
+
+    def _download_video_fallback(self, err, ydl_opts):
+        err_str = str(err)
+        if not any(token in err_str for token in (
+            "Requested format is not available",
+            "HTTP Error 403",
+        )):
+            raise err
+
+        fallback_opts = dict(ydl_opts)
+        fallback_opts.pop('postprocessors', None)
+        fallback_opts['format'] = 'best'
+        logger.warning(
+            "Preferred format unavailable for index %s (%s); falling back to generic best.",
+            self.index,
+            err_str,
+        )
+        self._execute_download(fallback_opts)
+
+    def _video_preferences(self):
+        video_format = settings_map['preferred_video_format'].get(
+            self.user_settings.get('preferred_video_format', 'Any'), 'Any')
+        video_quality = settings_map['preferred_video_quality'].get(
+            self.user_settings.get('preferred_video_quality', 'bestvideo'),
+            'Any')
+        if video_format == 'Any':
+            video_format = None
+        if video_quality in ('Any', None):
+            video_quality = 'bestvideo'
+        return video_format, video_quality
+
+    @staticmethod
+    def _parse_height(video_quality):
+        if not video_quality or video_quality == 'bestvideo':
+            return None
+        digits = ''.join(filter(str.isdigit, video_quality))
+        if not digits:
+            return None
+        try:
+            return int(digits)
+        except ValueError:
+            return None
+
+    def _emit_cancelled_progress(self):
+        self.downloadProgressSignal.emit({
+            "index": str(self.index),
+            "error": "Cancelled",
+            "progress": self._last_progress,
+            "speed": "—",
+        })
+        logger.info("Download cancelled for index %s", self.index)
+
+    def _emit_progress_error(self, message):
+        self.downloadProgressSignal.emit({
+            "index": str(self.index),
+            "error": message,
+            "speed": "—",
+        })
 
     def _build_format_selector(self, candidates, height, file_ext):
         selectors = []
