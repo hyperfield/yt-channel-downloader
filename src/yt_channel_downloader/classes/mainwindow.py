@@ -1560,35 +1560,40 @@ class MainWindow(QMainWindow):
 
     def _select_audio_format(self, formats, preferred_ext: Optional[str], preferred_quality: Optional[str]):
         """Pick the audio stream closest to the requested quality/extension."""
-        audio_formats = [
-            f for f in formats
-            if f.get('vcodec') == 'none' and f.get('url')
-        ]
-        if preferred_ext and preferred_ext not in ('Any', None):
-            filtered = [
-                f for f in audio_formats
-                if f.get('ext') == preferred_ext or preferred_ext in (f.get('acodec') or '')
-            ]
-            if filtered:
-                audio_formats = filtered
+        base_audio = self._audio_only_formats(formats)
+        audio_formats = self._filter_audio_by_extension(base_audio, preferred_ext) or base_audio
         if not audio_formats:
-            audio_formats = [f for f in formats if f.get('acodec') not in (None, 'none') and f.get('url')]
+            audio_formats = self._fallback_audio_formats(formats)
         if not audio_formats:
             return None
 
+        return self._pick_best_audio_by_bitrate(audio_formats, preferred_quality)
+
+    def _audio_only_formats(self, formats):
+        return [f for f in formats if f.get('vcodec') == 'none' and f.get('url')]
+
+    def _fallback_audio_formats(self, formats):
+        return [f for f in formats if f.get('acodec') not in (None, 'none') and f.get('url')]
+
+    def _filter_audio_by_extension(self, audio_formats, preferred_ext: Optional[str]):
+        if preferred_ext in (None, 'Any'):
+            return audio_formats
+        return [
+            f for f in audio_formats
+            if f.get('ext') == preferred_ext or preferred_ext in (f.get('acodec') or '')
+        ]
+
+    def _pick_best_audio_by_bitrate(self, audio_formats, preferred_quality: Optional[str]):
         target_bitrate = self._parse_bitrate_kbps(preferred_quality)
+        bitrate = lambda f: self._get_audio_bitrate(f) or 0  # noqa: E731
         if target_bitrate:
-            audio_formats = sorted(
+            sorted_audio = sorted(
                 audio_formats,
-                key=lambda f: (
-                    abs((self._get_audio_bitrate(f) or 0) - target_bitrate),
-                    -(self._get_audio_bitrate(f) or 0),
-                )
+                key=lambda f: (abs(bitrate(f) - target_bitrate), -bitrate(f)),
             )
         else:
-            audio_formats = sorted(audio_formats, key=lambda f: -(self._get_audio_bitrate(f) or 0))
-
-        return audio_formats[0]
+            sorted_audio = sorted(audio_formats, key=lambda f: -bitrate(f))
+        return sorted_audio[0] if sorted_audio else None
 
     @staticmethod
     def _get_audio_bitrate(fmt) -> Optional[float]:
@@ -2203,56 +2208,75 @@ class MainWindow(QMainWindow):
         file_index = int(progress_data["index"])
         progress_bar = self.progress_widgets.get(file_index)
         speed_item = self.model.item(file_index, ColumnIndexes.SPEED)
+        self._update_speed_item(speed_item, progress_data)
+
+        if "progress" in progress_data:
+            self._handle_progress_update(file_index, progress_bar, progress_data)
+            return
+
+        if "error" in progress_data:
+            self._handle_progress_error(file_index, progress_bar, speed_item, progress_data)
+
+    def _update_speed_item(self, speed_item, progress_data):
         if speed_item and "speed" in progress_data:
             speed_item.setData(progress_data["speed"], Qt.ItemDataRole.DisplayRole)
-        if "progress" in progress_data:
-            progress = float(progress_data["progress"])
-            avg_speed = None
-            raw_speed = progress_data.get("speed_bps")
-            if raw_speed:
-                history = self.speed_history.setdefault(file_index, deque(maxlen=20))
-                history.append(float(raw_speed))
-                avg_speed = sum(history) / len(history)
-            if progress_bar:
-                progress_bar.setRange(0, 100)
-                progress_bar.setValue(int(progress))
-                progress_bar.setFormat("%p%")
-            progress_item = self.model.item(file_index, ColumnIndexes.PROGRESS)
-            if progress_item:
-                progress_item.setData(progress, Qt.ItemDataRole.UserRole)
-                progress_item.setData(None, Qt.ItemDataRole.DisplayRole)
-            self.ui.treeView.viewport().update()
-            self.update_selection_size_summary()
-        elif "error" in progress_data:
-            error_message = progress_data["error"]
-            progress_value = float(progress_data.get("progress", 0.0))
-            progress_item = self.model.item(file_index, ColumnIndexes.PROGRESS)
 
-            if error_message == "Cancelled":
-                if progress_bar:
-                    progress_bar.setRange(0, 100)
-                    progress_bar.setValue(int(progress_value))
-                    progress_bar.setFormat(f"Part-downloaded – {progress_value:.1f}%")
-                if progress_item:
-                    progress_item.setData(progress_value, Qt.ItemDataRole.UserRole)
-                    progress_item.setData(f"Part-downloaded – {progress_value:.1f}%",
-                                          Qt.ItemDataRole.DisplayRole)
-                if speed_item:
-                    speed_item.setData(progress_data.get("speed", "—"), Qt.ItemDataRole.DisplayRole)
-            else:
-                if progress_bar:
-                    progress_bar.setRange(0, 100)
-                    progress_bar.setValue(0)
-                    progress_bar.setFormat(error_message)
-                if progress_item:
-                    progress_item.setData(None, Qt.ItemDataRole.UserRole)
-                    progress_item.setData(error_message, Qt.ItemDataRole.DisplayRole)
-                if speed_item:
-                    speed_item.setData("—", Qt.ItemDataRole.DisplayRole)
-                self.handle_download_error(progress_data)
+    def _handle_progress_update(self, file_index, progress_bar, progress_data):
+        progress = float(progress_data["progress"])
+        raw_speed = progress_data.get("speed_bps")
+        self._record_speed_history(file_index, raw_speed)
+        if progress_bar:
+            progress_bar.setRange(0, 100)
+            progress_bar.setValue(int(progress))
+            progress_bar.setFormat("%p%")
+        progress_item = self.model.item(file_index, ColumnIndexes.PROGRESS)
+        if progress_item:
+            progress_item.setData(progress, Qt.ItemDataRole.UserRole)
+            progress_item.setData(None, Qt.ItemDataRole.DisplayRole)
+        self.ui.treeView.viewport().update()
+        self.update_selection_size_summary()
 
-            self.cleanup_download_thread(file_index)
-            self.ui.treeView.viewport().update()
+    def _handle_progress_error(self, file_index, progress_bar, speed_item, progress_data):
+        error_message = progress_data["error"]
+        progress_value = float(progress_data.get("progress", 0.0))
+        progress_item = self.model.item(file_index, ColumnIndexes.PROGRESS)
+
+        if error_message == "Cancelled":
+            self._mark_cancelled_progress(progress_bar, progress_item, speed_item, progress_data, progress_value)
+        else:
+            self._mark_failed_progress(progress_bar, progress_item, speed_item, error_message)
+            self.handle_download_error(progress_data)
+
+        self.cleanup_download_thread(file_index)
+        self.ui.treeView.viewport().update()
+
+    def _record_speed_history(self, file_index, raw_speed):
+        if raw_speed:
+            history = self.speed_history.setdefault(file_index, deque(maxlen=20))
+            history.append(float(raw_speed))
+
+    def _mark_cancelled_progress(self, progress_bar, progress_item, speed_item, progress_data, progress_value):
+        if progress_bar:
+            progress_bar.setRange(0, 100)
+            progress_bar.setValue(int(progress_value))
+            progress_bar.setFormat(f"Part-downloaded – {progress_value:.1f}%")
+        if progress_item:
+            progress_item.setData(progress_value, Qt.ItemDataRole.UserRole)
+            progress_item.setData(f"Part-downloaded – {progress_value:.1f}%",
+                                  Qt.ItemDataRole.DisplayRole)
+        if speed_item:
+            speed_item.setData(progress_data.get("speed", "—"), Qt.ItemDataRole.DisplayRole)
+
+    def _mark_failed_progress(self, progress_bar, progress_item, speed_item, error_message):
+        if progress_bar:
+            progress_bar.setRange(0, 100)
+            progress_bar.setValue(0)
+            progress_bar.setFormat(error_message)
+        if progress_item:
+            progress_item.setData(None, Qt.ItemDataRole.UserRole)
+            progress_item.setData(error_message, Qt.ItemDataRole.DisplayRole)
+        if speed_item:
+            speed_item.setData("—", Qt.ItemDataRole.DisplayRole)
 
     def exit(self):
         """

@@ -83,6 +83,22 @@ class Updater:
         return result
 
     def _fetch_latest_release(self) -> ReleaseInfo:
+        data = self._request_release_data()
+        normalized_version, tag_name = self._extract_version_info(data)
+        html_url = str(data.get("html_url") or GITHUB_RELEASES_PAGE_URL)
+        asset_url, asset_name = self._extract_asset_info(data.get("assets"))
+        body = self._extract_body(data.get("body"))
+
+        return ReleaseInfo(
+            version=normalized_version,
+            tag_name=tag_name,
+            html_url=html_url,
+            body=body,
+            asset_url=asset_url,
+            asset_name=asset_name,
+        )
+
+    def _request_release_data(self) -> dict[str, Any]:
         headers = {
             "Accept": "application/vnd.github+json",
             "User-Agent": f"yt-channel-downloader/{self._context.current_version}",
@@ -96,55 +112,55 @@ class Updater:
         except requests.RequestException as exc:
             raise UpdateFetchError("Network problem contacting GitHub.") from exc
 
-        if response.status_code != 200:
-            detail = f"GitHub returned HTTP {response.status_code}"
-            try:
-                payload = response.json()
-            except ValueError:
-                payload = None
-            if isinstance(payload, dict):
-                message = payload.get("message")
-                if message:
-                    detail = f"{detail}: {message}"
-            raise UpdateFetchError(detail)
+        self._ensure_success_status(response)
 
         try:
             data: dict[str, Any] = response.json()
         except ValueError as exc:
             raise UpdateFetchError("Invalid JSON received from GitHub.") from exc
 
+        return data
+
+    def _ensure_success_status(self, response: requests.Response) -> None:
+        if response.status_code == 200:
+            return
+
+        detail = f"GitHub returned HTTP {response.status_code}"
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        if isinstance(payload, dict):
+            message = payload.get("message")
+            if message:
+                detail = f"{detail}: {message}"
+        raise UpdateFetchError(detail)
+
+    def _extract_version_info(self, data: dict[str, Any]) -> tuple[str, str]:
         tag_name = str(data.get("tag_name") or "").strip()
         fallback_name = str(data.get("name") or "").strip()
         normalized_version = self._normalize_version(tag_name) or self._normalize_version(fallback_name)
         if not normalized_version:
             raise UpdateFetchError("Release tag is missing a version number.")
+        return normalized_version, tag_name or fallback_name or normalized_version
 
-        html_url = str(data.get("html_url") or GITHUB_RELEASES_PAGE_URL)
+    def _extract_asset_info(self, assets: Any) -> tuple[Optional[str], Optional[str]]:
+        if not isinstance(assets, list):
+            return None, None
+        for asset in assets:
+            if not isinstance(asset, dict):
+                continue
+            download_url = asset.get("browser_download_url")
+            if download_url:
+                asset_url = str(download_url)
+                asset_name = str(asset.get("name") or "")
+                return asset_url, asset_name
+        return None, None
 
-        assets = data.get("assets") or []
-        asset_url = None
-        asset_name = None
-        if isinstance(assets, list):
-            for asset in assets:
-                if isinstance(asset, dict):
-                    download_url = asset.get("browser_download_url")
-                    if download_url:
-                        asset_url = str(download_url)
-                        asset_name = str(asset.get("name") or "")
-                        break
-
-        body = data.get("body")
-        if body is not None:
-            body = str(body)
-
-        return ReleaseInfo(
-            version=normalized_version,
-            tag_name=tag_name or fallback_name or normalized_version,
-            html_url=html_url,
-            body=body,
-            asset_url=asset_url,
-            asset_name=asset_name,
-        )
+    def _extract_body(self, body: Any) -> Optional[str]:
+        if body is None:
+            return None
+        return str(body)
 
     def _build_dialog_content(self, result: UpdateResult) -> tuple[str, str]:
         if result.status is UpdateStatus.ERROR:

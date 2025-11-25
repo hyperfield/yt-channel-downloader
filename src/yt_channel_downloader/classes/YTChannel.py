@@ -155,64 +155,89 @@ class YTChannel(QObject):
             progress_callback (callable): Optional function accepting (fetched_count, target_count).
             is_cancelled (callable): Optional function returning True when the user cancelled.
         """
-        uploads_playlist_id = None
-        if channel_id and channel_id.startswith("UC") and len(channel_id) > 2:
-            uploads_playlist_id = f"UU{channel_id[2:]}"
-        channel_url = (
-            f"https://www.youtube.com/playlist?list={uploads_playlist_id}"
-            if uploads_playlist_id else f"https://www.youtube.com/channel/{channel_id}/videos"
-        )
+        channel_url = self._channel_uploads_url(channel_id)
         auth_opts = self._get_auth_params()
-        items_to_fetch = None if limit in (None, 0) else max(1, int(limit))
-        batch_size = max(1, batch_size or CHANNEL_FETCH_BATCH_SIZE)
-
+        items_to_fetch, batch_size = self._normalize_fetch_limits(limit, batch_size)
+        start = self._coerce_start_index(start_index)
         collected_entries = []
-        start = max(1, int(start_index) if start_index else 1)
 
         while True:
-            if is_cancelled and is_cancelled():
-                self.logger.info("Channel fetch cancelled after %d items", len(collected_entries))
+            if self._is_cancelled(is_cancelled, len(collected_entries)):
                 break
 
-            window_size = items_to_fetch or batch_size
+            window_size = self._compute_window_size(items_to_fetch, batch_size)
             end = start + window_size - 1
 
-            entries = self._fetch_channel_entries(
-                channel_url,
-                start,
-                end,
-                auth_opts=auth_opts,
-            )
+            entries = self._fetch_entries_with_fallback(channel_url, start, end, auth_opts)
             if not entries:
-                # Fallback: refetch from the beginning up to the current end and slice.
-                fallback_entries = self._fetch_channel_entries(
-                    channel_url,
-                    1,
-                    end,
-                    auth_opts=auth_opts,
-                    slice_start=start,
-                )
-                entries = fallback_entries
-
-            if not entries:
-                self.logger.warning("No entries fetched for channel %s (start=%s)", channel_id, start)
                 break
 
-            collected_entries.extend(entries)
-            if progress_callback:
-                progress_callback(len(collected_entries), items_to_fetch)
+            self._add_entries(collected_entries, entries, progress_callback, items_to_fetch)
 
-            if items_to_fetch is not None and len(collected_entries) >= items_to_fetch:
-                collected_entries = collected_entries[:items_to_fetch]
+            if self._reached_limit(collected_entries, items_to_fetch):
                 break
 
-            if len(entries) < window_size:
-                # No more pages to fetch
+            if self._is_last_batch(entries, window_size):
                 break
 
             start = end + 1
 
         return self._normalize_entries(collected_entries)
+
+    def _channel_uploads_url(self, channel_id):
+        if channel_id and channel_id.startswith("UC") and len(channel_id) > 2:
+            uploads_playlist_id = f"UU{channel_id[2:]}"
+            return f"https://www.youtube.com/playlist?list={uploads_playlist_id}"
+        return f"https://www.youtube.com/channel/{channel_id}/videos"
+
+    def _normalize_fetch_limits(self, limit, batch_size):
+        items_to_fetch = None if limit in (None, 0) else max(1, int(limit))
+        return items_to_fetch, max(1, batch_size or CHANNEL_FETCH_BATCH_SIZE)
+
+    @staticmethod
+    def _compute_window_size(items_to_fetch, batch_size):
+        return items_to_fetch or batch_size
+
+    @staticmethod
+    def _coerce_start_index(start_index):
+        return max(1, int(start_index) if start_index else 1)
+
+    def _is_cancelled(self, is_cancelled, collected_count):
+        if is_cancelled and is_cancelled():
+            self.logger.info("Channel fetch cancelled after %d items", collected_count)
+            return True
+        return False
+
+    def _fetch_entries_with_fallback(self, channel_url, start, end, auth_opts):
+        entries = self._fetch_channel_entries(channel_url, start, end, auth_opts=auth_opts)
+        if entries:
+            return entries
+        fallback_entries = self._fetch_channel_entries(
+            channel_url,
+            1,
+            end,
+            auth_opts=auth_opts,
+            slice_start=start,
+        )
+        if fallback_entries:
+            return fallback_entries
+        self.logger.warning("No entries fetched for channel %s (start=%s)", channel_url, start)
+        return []
+
+    def _add_entries(self, collected_entries, new_entries, progress_callback, items_to_fetch):
+        collected_entries.extend(new_entries)
+        if progress_callback:
+            progress_callback(len(collected_entries), items_to_fetch)
+        if items_to_fetch is not None and len(collected_entries) >= items_to_fetch:
+            del collected_entries[items_to_fetch:]
+
+    @staticmethod
+    def _is_last_batch(entries, window_size):
+        return len(entries) < window_size
+
+    @staticmethod
+    def _reached_limit(collected_entries, items_to_fetch):
+        return items_to_fetch is not None and len(collected_entries) >= items_to_fetch
 
     def _fetch_channel_entries(self, channel_url, start, end, auth_opts, slice_start=None):
         """Internal helper to fetch a slice of channel entries."""
@@ -263,44 +288,58 @@ class YTChannel(QObject):
         collected = []
 
         for entry in entries:
-            if not entry:
-                continue
-            video_id = entry.get('id')
-            video_url = entry.get('webpage_url') or entry.get('url')
-            if video_url and not video_url.startswith('http'):
-                video_url = self.base_video_url + video_url
-            if not video_url and video_id:
-                video_url = self.base_video_url + video_id
-            if not video_url:
-                self.logger.debug("Skipping channel entry without resolvable URL: %s", entry)
-                continue
-            if video_url in seen_urls:
-                continue
-            seen_urls.add(video_url)
-
-            title = entry.get('title') or entry.get('alt_title') or entry.get('fulltitle')
-            duration = self._extract_duration_seconds(entry)
-
-            metadata = None
-            if not title or duration is None:
-                try:
-                    metadata = self.retrieve_video_metadata(video_url)
-                except Exception:  # noqa: BLE001
-                    self.logger.debug("Failed fallback metadata fetch for %s", video_url, exc_info=True)
-
-            if metadata:
-                title = title or metadata.get('title')
-                if duration is None:
-                    duration = metadata.get('duration')
-
-            collected.append({
-                'title': title or 'Unknown Title',
-                'url': video_url,
-                'duration': duration,
-            })
+            normalized = self._normalize_entry(entry, seen_urls)
+            if normalized:
+                collected.append(normalized)
 
         self.video_titles_links = collected
         return self.video_titles_links
+
+    def _normalize_entry(self, entry, seen_urls):
+        if not entry:
+            return None
+        video_url = self._resolve_entry_url(entry)
+        if not video_url:
+            self.logger.debug("Skipping channel entry without resolvable URL: %s", entry)
+            return None
+        if video_url in seen_urls:
+            return None
+        seen_urls.add(video_url)
+
+        title, duration = self._extract_entry_title_and_duration(entry, video_url)
+        return {
+            'title': title or 'Unknown Title',
+            'url': video_url,
+            'duration': duration,
+        }
+
+    def _resolve_entry_url(self, entry):
+        video_id = entry.get('id')
+        video_url = entry.get('webpage_url') or entry.get('url')
+        if video_url and not video_url.startswith('http'):
+            video_url = self.base_video_url + video_url
+        if not video_url and video_id:
+            video_url = self.base_video_url + video_id
+        return video_url
+
+    def _extract_entry_title_and_duration(self, entry, video_url):
+        title = entry.get('title') or entry.get('alt_title') or entry.get('fulltitle')
+        duration = self._extract_duration_seconds(entry)
+        metadata = self._maybe_fetch_missing_metadata(video_url, title, duration)
+        if metadata:
+            title = title or metadata.get('title')
+            if duration is None:
+                duration = metadata.get('duration')
+        return title, duration
+
+    def _maybe_fetch_missing_metadata(self, video_url, title, duration):
+        if title and duration is not None:
+            return None
+        try:
+            return self.retrieve_video_metadata(video_url)
+        except Exception:  # noqa: BLE001
+            self.logger.debug("Failed fallback metadata fetch for %s", video_url, exc_info=True)
+            return None
 
     def fetch_videos_from_playlist(self, playlist_url):
         return self.fetch_videos_from_playlist_with_progress(
