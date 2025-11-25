@@ -72,8 +72,8 @@ class SelectionSizeWorker(QtCore.QObject):
         self.generation = generation
         self._cancelled = False
 
-    def cancel(self):
-        """Request cancellation."""
+    def request_size_eta_cancellation(self):
+        """Request cancellation of the current selection size estimation run."""
         self._cancelled = True
 
     @QtCore.pyqtSlot()
@@ -668,6 +668,11 @@ class MainWindow(QMainWindow):
         excluded from selection toggling.
         """
         new_value = state == 2
+        if new_value and self._size_recalc_worker_thread and self._size_recalc_worker_thread.isRunning():
+            # Restart estimation for the new selection set.
+            self._cancel_selection_recalc()
+        if new_value:
+            self._size_recalc_indicator_needed = True
         self._suppress_item_changed = True
         for row in range(self.model.rowCount()):
             item_title_index = self.model.index(row, 1)
@@ -1047,7 +1052,7 @@ class MainWindow(QMainWindow):
         """User-requested cancellation of size recalculation."""
         self._size_recalc_generation += 1
         if self._size_recalc_worker:
-            self._size_recalc_worker.cancel()
+            self._size_recalc_worker.request_size_eta_cancellation()
         if self._size_recalc_worker_thread and self._size_recalc_worker_thread.isRunning():
             self._size_recalc_worker_thread = None
         self._size_recalc_worker = None
@@ -1558,7 +1563,7 @@ class MainWindow(QMainWindow):
             logger.warning("Selection size recalculation exceeded timeout; hiding indicator.")
             # Allow a new recalculation to start even if the old worker lingers.
             if self._size_recalc_worker:
-                self._size_recalc_worker.cancel()
+                self._size_recalc_worker.request_size_eta_cancellation()
             self._size_recalc_worker_thread = None
             self._size_recalc_worker = None
             self._size_recalc_generation += 1
