@@ -25,7 +25,7 @@ else:  # pragma: no cover - import only for runtime use
 from PyQt6.QtWidgets import QHeaderView
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QDialog, QCheckBox,
                              QMessageBox, QPushButton, QHBoxLayout, QProgressBar,
-                             QLabel, QWidget)
+                             QLabel, QWidget, QSizePolicy)
 from PyQt6.QtGui import QFont
 from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtGui import QStandardItem
@@ -57,6 +57,38 @@ from .updater import Updater
 
 
 logger = get_logger("MainWindow")
+
+
+class SelectionSizeWorker(QtCore.QObject):
+    """Background worker to compute selection size totals without blocking UI."""
+
+    finished = QtCore.pyqtSignal(object, object, bool, dict, int, int)
+
+    def __init__(self, rows_data, estimate_func, remaining_func, generation: int):
+        super().__init__()
+        self.rows_data = rows_data
+        self.estimate_func = estimate_func
+        self.remaining_func = remaining_func
+        self.generation = generation
+
+    @QtCore.pyqtSlot()
+    def run(self):
+        total_estimated = 0
+        total_remaining = 0
+        has_unknown = False
+        per_row_estimates = {}
+
+        for data in self.rows_data:
+            estimate = self.estimate_func(data["link"], data["duration"])
+            per_row_estimates[data["row"]] = estimate
+            if estimate is None:
+                has_unknown = True
+                continue
+
+            total_estimated += estimate
+            total_remaining += self.remaining_func(estimate, data["progress"])
+
+        self.finished.emit(total_estimated, total_remaining, has_unknown, per_row_estimates, len(self.rows_data), self.generation)
 
 
 class MainWindow(QMainWindow):
@@ -105,6 +137,11 @@ class MainWindow(QMainWindow):
         self.estimated_download_sizes: Dict[int, Optional[int]] = {}
         self._settings_signature: Optional[Tuple] = None
         self._suppress_item_changed = False
+        self._size_recalc_indicator_needed = False
+        self._size_recalc_worker: Optional[SelectionSizeWorker] = None
+        self._size_recalc_watchdog: Optional[QtCore.QTimer] = None
+        self._size_recalc_worker_thread: Optional[QtCore.QThread] = None
+        self._size_recalc_generation: int = 0
         self.node_notifier: Optional[NodeRuntimeNotifier] = None
         self.support_prompt: Optional[SupportPrompt] = None
         self.channel_fetch_context: Dict[str, Any] | None = None
@@ -121,6 +158,8 @@ class MainWindow(QMainWindow):
         self.setup_ui()
         self.root_item = self.model.invisibleRootItem()
         self.selection_summary_label: QLabel = QLabel("")
+        self.recalc_status_widget: QWidget = self._build_recalc_status_widget()
+        self.ui.statusbar.addPermanentWidget(self.recalc_status_widget)
         self.ui.statusbar.addPermanentWidget(self.selection_summary_label)
 
         self.setup_about_dialog()
@@ -893,6 +932,9 @@ class MainWindow(QMainWindow):
 
     def update_selection_size_summary(self):
         """Calculate and display estimated download sizes for checked rows."""
+        if self._size_recalc_worker_thread and not self._size_recalc_worker_thread.isRunning():
+            self._cleanup_async_thread(self._size_recalc_worker_thread)
+
         if self.model.rowCount() == 0:
             self.selection_summary_label.setText("")
             return
@@ -901,6 +943,10 @@ class MainWindow(QMainWindow):
         if not selected_rows:
             self.selection_summary_label.setText("No items selected")
             return
+
+        if self._size_recalc_indicator_needed and selected_rows:
+            if self._start_async_selection_summary(selected_rows):
+                return
 
         total_estimated, total_remaining, has_unknown = self._calculate_selection_totals(selected_rows)
         summary = self._format_selection_summary(len(selected_rows), total_estimated, total_remaining, has_unknown)
@@ -921,7 +967,7 @@ class MainWindow(QMainWindow):
         total_bytes_estimated = 0
         total_bytes_remaining = 0
 
-        for row in selected_rows:
+        for idx, row in enumerate(selected_rows):
             link_item = self.model.item(row, ColumnIndexes.LINK)
             if link_item is None:
                 has_unknown = True
@@ -937,8 +983,81 @@ class MainWindow(QMainWindow):
             total_bytes_estimated += estimate
             progress_val = self._item_user_role(self.model.item(row, ColumnIndexes.PROGRESS))
             total_bytes_remaining += self._remaining_bytes(estimate, progress_val)
+            # Keep the event loop alive so the busy bar can animate during recalculation.
+            if self._size_recalc_indicator_needed and idx % 2 == 0:
+                QApplication.processEvents(QtCore.QEventLoop.ProcessEventsFlag.AllEvents)
 
         return total_bytes_estimated, total_bytes_remaining, has_unknown
+
+    def _start_async_selection_summary(self, selected_rows) -> bool:
+        """Kick off selection size recalculation in a background thread."""
+        if self._size_recalc_worker_thread and self._size_recalc_worker_thread.isRunning():
+            return True
+
+        rows_data = []
+        for row in selected_rows:
+            link_item = self.model.item(row, ColumnIndexes.LINK)
+            if link_item is None:
+                continue
+            duration_seconds = self._item_user_role(self.model.item(row, ColumnIndexes.DURATION))
+            progress_val = self._item_user_role(self.model.item(row, ColumnIndexes.PROGRESS))
+            rows_data.append({
+                "row": row,
+                "link": link_item.text(),
+                "duration": duration_seconds,
+                "progress": progress_val,
+            })
+
+        if not rows_data:
+            self._size_recalc_indicator_needed = False
+            return False
+
+        self._show_recalc_status()
+        thread = QtCore.QThread(self)
+        self._size_recalc_generation += 1
+        generation = self._size_recalc_generation
+        worker = SelectionSizeWorker(
+            rows_data,
+            lambda link, dur: self._get_or_estimate_size(link, dur, cache_row_lookup=False),
+            self._remaining_bytes,
+            generation,
+        )
+        self._size_recalc_worker = worker
+        worker.moveToThread(thread)
+        worker.finished.connect(self._on_async_selection_summary_finished)
+        worker.finished.connect(worker.deleteLater)
+        worker.finished.connect(thread.quit)
+        thread.started.connect(worker.run)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(lambda: self._cleanup_async_thread(thread))
+        self._size_recalc_worker_thread = thread
+        thread.start()
+        self._start_recalc_watchdog()
+        return True
+
+    @Slot(object, object, bool, dict, int, int)
+    def _on_async_selection_summary_finished(self, total_estimated, total_remaining, has_unknown, per_row_estimates, selected_count, generation):
+        """Handle completion of background selection size calculation."""
+        if generation != self._size_recalc_generation:
+            logger.debug("Ignoring stale selection size result (generation %s != %s)", generation, self._size_recalc_generation)
+            return
+        if per_row_estimates:
+            self.estimated_download_sizes.update(per_row_estimates)
+
+        summary = self._format_selection_summary(selected_count, total_estimated, total_remaining, has_unknown)
+        self.selection_summary_label.setText(summary)
+        self._size_recalc_indicator_needed = False
+        self._stop_recalc_watchdog()
+        self._hide_recalc_status()
+
+    def _cleanup_async_thread(self, thread: QtCore.QThread):
+        """Reset thread pointer when recalculation worker finishes."""
+        if self._size_recalc_worker_thread is thread:
+            self._size_recalc_worker_thread = None
+            self._size_recalc_worker = None
+        self._stop_recalc_watchdog()
+        if self.recalc_status_widget.isVisible() and not self._size_recalc_indicator_needed:
+            self._hide_recalc_status()
 
     @staticmethod
     def _item_user_role(item):
@@ -961,7 +1080,7 @@ class MainWindow(QMainWindow):
         summary += f" | ETA: {eta_text}"
         return summary
 
-    def _get_or_estimate_size(self, link: str, duration_seconds: Optional[int]) -> Optional[int]:
+    def _get_or_estimate_size(self, link: str, duration_seconds: Optional[int], cache_row_lookup: bool = True) -> Optional[int]:
         """Return cached estimate when available or compute a fresh one."""
         if not link:
             return None
@@ -973,7 +1092,7 @@ class MainWindow(QMainWindow):
         info = self._fetch_format_info(link)
         estimate = self._estimate_size_from_info(info, duration_seconds)
         self.size_estimate_cache[cache_key] = estimate
-        if estimate:
+        if estimate and cache_row_lookup:
             # Keep a quick lookup for ETA calculations keyed by row index later
             try:
                 row_index = self._link_to_row_index(link)
@@ -1240,10 +1359,13 @@ class MainWindow(QMainWindow):
     def _refresh_settings_signature(self):
         """Reset caches when settings relevant to format selection change."""
         new_sig = self._build_settings_signature()
+        signature_was_set = self._settings_signature is not None
         if new_sig != self._settings_signature:
             self._settings_signature = new_sig
             self.size_estimate_cache.clear()
             self.format_info_cache.clear()
+            if signature_was_set:
+                self._size_recalc_indicator_needed = True
 
     @staticmethod
     def _format_size(num_bytes: int) -> str:
@@ -1298,6 +1420,25 @@ class MainWindow(QMainWindow):
             return None
         return sum(samples) / len(samples)
 
+    @staticmethod
+    def _indeterminate_progress_stylesheet() -> str:
+        """Style indeterminate bars to match fetch progress visuals."""
+        return """
+            QProgressBar {
+                border: 2px solid grey;
+                border-radius: 5px;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 1,
+                    stop: 0 #3a7bd5,
+                    stop: 1 #00d2ff
+                );
+                width: 20px;
+            }
+        """
+
     def _create_progress_bar(self, completed=False):
         """Create a styled progress bar, optionally pre-set to completed state."""
         bar = QProgressBar(self.ui.treeView)
@@ -1328,6 +1469,69 @@ class MainWindow(QMainWindow):
             bar.setValue(0)
             bar.setFormat("%p%")
         return bar
+
+    def _build_recalc_status_widget(self) -> QWidget:
+        """Build the status bar widget used during size recalculations."""
+        widget = QWidget(self)
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        self.recalc_status_label = QLabel("Recalculating download size estimates...", widget)
+        self.recalc_status_bar = QProgressBar(widget)
+        self.recalc_status_bar.setRange(0, 0)
+        self.recalc_status_bar.setTextVisible(False)
+        self.recalc_status_bar.setMinimumWidth(240)
+        self.recalc_status_bar.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                             QSizePolicy.Policy.Preferred)
+        self.recalc_status_bar.setStyleSheet(self._indeterminate_progress_stylesheet())
+
+        layout.addWidget(self.recalc_status_label)
+        layout.addWidget(self.recalc_status_bar, 1)
+        widget.setVisible(False)
+        return widget
+
+    def _show_recalc_status(self):
+        """Show an indeterminate bar while re-estimating selection sizes."""
+        if hasattr(self, "recalc_status_widget"):
+            self.recalc_status_widget.setVisible(True)
+            self.selection_summary_label.setVisible(False)
+            QApplication.processEvents(QtCore.QEventLoop.ProcessEventsFlag.AllEvents)
+
+    def _hide_recalc_status(self):
+        """Hide the recalculation indicator and restore the selection summary."""
+        if hasattr(self, "recalc_status_widget"):
+            self.recalc_status_widget.setVisible(False)
+            self.selection_summary_label.setVisible(True)
+
+    def _start_recalc_watchdog(self, timeout_ms: int = 20000):
+        """Start a watchdog timer to hide the spinner if work stalls."""
+        self._stop_recalc_watchdog()
+        timer = QtCore.QTimer(self)
+        timer.setSingleShot(True)
+        timer.setInterval(timeout_ms)
+        timer.timeout.connect(self._handle_recalc_timeout)
+        timer.start()
+        self._size_recalc_watchdog = timer
+
+    def _stop_recalc_watchdog(self):
+        """Stop and clear the recalculation watchdog timer."""
+        if self._size_recalc_watchdog:
+            self._size_recalc_watchdog.stop()
+            self._size_recalc_watchdog.deleteLater()
+            self._size_recalc_watchdog = None
+
+    def _handle_recalc_timeout(self):
+        """Hide the recalculation indicator if the worker runs too long."""
+        if self._size_recalc_worker_thread and self._size_recalc_worker_thread.isRunning():
+            logger.warning("Selection size recalculation exceeded timeout; hiding indicator.")
+            # Allow a new recalculation to start even if the old worker lingers.
+            self._size_recalc_worker_thread = None
+            self._size_recalc_worker = None
+            self._size_recalc_generation += 1
+        self._size_recalc_indicator_needed = False
+        self._hide_recalc_status()
+        self._stop_recalc_watchdog()
 
     def _start_fetch_dialog(self, channel_id, yt_channel, channel_url=None,
                             finish_handler=None, limit=None, start_index=1):
