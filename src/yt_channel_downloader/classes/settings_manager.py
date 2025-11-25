@@ -69,7 +69,7 @@ class SettingsManager:
             'suppress_node_runtime_warning': False,
             # Download milestone prompts
             'downloads_completed': 0,
-            'support_prompt_next_at': 50,
+            'support_prompt_next_at': 30,
             'dont_show_login_prompt': False,
             'channel_fetch_limit': DEFAULT_CHANNEL_FETCH_LIMIT,
             'playlist_fetch_limit': DEFAULT_PLAYLIST_FETCH_LIMIT,

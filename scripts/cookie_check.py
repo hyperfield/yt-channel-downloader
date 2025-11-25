@@ -7,7 +7,7 @@ if _SRC.exists():
     sys.path.insert(0, str(_SRC))
 
 from yt_channel_downloader.classes.settings_manager import SettingsManager
-from yt_channel_downloader.classes.youtube_auth import YoutubeAuthManager
+from yt_channel_downloader.classes.youtube_auth_manager import YoutubeAuthManager
 import yt_dlp
 
 manager = YoutubeAuthManager(SettingsManager())

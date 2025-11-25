@@ -11,7 +11,7 @@ from urllib.error import HTTPError
 import yt_dlp
 
 from .logger import get_logger
-from .utils import QuietYDLLogger
+from .quiet_ydl_logger import QuietYDLLogger
 
 
 logger = get_logger("YouTubeURLValidator")

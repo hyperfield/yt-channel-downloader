@@ -11,7 +11,7 @@ from urllib import error
 import requests
 
 from .validators import YouTubeURLValidator, extract_single_media, is_supported_media_url
-from .utils import QuietYDLLogger
+from .quiet_ydl_logger import QuietYDLLogger
 from ..config.constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID, DEFAULT_CHANNEL_FETCH_LIMIT, CHANNEL_FETCH_BATCH_SIZE
 from .settings_manager import SettingsManager
 

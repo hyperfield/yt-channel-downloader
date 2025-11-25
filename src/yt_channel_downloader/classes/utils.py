@@ -3,54 +3,11 @@ from typing import Any, Dict, List, Optional
 import yt_dlp
 
 from .logger import get_logger
+from .quiet_ydl_logger import QuietYDLLogger
+from .js_warning_tracker import js_warning_tracker
 
 
 logger = get_logger("utils")
-
-
-class JsRuntimeWarningTracker:
-    """Tracks whether yt-dlp reported missing JavaScript runtime."""
-
-    def __init__(self):
-        self._seen = False
-
-    def mark(self, msg):
-        """Record that the JS runtime warning was seen if it appears in the message."""
-        if isinstance(msg, str) and "No supported JavaScript runtime could be found" in msg:
-            self._seen = True
-
-    def pop_seen(self):
-        """Return and reset the warning-seen flag."""
-        seen = self._seen
-        self._seen = False
-        return seen
-
-
-js_warning_tracker = JsRuntimeWarningTracker()
-
-
-class QuietYDLLogger:
-    """Minimal yt-dlp-compatible logger that suppresses noisy output."""
-
-    def __init__(self, warning_tracker: Optional[JsRuntimeWarningTracker] = None):
-        self.warning_tracker = warning_tracker or js_warning_tracker
-
-    def debug(self, msg):
-        logger.debug(msg)
-
-    def info(self, msg):
-        logger.debug(msg)
-
-    def warning(self, msg):
-        self.warning_tracker.mark(msg)
-        logger.warning(msg)
-
-    def log_warning(self, msg):
-        """Alias for warning to keep naming explicit in code that calls it directly."""
-        self.warning(msg)
-
-    def error(self, msg):
-        logger.error(msg)
 
 
 def find_best_format_by_resolution(
