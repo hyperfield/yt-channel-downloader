@@ -350,58 +350,90 @@ class YTChannel(QObject):
         auth_opts = self._get_auth_params()
         playlist_url = self._canonical_playlist_url(playlist_url)
         total_entries = self._get_playlist_total_count(playlist_url, auth_opts)
-        if progress_callback and total_entries:
-            progress_callback(0, total_entries)
-        self.logger.info("Starting playlist fetch for %s (reported total: %s)", playlist_url, total_entries or "unknown")
-        if YouTubeURLValidator.playlist_exists(playlist_url, auth_opts):
-            video_titles_links = []
-            fallback_entries = YouTubeURLValidator.extract_playlist_entries(playlist_url, auth_opts)
-            total_entries = total_entries or len(fallback_entries)
-            seen_urls = set()
-            count = 0
-            for entry in fallback_entries:
-                if limit and count >= limit:
-                    break
-                if is_cancelled and is_cancelled():
-                    self.logger.info("Playlist fetch cancelled after %d items", count)
-                    break
-                entry_id = entry.get('id')
-                video_url = entry.get('webpage_url') or entry.get('url')
-                if video_url and not video_url.startswith('http'):
-                    video_url = self.base_video_url + video_url
-                if not video_url and entry_id:
-                    video_url = self.base_video_url + entry_id
-                canonical_url = None
-                if entry_id and len(entry_id) == 11:
-                    canonical_url = self.base_video_url + entry_id
-                elif video_url:
-                    canonical_url = video_url
-                if not canonical_url or canonical_url in seen_urls:
-                    continue
-                seen_urls.add(canonical_url)
-                title = entry.get('title') or entry.get('alt_title')
-                duration = self._extract_duration_seconds(entry)
-                if title:
-                    video_titles_links.append({
-                        'title': title,
-                        'url': canonical_url,
-                        'duration': duration,
-                    })
-                    continue
-                try:
-                    video_data = self.retrieve_video_metadata(canonical_url)
-                except Exception:
-                    continue
-                if video_data:
-                    video_titles_links.append(video_data)
-                count += 1
-                if progress_callback:
-                    progress_callback(count, total_entries)
-                if count == total_entries or count % 25 == 0:
-                    self.logger.info("Playlist fetch progress: %d/%s", count, total_entries or "unknown")
+        self._report_playlist_start(playlist_url, progress_callback, total_entries)
+
+        entries, total_entries = self._load_playlist_entries(playlist_url, auth_opts, total_entries)
+        if entries:
+            video_titles_links = self._collect_playlist_entries(
+                entries, limit, is_cancelled, progress_callback, total_entries
+            )
             if video_titles_links:
                 return video_titles_links
 
+        self._emit_invalid_playlist_error()
+
+    def _report_playlist_start(self, playlist_url, progress_callback, total_entries):
+        if progress_callback and total_entries:
+            progress_callback(0, total_entries)
+        self.logger.info("Starting playlist fetch for %s (reported total: %s)", playlist_url, total_entries or "unknown")
+
+    def _load_playlist_entries(self, playlist_url, auth_opts, total_entries):
+        if not YouTubeURLValidator.playlist_exists(playlist_url, auth_opts):
+            return [], total_entries
+        entries = YouTubeURLValidator.extract_playlist_entries(playlist_url, auth_opts)
+        return entries, total_entries or len(entries)
+
+    def _collect_playlist_entries(self, entries, limit, is_cancelled, progress_callback, total_entries):
+        video_titles_links = []
+        seen_urls = set()
+        count = 0
+        for entry in entries:
+            if limit and count >= limit:
+                break
+            if is_cancelled and is_cancelled():
+                self.logger.info("Playlist fetch cancelled after %d items", count)
+                break
+
+            canonical_url = self._canonical_playlist_entry_url(entry)
+            if not canonical_url or canonical_url in seen_urls:
+                continue
+            seen_urls.add(canonical_url)
+
+            increment_count = self._append_playlist_entry(entry, canonical_url, video_titles_links)
+            if increment_count:
+                count += 1
+                self._report_playlist_progress(count, total_entries, progress_callback)
+
+        return video_titles_links
+
+    def _canonical_playlist_entry_url(self, entry):
+        entry_id = entry.get('id')
+        video_url = entry.get('webpage_url') or entry.get('url')
+        if video_url and not video_url.startswith('http'):
+            video_url = self.base_video_url + video_url
+        if not video_url and entry_id:
+            video_url = self.base_video_url + entry_id
+        if entry_id and len(entry_id) == 11:
+            return self.base_video_url + entry_id
+        return video_url
+
+    def _append_playlist_entry(self, entry, canonical_url, video_titles_links):
+        title = entry.get('title') or entry.get('alt_title')
+        duration = self._extract_duration_seconds(entry)
+        if title:
+            video_titles_links.append({
+                'title': title,
+                'url': canonical_url,
+                'duration': duration,
+            })
+            return False
+
+        try:
+            video_data = self.retrieve_video_metadata(canonical_url)
+        except Exception:
+            return False
+
+        if video_data:
+            video_titles_links.append(video_data)
+        return True
+
+    def _report_playlist_progress(self, count, total_entries, progress_callback):
+        if progress_callback:
+            progress_callback(count, total_entries)
+        if count == total_entries or count % 25 == 0:
+            self.logger.info("Playlist fetch progress: %d/%s", count, total_entries or "unknown")
+
+    def _emit_invalid_playlist_error(self):
         self.showError.emit("The URL is incorrect or unreachable.")
         raise ValueError("Invalid playlist URL")
 
