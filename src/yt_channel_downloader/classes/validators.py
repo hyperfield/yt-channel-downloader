@@ -166,41 +166,81 @@ def extract_single_media(url: str, auth_opts: Optional[Dict[str, Any]] = None) -
     Returns:
         dict | None: Metadata dict containing title and url if successful.
     """
-    ydl_opts = {
+    ydl_opts = _single_media_opts(auth_opts)
+    info = _safe_extract_info(url, ydl_opts)
+    if not info:
+        return None
+
+    entry = _first_playlist_entry(info, url)
+    if not entry:
+        return None
+
+    return _build_media_result(entry, url)
+
+
+def _single_media_opts(auth_opts: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    opts: Dict[str, Any] = {
         'quiet': True,
         'skip_download': True,
         'noplaylist': True,
     }
     if auth_opts:
-        ydl_opts.update(auth_opts)
+        opts.update(auth_opts)
+    return opts
 
+
+def _safe_extract_info(url: str, ydl_opts: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            if info.get('_type') == 'playlist':
-                entries = info.get('entries') or []
-                first = next((entry for entry in entries if entry), None)
-                if not first:
-                    logger.warning("Playlist has no entries for URL: %s", url)
-                    return None
-                info = first
-            title = info.get('title') or 'Unknown Title'
-            final_url = info.get('webpage_url') or info.get('url') or url
-            duration = info.get('duration')
-            if isinstance(duration, float):
-                duration = int(duration)
-            if isinstance(duration, str):
-                duration = int(duration) if duration.isdigit() else yt_dlp.utils.parse_duration(duration)
-            if duration is None and info.get('duration_string'):
-                try:
-                    duration = yt_dlp.utils.parse_duration(info['duration_string'])
-                except Exception:  # noqa: BLE001
-                    duration = None
-            return {'title': title, 'url': final_url, 'duration': duration}
+            return ydl.extract_info(url, download=False)
     except yt_dlp.utils.DownloadError as exc:
         logger.debug("yt-dlp failed to extract metadata for %s: %s", url, exc)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Unexpected error while extracting metadata for %s: %s", url, exc)
+    return None
+
+
+def _first_playlist_entry(info: Dict[str, Any], url: str) -> Optional[Dict[str, Any]]:
+    if info.get('_type') != 'playlist':
+        return info
+    entries = info.get('entries') or []
+    first = next((entry for entry in entries if entry), None)
+    if not first:
+        logger.warning("Playlist has no entries for URL: %s", url)
+        return None
+    return first
+
+
+def _build_media_result(info: Dict[str, Any], original_url: str) -> Dict[str, Any]:
+    title = info.get('title') or 'Unknown Title'
+    final_url = info.get('webpage_url') or info.get('url') or original_url
+    duration = _normalize_duration(info)
+    return {'title': title, 'url': final_url, 'duration': duration}
+
+
+def _normalize_duration(info: Dict[str, Any]) -> Optional[int]:
+    duration = _coerce_duration_value(info.get('duration'))
+    if duration is not None:
+        return duration
+    if info.get('duration_string'):
+        try:
+            return yt_dlp.utils.parse_duration(info['duration_string'])
+        except Exception:  # noqa: BLE001
+            return None
+    return None
+
+
+def _coerce_duration_value(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        if value.isdigit():
+            return int(value)
+        return yt_dlp.utils.parse_duration(value)
     return None
 
 
