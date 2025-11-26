@@ -7,6 +7,14 @@ TODO.txt
 readthedocs/
 changelog/
 
+# PyAppExec artifacts (keep the main config)
+pyappexec.*
+.pyappexec.*
+!pyappexec.ini
+
+# Editor swap files
+*.swp
+
 # Shell scripts
 *.sh
 
@@ -41,6 +49,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+*.app/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
