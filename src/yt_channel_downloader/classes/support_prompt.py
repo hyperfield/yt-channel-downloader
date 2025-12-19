@@ -9,6 +9,12 @@ from .logger import get_logger
 
 logger = get_logger("SupportPrompt")
 
+# Default download-count thresholds for when to re-prompt.
+DEFAULT_SUPPORT_PROMPT_SHORT_SNOOZE = 25
+DEFAULT_SUPPORT_PROMPT_MEDIUM_SNOOZE = 50
+DEFAULT_SUPPORT_PROMPT_LONG_SNOOZE = 100
+DEFAULT_SUPPORT_PROMPT_INITIAL_THRESHOLD = DEFAULT_SUPPORT_PROMPT_SHORT_SNOOZE
+
 
 class SupportPrompt:
     """Encapsulates support prompt thresholds and dialog presentation.
@@ -19,12 +25,19 @@ class SupportPrompt:
     - I cannot donate: medium snooze (e.g., 150 downloads)
     """
 
-    def __init__(self, parent, settings_manager):
+    def __init__(
+        self,
+        parent,
+        settings_manager,
+        short_snooze: int = DEFAULT_SUPPORT_PROMPT_SHORT_SNOOZE,
+        medium_snooze: int = DEFAULT_SUPPORT_PROMPT_MEDIUM_SNOOZE,
+        long_snooze: int = DEFAULT_SUPPORT_PROMPT_LONG_SNOOZE,
+    ):
         self.parent = parent
         self.settings_manager = settings_manager
-        self.default_short_snooze = 50
-        self.default_medium_snooze = 150
-        self.default_long_snooze = 500
+        self.default_short_snooze = short_snooze
+        self.default_medium_snooze = medium_snooze
+        self.default_long_snooze = long_snooze
 
     def should_prompt(self, completed: int, next_at: int) -> bool:
         """Return True if we reached the threshold for showing the support prompt."""

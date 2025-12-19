@@ -55,7 +55,10 @@ from .quiet_ydl_logger import QuietYDLLogger
 from .utils import filter_formats
 from .js_warning_tracker import js_warning_tracker
 from .node_runtime_notifier import NodeRuntimeNotifier
-from .support_prompt import SupportPrompt
+from .support_prompt import (
+    DEFAULT_SUPPORT_PROMPT_INITIAL_THRESHOLD,
+    SupportPrompt,
+)
 from .logger import get_logger
 from .updater import Updater
 from .update_status import UpdateStatus
@@ -444,7 +447,7 @@ class MainWindow(QMainWindow):
         self._refresh_settings_signature()
         self.user_settings.setdefault('suppress_node_runtime_warning', False)
         self.user_settings.setdefault('downloads_completed', 0)
-        self.user_settings.setdefault('support_prompt_next_at', 50)
+        self.user_settings.setdefault('support_prompt_next_at', DEFAULT_SUPPORT_PROMPT_INITIAL_THRESHOLD)
         self.user_settings.setdefault('channel_fetch_limit', DEFAULT_CHANNEL_FETCH_LIMIT)
         self.user_settings.setdefault('playlist_fetch_limit', DEFAULT_PLAYLIST_FETCH_LIMIT)
         self.user_settings.setdefault('channel_fetch_batch_size', CHANNEL_FETCH_BATCH_SIZE)
@@ -538,7 +541,7 @@ class MainWindow(QMainWindow):
         """Show a support prompt when download milestones are reached."""
         if not self.support_prompt:
             return
-        next_at = self.user_settings.get('support_prompt_next_at', 50)
+        next_at = self.user_settings.get('support_prompt_next_at', DEFAULT_SUPPORT_PROMPT_INITIAL_THRESHOLD)
         completed = self.user_settings.get('downloads_completed', 0)
         if not self.support_prompt.should_prompt(completed, next_at):
             return
