@@ -46,6 +46,12 @@ class SettingsManager:
             self._apply_environment_proxy(default_settings)
             self.save_settings_to_file(default_settings)
             return default_settings
+        except json.JSONDecodeError:
+            self._backup_corrupt_settings_file()
+            default_settings = self.load_default_settings()
+            self._apply_environment_proxy(default_settings)
+            self.save_settings_to_file(default_settings)
+            return default_settings
 
     def set_default_directory(self):
         if platform.system() == 'Windows':
@@ -81,6 +87,15 @@ class SettingsManager:
         with open(self.config_file_path, 'w') as f:
             json.dump(settings, f)
         self._apply_environment_proxy(settings)
+
+    def _backup_corrupt_settings_file(self):
+        if not os.path.exists(self.config_file_path):
+            return
+        backup_path = f"{self.config_file_path}.corrupt"
+        try:
+            os.replace(self.config_file_path, backup_path)
+        except OSError:
+            pass
 
     # ------------------------------------------------------------------ #
     # Proxy helpers
