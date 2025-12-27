@@ -166,6 +166,10 @@ class MainWindow(QMainWindow):
                 font-family: Arial;
                 font-size: 14pt;
             }
+            QPushButton#getVidListButton,
+            QPushButton#getVidListAddButton {
+                font-size: 9pt;
+            }
             QLineEdit, QComboBox {
                 border: 1px solid #A0A0A0;
                 padding: 4px;
@@ -221,6 +225,7 @@ class MainWindow(QMainWindow):
         self.ui.verticalLayout.addLayout(self.bottomButtonLayout)
         self.downloadSelectedVidsButton: QPushButton = self.ui.downloadSelectedVidsButton
         self.getVidListButton: QPushButton = self.ui.getVidListButton
+        self.getVidListAddButton: QPushButton = self.ui.getVidListAddButton
         self._setup_update_action()
         self.setup_buttons()
         self.setup_tree_view_delegate()
@@ -260,23 +265,25 @@ class MainWindow(QMainWindow):
         """Show update instructions tailored to the current runtime."""
         self.updater.prompt_for_update(parent=self)
 
-    def setup_button(self, button, callback):
+    def setup_button(self, button, callback, font_size=12):
         """Configures a button with the specified callback and font.
 
         Args:
             button (QPushButton): Button widget to set up.
             callback (function): Function to connect to button's clicked
             signal.
+            font_size (int): Font size to apply.
         """
         button.clicked.connect(callback)
-        font = QFont("Arial", 12)
+        font = QFont("Arial", font_size)
         font.setBold(True)
         button.setFont(font)
 
     def setup_buttons(self):
         """Sets up specific buttons used in the main window."""
         self.setup_button(self.downloadSelectedVidsButton, self.dl_vids)
-        self.setup_button(self.getVidListButton, self.show_vid_list)
+        self.setup_button(self.getVidListButton, self.show_vid_list, font_size=9)
+        self.setup_button(self.getVidListAddButton, self.show_vid_list_add, font_size=9)
 
     def _setup_update_action(self) -> None:
         """Insert the Check for Updates action into the Help menu."""
@@ -797,6 +804,7 @@ class MainWindow(QMainWindow):
         self.ui.chanUrlEdit.setEnabled(enabled)
         fetch_button_enabled = enabled and not self.fetch_in_progress
         self.getVidListButton.setEnabled(fetch_button_enabled)
+        self.getVidListAddButton.setEnabled(fetch_button_enabled)
         self._update_load_next_button_state()
 
     def _update_load_next_button_state(self):
@@ -838,7 +846,7 @@ class MainWindow(QMainWindow):
     def display_error_dialog(self, message):
         """
         Displays an error dialog with the given message and re-enables the
-        'getVidListButton'.
+        fetch buttons.
 
         Parameters:
         message (str): The error message to be displayed.
@@ -1914,12 +1922,21 @@ class MainWindow(QMainWindow):
     def show_vid_list(self):
         """Fetches and displays a single video, a playlist or a channel based
         on the input URL."""
+        self._show_vid_list_internal(append=False)
+
+    @Slot()
+    def show_vid_list_add(self):
+        """Fetches and appends videos to the existing list based on the URL."""
+        self._show_vid_list_internal(append=True)
+
+    def _show_vid_list_internal(self, append: bool):
+        """Shared fetch handler for replace and append modes."""
         if self.node_notifier:
             self.node_notifier.maybe_prompt()
         self.window_resize_needed = True
-        self.getVidListButton.setEnabled(False)
+        self._set_fetch_controls_enabled(False)
         channel_url = self.ui.chanUrlEdit.text()
-        logger.info("Fetching video list for URL: %s", channel_url)
+        logger.info("Fetching video list for URL: %s (append=%s)", channel_url, append)
         yt_channel = self._prepare_yt_channel()
 
         if self._is_playlist_or_video_with_playlist(yt_channel, channel_url):
@@ -1927,8 +1944,9 @@ class MainWindow(QMainWindow):
             self.current_fetch_is_channel = False
             self.channel_fetch_context = None
             playlist_limit = self._get_playlist_fetch_limit()
+            finish_handler = self.handle_video_list_add if append else self.handle_video_list
             self._start_fetch_dialog("playlist", yt_channel, channel_url,
-                                     self.handle_video_list,
+                                     finish_handler,
                                      limit=playlist_limit)
 
         elif self._is_video(yt_channel, channel_url):
@@ -1937,19 +1955,21 @@ class MainWindow(QMainWindow):
             logger.debug("Detected single video URL (short=%s)", bool(fetch_type))
             self.current_fetch_is_channel = False
             self.channel_fetch_context = None
+            finish_handler = self.handle_single_video_add if append else self.handle_single_video
             self._start_fetch_dialog(fetch_type, yt_channel, channel_url,
-                                     self.handle_single_video)
+                                     finish_handler)
         else:
             # Treat remaining YouTube URLs as channels
             if "youtube.com" in channel_url or "youtu.be" in channel_url:
                 logger.debug("Attempting to fetch channel data")
-                self._handle_channel_fetch(yt_channel, channel_url)
+                self._handle_channel_fetch(yt_channel, channel_url, append=append)
             else:
                 auth_opts = self._get_auth_options()
                 if is_supported_media_url(channel_url, auth_opts):
                     logger.debug("URL supported by generic extractor; treating as single media")
+                    finish_handler = self.handle_single_video_add if append else self.handle_single_video
                     self._start_fetch_dialog(None, yt_channel, channel_url,
-                                             self.handle_single_video)
+                                             finish_handler)
                 else:
                     logger.warning("Unsupported URL submitted: %s", channel_url)
                     self.display_error_dialog(
@@ -2005,19 +2025,23 @@ class MainWindow(QMainWindow):
         return yt_channel.is_video_url(url) or \
             yt_channel.is_short_video_url(url)
 
-    def _handle_channel_fetch(self, yt_channel, channel_url):
+    def _handle_channel_fetch(self, yt_channel, channel_url, append: bool = False):
         """Handles the logic for fetching a channel."""
         try:
             channel_id = yt_channel.get_channel_id(channel_url)
             limit = self._get_channel_fetch_limit()
             logger.debug("Resolved channel ID: %s (limit=%s)", channel_id, limit)
-            self.current_fetch_is_channel = True
-            self.channel_fetch_context = {
-                "channel_id": channel_id,
-                "channel_url": channel_url,
-            }
+            self.current_fetch_is_channel = not append
+            if append:
+                self.channel_fetch_context = None
+            else:
+                self.channel_fetch_context = {
+                    "channel_id": channel_id,
+                    "channel_url": channel_url,
+                }
+            finish_handler = self.handle_video_list_add if append else self.handle_video_list
             self._start_fetch_dialog(channel_id, yt_channel,
-                                     finish_handler=self.handle_video_list,
+                                     finish_handler=finish_handler,
                                      limit=limit,
                                      start_index=1)
         except (ValueError, error.URLError) as exc:
@@ -2051,6 +2075,13 @@ class MainWindow(QMainWindow):
         self._update_load_next_button_state()
 
     @Slot(list)
+    def handle_video_list_add(self, video_list):
+        """Append fetched items to the current list."""
+        self.current_fetch_is_channel = False
+        self.channel_fetch_context = None
+        self._append_video_list(video_list)
+
+    @Slot(list)
     def handle_single_video(self, video_list):
         """
         Processes a single video entry by storing it and updating the UI.
@@ -2062,6 +2093,46 @@ class MainWindow(QMainWindow):
         logger.info("Loaded single video into list")
         self.populate_window_list()
         self.channel_fetch_context = None
+        self._update_load_next_button_state()
+
+    @Slot(list)
+    def handle_single_video_add(self, video_list):
+        """Append a single video entry to the existing list."""
+        self.current_fetch_is_channel = False
+        self.channel_fetch_context = None
+        self._append_video_list(video_list)
+
+    def _append_video_list(self, video_list):
+        """Append fetched video entries to the existing list view."""
+        if self.ui.treeView.model() is not self.model or not hasattr(self, "root_item"):
+            self.reinit_model()
+        if not video_list:
+            self._finalize_list_view()
+            self.update_selection_size_summary()
+            self._maybe_prompt_on_js_warning()
+            self._update_load_next_button_state()
+            return
+        start_index = len(self.yt_chan_vids_titles_links)
+        if self._is_thumbnail_enabled() and self.thumbnail_loader:
+            thumb_items = []
+            for offset, entry in enumerate(video_list):
+                url = self._thumbnail_url_for_entry(entry)
+                thumb_items.append((start_index + offset, url))
+            try:
+                prefetched = self.thumbnail_loader.preload_bulk(thumb_items)
+                self.prefetched_thumbnails.update(prefetched)
+            except Exception as exc:  # noqa: BLE001
+                logger.info("Thumbnail preload for append failed: %s", exc)
+        self.yt_chan_vids_titles_links.extend(video_list)
+        for entry in video_list:
+            self._add_video_item_to_list(entry)
+        self._finalize_list_view()
+        if self._is_thumbnail_enabled():
+            new_rows = range(start_index, self.model.rowCount())
+            QtCore.QTimer.singleShot(0, lambda: self._warm_thumbnails_for_rows(new_rows, force=True))
+        self.update_selection_size_summary()
+        self._maybe_prompt_on_js_warning()
+        logger.info("Appended %d videos (total now %d)", len(video_list), len(self.yt_chan_vids_titles_links))
         self._update_load_next_button_state()
 
     @Slot()
@@ -2120,7 +2191,7 @@ class MainWindow(QMainWindow):
     @Slot()
     def enable_get_vid_list_button(self):
         """
-        Enables the 'Get Video List' button, allowing the user to initiate 
+        Enables the fetch buttons, allowing the user to initiate
         another video-fetching process.
         """
         if self.active_download_threads:
