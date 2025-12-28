@@ -7,7 +7,7 @@ import re
 from importlib import metadata
 
 
-_FALLBACK_VERSION = "0.8.5"
+_FALLBACK_VERSION = "0.8.6"
 
 
 def _version_from_pyproject(pyproject_path: pathlib.Path) -> str | None:
