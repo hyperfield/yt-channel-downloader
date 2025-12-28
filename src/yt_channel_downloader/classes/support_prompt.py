@@ -2,9 +2,12 @@
 # Project: YT Channel Downloader
 # Description: Helper to prompt users for support after download milestones.
 
+from PyQt6.QtCore import QUrl
+from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import QMessageBox
 
 from .logger import get_logger
+from ..config.constants import SUPPORT_URL
 
 
 logger = get_logger("SupportPrompt")
@@ -60,7 +63,10 @@ class SupportPrompt:
         msg.exec()
 
         if msg.clickedButton() == support_btn:
-            logger.info("User chose Support; snoozing long.")
+            logger.info("User chose Support; opening donation page and snoozing long.")
+            opened = QDesktopServices.openUrl(QUrl(SUPPORT_URL))
+            if not opened:
+                logger.warning("Failed to open support URL: %s", SUPPORT_URL)
             return completed + self.default_long_snooze
         if msg.clickedButton() == cannot_btn:
             logger.info("User chose Cannot donate; snoozing medium.")

@@ -24,6 +24,7 @@ GITHUB_RELEASES_PAGE_URL = (
 )
 UPDATE_CHECK_TIMEOUT = 5  # seconds
 UPDATE_DOWNLOAD_URL = "https://sourceforge.net/projects/yt-channel-downloader/files/latest/download"
+SUPPORT_URL = "https://ko-fi.com/hyperfield"
 
 DEFAULT_VIDEO_FORMAT = 'Any'
 DEFAULT_AUDIO_FORMAT = 'mp3'
