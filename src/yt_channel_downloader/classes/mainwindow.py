@@ -38,7 +38,13 @@ from ..ui.ui_form import Ui_MainWindow
 from ..ui.ui_about import Ui_aboutDialog
 from .settings_manager import SettingsManager
 from .enums import ColumnIndexes
-from ..config.constants import settings_map, DEFAULT_CHANNEL_FETCH_LIMIT, DEFAULT_PLAYLIST_FETCH_LIMIT, CHANNEL_FETCH_BATCH_SIZE
+from ..config.constants import (
+    settings_map,
+    DEFAULT_CHANNEL_FETCH_LIMIT,
+    DEFAULT_PLAYLIST_FETCH_LIMIT,
+    CHANNEL_FETCH_BATCH_SIZE,
+    SUPPORT_URL,
+)
 from .download_thread import DownloadThread
 from .custom_dialog import CustomDialog
 from .youtube_cookies_dialog import YoutubeCookiesDialog
@@ -234,7 +240,7 @@ class MainWindow(QMainWindow):
     def open_donate_url(self):
         """Opens the donation URL in the default web browser."""
         logger.info("Opening donation page in browser")
-        QDesktopServices.openUrl(QUrl("https://ko-fi.com/hyperfield"))
+        QDesktopServices.openUrl(QUrl(SUPPORT_URL))
 
     @Slot()
     def show_license_dialog(self) -> None:

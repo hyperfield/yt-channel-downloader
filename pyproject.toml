@@ -35,6 +35,11 @@ dependencies = [
   "PyQt6>=6.6.0",
 ]
 
+[project.optional-dependencies]
+test = [
+  "pytest>=7.4",
+]
+
 [project.scripts]
 yt-channel-downloader = "yt_channel_downloader.__main__:main"
 
