@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## 0.8.6
+
+- Create a “Fetch & Add” button that lets you add videos, playlists, and channels to an existing list.
+- Add tests.
+- Minor fixes.
+
 ## 0.8.0
 
 - Display estimated download size before downloads begin.
