@@ -10,6 +10,26 @@ from PyQt6 import QtGui, QtCore
 THUMBNAIL_URL_ROLE = QtCore.Qt.ItemDataRole.UserRole + 10
 
 
+class SortableStandardItem(QtGui.QStandardItem):
+    """
+    Subclass of QStandardItem that sorts by UserRole data (numeric)
+    instead of DisplayRole (string) when available.
+    """
+    def __lt__(self, other):
+        role = QtCore.Qt.ItemDataRole.UserRole
+        my_data = self.data(role)
+        other_data = other.data(role)
+
+        # If both have user data, compare that
+        if my_data is not None and other_data is not None:
+            try:
+                return float(my_data) < float(other_data)
+            except (ValueError, TypeError):
+                pass  # Fallback to default behavior
+
+        return super().__lt__(other)
+
+
 class VideoItem:
     """
     Represents a video item with relevant data and methods to interact with
@@ -61,7 +81,7 @@ class VideoItem:
         item_link = QtGui.QStandardItem(self.link)
         duration_value = self._coerce_duration_value(self.duration_seconds)
         duration_display = self._format_duration(duration_value)
-        item_duration = QtGui.QStandardItem(duration_display)
+        item_duration = SortableStandardItem(duration_display)
         if duration_value is not None:
             item_duration.setData(duration_value, QtCore.Qt.ItemDataRole.UserRole)
         item_speed = QtGui.QStandardItem("—")

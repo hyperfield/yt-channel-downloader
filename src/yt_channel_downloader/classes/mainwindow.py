@@ -724,6 +724,7 @@ class MainWindow(QMainWindow):
         self.model.setHorizontalHeaderLabels(
             ['Download?', 'Title', 'Duration', 'Link', 'Speed', 'Progress'])
         self.ui.treeView.setModel(self.model)
+        self.ui.treeView.setSortingEnabled(True)
         self.progress_widgets.clear()
         self.estimated_download_sizes.clear()
         self.speed_history.clear()
