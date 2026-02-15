@@ -446,8 +446,8 @@ class MainWindow(QMainWindow):
         if selection_item is not None:
             selection_item.setCheckState(Qt.CheckState.Unchecked)
         self.user_settings['downloads_completed'] = self.user_settings.get('downloads_completed', 0) + 1
-        self.settings_manager.save_settings_to_file(self.user_settings)
         self.maybe_show_support_prompt()
+        self.settings_manager.save_settings_to_file(self.user_settings)
         self.cleanup_download_thread(index)
         self.ui.treeView.viewport().update()
         self.update_selection_size_summary()
@@ -461,6 +461,7 @@ class MainWindow(QMainWindow):
         self.user_settings.setdefault('suppress_node_runtime_warning', False)
         self.user_settings.setdefault('downloads_completed', 0)
         self.user_settings.setdefault('support_prompt_next_at', DEFAULT_SUPPORT_PROMPT_INITIAL_THRESHOLD)
+        self.user_settings.setdefault('support_prompt_last_shown_at', 0)
         self.user_settings.setdefault('channel_fetch_limit', DEFAULT_CHANNEL_FETCH_LIMIT)
         self.user_settings.setdefault('playlist_fetch_limit', DEFAULT_PLAYLIST_FETCH_LIMIT)
         self.user_settings.setdefault('channel_fetch_batch_size', CHANNEL_FETCH_BATCH_SIZE)
@@ -554,13 +555,68 @@ class MainWindow(QMainWindow):
         """Show a support prompt when download milestones are reached."""
         if not self.support_prompt:
             return
-        next_at = self.user_settings.get('support_prompt_next_at', DEFAULT_SUPPORT_PROMPT_INITIAL_THRESHOLD)
-        completed = self.user_settings.get('downloads_completed', 0)
+        def _coerce_int(value, default, setting_key):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Invalid value for %s (%r); using %s.",
+                    setting_key,
+                    value,
+                    default,
+                )
+                return default
+
+        min_gap = max(
+            1,
+            _coerce_int(
+                getattr(
+                    self.support_prompt,
+                    "default_short_snooze",
+                    DEFAULT_SUPPORT_PROMPT_INITIAL_THRESHOLD,
+                ),
+                DEFAULT_SUPPORT_PROMPT_INITIAL_THRESHOLD,
+                "support_prompt_min_gap",
+            ),
+        )
+        next_at = _coerce_int(
+            self.user_settings.get('support_prompt_next_at', DEFAULT_SUPPORT_PROMPT_INITIAL_THRESHOLD),
+            DEFAULT_SUPPORT_PROMPT_INITIAL_THRESHOLD,
+            'support_prompt_next_at',
+        )
+        completed = _coerce_int(
+            self.user_settings.get('downloads_completed', 0),
+            0,
+            'downloads_completed',
+        )
+        last_shown_at = _coerce_int(
+            self.user_settings.get('support_prompt_last_shown_at', 0),
+            0,
+            'support_prompt_last_shown_at',
+        )
+        self.user_settings['downloads_completed'] = completed
+        self.user_settings['support_prompt_last_shown_at'] = last_shown_at
+        self.user_settings['support_prompt_next_at'] = next_at
+        if next_at <= last_shown_at:
+            next_at = last_shown_at + min_gap
+            self.user_settings['support_prompt_next_at'] = next_at
+        if completed - last_shown_at < min_gap:
+            return
         if not self.support_prompt.should_prompt(completed, next_at):
             return
-        new_threshold = self.support_prompt.show_and_get_next_threshold(completed)
+        new_threshold = _coerce_int(
+            self.support_prompt.show_and_get_next_threshold(completed),
+            completed + min_gap,
+            "support_prompt_new_threshold",
+        )
+        if new_threshold <= completed:
+            logger.warning(
+                "Support prompt returned an invalid threshold (%s); using fallback.",
+                new_threshold,
+            )
+            new_threshold = completed + min_gap
         self.user_settings['support_prompt_next_at'] = new_threshold
-        self.settings_manager.save_settings_to_file(self.user_settings)
+        self.user_settings['support_prompt_last_shown_at'] = completed
 
     def initialize_youtube_login(self):
         """Hook up menu action and restore previously saved browser config."""

@@ -210,7 +210,8 @@ class SettingsDialog(QDialog):
             'suppress_node_runtime_warning': self.settings_manager.settings.get('suppress_node_runtime_warning', False),
             'dont_show_login_prompt': self.settings_manager.settings.get('dont_show_login_prompt', False),
             'downloads_completed': self.settings_manager.settings.get('downloads_completed', 0),
-            'support_prompt_next_at': self.settings_manager.settings.get('support_prompt_next_at', 50),
+            'support_prompt_next_at': self.settings_manager.settings.get('support_prompt_next_at', 30),
+            'support_prompt_last_shown_at': self.settings_manager.settings.get('support_prompt_last_shown_at', 0),
             # Channel fetch tuning (no UI fields yet, just preserve them)
             'channel_fetch_limit': self.channel_limit_spin.value(),
             'playlist_fetch_limit': self.playlist_limit_spin.value(),

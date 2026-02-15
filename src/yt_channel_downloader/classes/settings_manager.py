@@ -77,6 +77,7 @@ class SettingsManager:
             # Download milestone prompts
             'downloads_completed': 0,
             'support_prompt_next_at': 30,
+            'support_prompt_last_shown_at': 0,
             'dont_show_login_prompt': False,
             'channel_fetch_limit': DEFAULT_CHANNEL_FETCH_LIMIT,
             'playlist_fetch_limit': DEFAULT_PLAYLIST_FETCH_LIMIT,
