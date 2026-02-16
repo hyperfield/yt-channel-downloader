@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here.
 
+## 0.8.7
+
+- Minor fixes
+
 ## 0.8.6
 
 - Create a “Fetch & Add” button that lets you add videos, playlists, and channels to an existing list.

@@ -797,7 +797,7 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(ColumnIndexes.LINK,
                                     QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(ColumnIndexes.SPEED,
-                                    QHeaderView.ResizeMode.ResizeToContents)
+                                    QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(ColumnIndexes.PROGRESS,
                                     QHeaderView.ResizeMode.ResizeToContents)
 
@@ -809,7 +809,7 @@ class MainWindow(QMainWindow):
         font_metrics = QFontMetrics(self.ui.treeView.font())
         max_text_width = font_metrics.horizontalAdvance("100%") + 10
         self.ui.treeView.setColumnWidth(ColumnIndexes.PROGRESS, max_text_width)
-        speed_width = font_metrics.horizontalAdvance("000.00 GB/s") + 12
+        speed_width = font_metrics.horizontalAdvance("0000.00 GB/s") + 12
         self.ui.treeView.setColumnWidth(ColumnIndexes.SPEED, speed_width)
         duration_width = font_metrics.horizontalAdvance("00:00:00") + 12
         self.ui.treeView.setColumnWidth(ColumnIndexes.DURATION, duration_width)
@@ -1213,7 +1213,6 @@ class MainWindow(QMainWindow):
         for col in [ColumnIndexes.TITLE,
                     ColumnIndexes.DURATION,
                     ColumnIndexes.LINK,
-                    ColumnIndexes.SPEED,
                     ColumnIndexes.PROGRESS]:
             self.ui.treeView.resizeColumnToContents(col)
 
