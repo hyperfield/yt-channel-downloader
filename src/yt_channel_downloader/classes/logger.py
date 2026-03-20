@@ -8,10 +8,12 @@ from .settings_manager import SettingsManager
 
 _BASE_LOGGER_NAME = "yt_channel_downloader"
 _configured = False
+_log_path: Optional[Path] = None
 
 
 def _configure_logging(level: int = logging.INFO) -> logging.Logger:
-    global _configured
+    """Configure the shared application logger once and return it."""
+    global _configured, _log_path
     root_logger = logging.getLogger(_BASE_LOGGER_NAME)
     if _configured:
         return root_logger
@@ -20,6 +22,7 @@ def _configure_logging(level: int = logging.INFO) -> logging.Logger:
     log_dir = config_dir / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "application.log"
+    _log_path = log_path
 
     root_logger.setLevel(level)
     formatter = logging.Formatter(
@@ -42,7 +45,7 @@ def _configure_logging(level: int = logging.INFO) -> logging.Logger:
     root_logger.addHandler(console_handler)
 
     root_logger.propagate = False
-    root_logger.debug("Logging configured. Log file: %s", log_path)
+    root_logger.info("Logging configured. Log file: %s", log_path)
     _configured = True
     return root_logger
 
@@ -62,3 +65,9 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
         return root_logger
     full_name = f"{_BASE_LOGGER_NAME}.{name}"
     return logging.getLogger(full_name)
+
+
+def get_log_path() -> Optional[Path]:
+    """Return the configured application log path, if logging has been initialised."""
+    _configure_logging()
+    return _log_path

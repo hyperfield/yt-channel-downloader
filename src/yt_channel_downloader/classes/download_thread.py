@@ -51,6 +51,7 @@ class DownloadThread(QThread):
     downloadCompleteSignal = Signal(int)
 
     def __init__(self, url, index, title, mainWindow, parent=None):
+        """Store download context and initialise throttled progress tracking."""
         super().__init__(parent)
         self.url = url
         self.index = index
@@ -99,7 +100,14 @@ class DownloadThread(QThread):
             logger.debug("Released download semaphore for index %s", self.index)
 
     def _perform_download(self):
-        logger.info("Download started for index %s", self.index)
+        """Dispatch the download through the audio-only or video flow."""
+        logger.info(
+            "Download started for index %s url=%s audio_only=%s yt_dlp=%s",
+            self.index,
+            self.url,
+            bool(self.user_settings.get('audio_only')),
+            yt_dlp.version.__version__,
+        )
         sanitized_title = self.sanitize_filename(self.title)
         ydl_opts, auth_opts = self._build_download_options(sanitized_title)
 
@@ -112,6 +120,7 @@ class DownloadThread(QThread):
         logger.info("Download finished successfully for index %s", self.index)
 
     def _build_download_options(self, sanitized_title):
+        """Build the base yt-dlp options shared by all download modes."""
         download_directory = self.user_settings.get('download_directory')
         write_thumbnail = self.user_settings.get('download_thumbnail')
         ydl_opts = {
@@ -137,6 +146,7 @@ class DownloadThread(QThread):
         return ydl_opts, auth_opts
 
     def _build_auth_options(self):
+        """Return yt-dlp auth options from the configured browser-cookie manager."""
         auth_opts = {}
         manager = getattr(self.main_window, "youtube_auth_manager", None)
         if manager and manager.is_configured:
@@ -144,6 +154,7 @@ class DownloadThread(QThread):
         return auth_opts
 
     def _download_audio_only_flow(self, ydl_opts):
+        """Download audio using the preferred selector and fallback if required."""
         audio_format, audio_quality = self._audio_preferences()
         audio_filter = f"[ext={audio_format}]" if audio_format and audio_format != 'Any' else ''
         if audio_filter:
@@ -159,6 +170,7 @@ class DownloadThread(QThread):
             self._download_audio_fallback(err, ydl_opts, audio_format)
 
     def _download_audio_fallback(self, err, ydl_opts, audio_format):
+        """Retry audio downloads with a broader selector for recoverable format errors."""
         err_str = str(err)
         if not any(token in err_str for token in (
             "Requested format is not available",
@@ -184,6 +196,7 @@ class DownloadThread(QThread):
         self._execute_download(fallback_opts)
 
     def _audio_preferences(self):
+        """Resolve the preferred audio format and selector from user settings."""
         audio_format = settings_map['preferred_audio_format'].get(
             self.user_settings.get('preferred_audio_format', 'Any'),
             'Any')
@@ -193,6 +206,7 @@ class DownloadThread(QThread):
         return audio_format, audio_quality
 
     def _download_video_flow(self, ydl_opts, auth_opts):
+        """Download video with a primary selector and a quality-preserving fallback."""
         video_format, video_quality = self._video_preferences()
         ydl_opts['format_sort'] = ['hasvid']
         ydl_opts['format_sort_force'] = True
@@ -213,34 +227,85 @@ class DownloadThread(QThread):
 
         height_value = self._parse_height(video_quality)
         format_string = self._build_format_selector(format_candidates, height_value, video_format)
+        quality_fallback_selector = self._build_quality_fallback_selector(height_value, video_format)
+        logger.info(
+            "Video selector context for index %s: requested_quality=%s requested_format=%s auth=%s "
+            "candidate_count=%s candidate_preview=%s",
+            self.index,
+            video_quality,
+            video_format or 'Any',
+            bool(auth_opts),
+            len(format_candidates),
+            format_candidates[:5],
+        )
+        logger.info("Primary format selector for index %s: %s", self.index, format_string)
+        if quality_fallback_selector:
+            logger.info(
+                "Quality-preserving fallback selector for index %s: %s",
+                self.index,
+                quality_fallback_selector,
+            )
         primary_opts = dict(ydl_opts)
         primary_opts['format'] = format_string
-        logger.debug("Format selector for index %s: %s", self.index, format_string)
 
         try:
             self._execute_download(primary_opts)
         except yt_dlp.utils.DownloadError as err:
-            self._download_video_fallback(err, ydl_opts)
+            self._download_video_fallback(err, ydl_opts, quality_fallback_selector)
 
-    def _download_video_fallback(self, err, ydl_opts):
-        err_str = str(err)
-        if not any(token in err_str for token in (
+    @staticmethod
+    def _is_retryable_video_download_error(err_str):
+        """Return True when the yt-dlp error merits a selector fallback retry."""
+        return any(token in err_str for token in (
             "Requested format is not available",
             "HTTP Error 403",
-        )):
+            "HTTP Error 404",
+        ))
+
+    def _download_video_fallback(self, err, ydl_opts, quality_fallback_selector):
+        """Retry video downloads with broader selectors before giving up."""
+        latest_err = err
+        err_str = str(err)
+        if not self._is_retryable_video_download_error(err_str):
             raise err
+
+        if quality_fallback_selector:
+            retry_opts = dict(ydl_opts)
+            retry_opts.pop('format_sort', None)
+            retry_opts.pop('format_sort_force', None)
+            retry_opts['format'] = quality_fallback_selector
+            logger.warning(
+                "Preferred format failed for index %s (%s); retrying with quality-preserving selector %s",
+                self.index,
+                err_str,
+                quality_fallback_selector,
+            )
+            try:
+                self._execute_download(retry_opts)
+                return
+            except yt_dlp.utils.DownloadError as retry_err:
+                latest_err = retry_err
+                err_str = str(retry_err)
+                if not self._is_retryable_video_download_error(err_str):
+                    raise retry_err
+
+        if "Requested format is not available" not in err_str:
+            raise latest_err
 
         fallback_opts = dict(ydl_opts)
         fallback_opts.pop('postprocessors', None)
+        fallback_opts.pop('format_sort', None)
+        fallback_opts.pop('format_sort_force', None)
         fallback_opts['format'] = 'best'
         logger.warning(
-            "Preferred format unavailable for index %s (%s); falling back to generic best.",
+            "Preferred format remains unavailable for index %s (%s); falling back to generic best.",
             self.index,
             err_str,
         )
         self._execute_download(fallback_opts)
 
     def _video_preferences(self):
+        """Resolve the preferred video extension and quality selector."""
         video_format = settings_map['preferred_video_format'].get(
             self.user_settings.get('preferred_video_format', 'Any'), 'Any')
         video_quality = settings_map['preferred_video_quality'].get(
@@ -254,6 +319,7 @@ class DownloadThread(QThread):
 
     @staticmethod
     def _parse_height(video_quality):
+        """Extract a numeric height limit from a quality selector such as 1080p."""
         if not video_quality or video_quality == 'bestvideo':
             return None
         digits = ''.join(filter(str.isdigit, video_quality))
@@ -265,6 +331,7 @@ class DownloadThread(QThread):
             return None
 
     def _emit_cancelled_progress(self):
+        """Notify the UI that the current download stopped at partial progress."""
         self.downloadProgressSignal.emit({
             "index": str(self.index),
             "error": "Cancelled",
@@ -274,6 +341,7 @@ class DownloadThread(QThread):
         logger.info("Download cancelled for index %s", self.index)
 
     def _emit_progress_error(self, message):
+        """Notify the UI that the current download ended with an error."""
         self.downloadProgressSignal.emit({
             "index": str(self.index),
             "error": message,
@@ -281,6 +349,7 @@ class DownloadThread(QThread):
         })
 
     def _build_format_selector(self, candidates, height, file_ext):
+        """Build the primary yt-dlp selector from exact candidates plus fallbacks."""
         selectors = []
         for fmt in candidates:
             selectors.append(f"{fmt}+bestaudio")
@@ -299,7 +368,32 @@ class DownloadThread(QThread):
                 ordered.append(item)
         return '/'.join(ordered)
 
+    def _build_quality_fallback_selector(self, height, file_ext):
+        """Build a selector that keeps the requested height/extension when possible."""
+        selectors = []
+        if height:
+            if file_ext and file_ext != 'Any':
+                selectors.append(f"bestvideo[ext={file_ext}][height<={height}]+bestaudio")
+                selectors.append(f"best[ext={file_ext}][height<={height}]")
+            selectors.append(f"bestvideo[height<={height}]+bestaudio")
+            selectors.append(f"best[height<={height}]")
+        elif file_ext and file_ext != 'Any':
+            selectors.append(f"bestvideo[ext={file_ext}]+bestaudio")
+            selectors.append(f"best[ext={file_ext}]")
+
+        if not selectors:
+            return ""
+
+        seen = set()
+        ordered = []
+        for item in selectors:
+            if item not in seen:
+                seen.add(item)
+                ordered.append(item)
+        return '/'.join(ordered)
+
     def _execute_download(self, options):
+        """Run yt-dlp with the prepared options, respecting cancellation."""
         with yt_dlp.YoutubeDL(options) as ydl:
             if self._cancel_requested:
                 raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
