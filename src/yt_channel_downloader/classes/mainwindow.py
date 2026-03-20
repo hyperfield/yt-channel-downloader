@@ -8,6 +8,7 @@ from urllib import error
 import os
 import math
 import re
+import sys
 import threading
 from collections import deque
 from pathlib import Path
@@ -163,10 +164,14 @@ class MainWindow(QMainWindow):
         self._init_thumbnail_loader()
         QtCore.QCoreApplication.instance().aboutToQuit.connect(self._shutdown_background_workers)
 
+    @staticmethod
+    def _is_macos() -> bool:
+        return sys.platform == "darwin"
+
     def init_styles(self):
         """Applies global styles and element-specific styles for the main
         window."""
-        self.setStyleSheet("""
+        fetch_button_rules = """
             * { font-family: "Arial"; font-size: 12pt; }
             QLabel {
                 font-family: Arial;
@@ -176,6 +181,19 @@ class MainWindow(QMainWindow):
             QPushButton#getVidListAddButton {
                 font-size: 9pt;
             }
+        """
+        if self._is_macos():
+            fetch_button_rules = """
+            * { font-family: "Arial"; font-size: 12pt; }
+            QLabel {
+                font-family: Arial;
+                font-size: 14pt;
+            }
+            """
+
+        self.setStyleSheet(
+            fetch_button_rules
+            + """
             QLineEdit, QComboBox {
                 border: 1px solid #A0A0A0;
                 padding: 4px;
@@ -194,7 +212,8 @@ class MainWindow(QMainWindow):
             QTreeView::item {
                 padding: 5px;
             }
-        """)
+        """
+        )
 
     def set_icon(self):
         """Sets the application icon."""
@@ -234,6 +253,7 @@ class MainWindow(QMainWindow):
         self.getVidListAddButton: QPushButton = self.ui.getVidListAddButton
         self._setup_update_action()
         self.setup_buttons()
+        self._apply_platform_ui_tweaks()
         self.setup_tree_view_delegate()
         self.ui.actionDonate.triggered.connect(self.open_donate_url)
 
@@ -290,6 +310,62 @@ class MainWindow(QMainWindow):
         self.setup_button(self.downloadSelectedVidsButton, self.dl_vids)
         self.setup_button(self.getVidListButton, self.show_vid_list, font_size=9)
         self.setup_button(self.getVidListAddButton, self.show_vid_list_add, font_size=9)
+
+    def _apply_platform_ui_tweaks(self) -> None:
+        """Apply platform-specific adjustments after the base UI is created."""
+        if self._is_macos():
+            self._style_macos_fetch_buttons()
+
+    def _style_macos_fetch_buttons(self) -> None:
+        """Give the stacked fetch buttons a native macOS control treatment."""
+        layout = self.ui.fetchButtonLayout
+        layout.setSpacing(8)
+        layout.setContentsMargins(0, 2, 0, 2)
+
+        button_font = QFont("Helvetica Neue", 11)
+        button_font.setBold(True)
+        buttons = (self.getVidListButton, self.getVidListAddButton)
+        button_width = max(
+            max(170, QFontMetrics(button_font).horizontalAdvance(button.text().replace("&&", "&")) + 34)
+            for button in buttons
+        )
+        button_height = 28
+        container_height = button_height * len(buttons) + layout.spacing() + 4
+
+        self.ui.fetchButtonContainer.setFixedSize(button_width, container_height)
+        self.ui.gridLayout.setAlignment(self.ui.chanUrlEdit, Qt.AlignmentFlag.AlignVCenter)
+        self.ui.gridLayout.setAlignment(self.ui.fetchButtonContainer, Qt.AlignmentFlag.AlignVCenter)
+        self.ui.gridLayout.setAlignment(self.ui.downloadSelectedVidsButton, Qt.AlignmentFlag.AlignVCenter)
+
+        for button in buttons:
+            button.setFont(button_font)
+            button.setFixedSize(button_width, button_height)
+            button.setAutoDefault(False)
+            button.setDefault(False)
+            button.setStyleSheet("""
+                QPushButton {
+                    font-family: "Helvetica Neue";
+                    font-size: 11pt;
+                    font-weight: 600;
+                    color: #1c1c1e;
+                    background-color: #f5f5f7;
+                    border: 1px solid rgba(60, 60, 67, 0.22);
+                    border-radius: 8px;
+                    padding: 2px 14px 3px 14px;
+                }
+                QPushButton:hover {
+                    background-color: #ececef;
+                    border-color: rgba(60, 60, 67, 0.28);
+                }
+                QPushButton:pressed {
+                    background-color: #e2e3e7;
+                }
+                QPushButton:disabled {
+                    color: rgba(60, 60, 67, 0.42);
+                    background-color: #f7f7f8;
+                    border-color: rgba(60, 60, 67, 0.12);
+                }
+            """)
 
     def _setup_update_action(self) -> None:
         """Insert the Check for Updates action into the Help menu."""
