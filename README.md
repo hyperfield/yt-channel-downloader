@@ -18,9 +18,11 @@
 - [Features](#features)
 - [Installation](#installation)
   - [Install from PyPI](#install-from-pypi)
+  - [Install the .deb (Debian/Ubuntu)](#install-the-deb-debianubuntu)
   - [MacOS or Linux (from source)](#macos-or-linux-from-source)
   - [Windows](#windows)
 - [How to Use](#how-to-use)
+- [Settings & Troubleshooting](#settings--troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)
 - [Authors](#authors)
@@ -28,14 +30,17 @@
 
 ## Change Log
 
-Latest: **0.8.0**
+Latest: **0.8.8**
 
-- Estimated download size before downloads start.
-- Estimated download time / ETA.
-- Missing JavaScript runtime detection with a guidance dialog.
-- Pagination for channels and playlists to keep large lists responsive.
-- Cancelable size/ETA calculation with improved progress updates.
-- Thumbnails shown immediately after fetching data.
+## 0.8.8
+
+- Fixed partial download progress restoration when refetching a playlist or channel list.
+- Added a search bar for filtering fetched items by title.
+- Made fetched item titles, URLs, and speed values read-only.
+- Fixed YouTube video downloads falling back to low quality too aggressively; improved browser-cookie login validation.
+- Improved application logging for YouTube auth and download troubleshooting.
+- Fixed playlist loading to use flat extraction and honor playlist limits/progress more reliably.
+- Added regression tests and docstring cleanup.
 
 [Full changelog](CHANGELOG.md).
 
@@ -45,24 +50,25 @@ Latest: **0.8.0**
 
 ## Features
 
-- **Fetch Video Listings**: Just input a YouTube video, playlist or channel URL and get a list of the videos.
+- **Fetch & Replace / Fetch & Add**: Replace the current list or append newly fetched items to it.
+- **Search Within Fetched Items**: Filter the current list by title with the built-in search field.
+- **Fetch Video Listings**: Input a YouTube video, playlist, or channel URL and get a list of matching items.
 - **Selective Download**: Choose exactly which videos you want to download, or select all at once.
 - **Quality Control**: Specify video/audio quality or opt to download only the associated audio track.
 - **Download Marking**: Keeps track of downloaded files for easier management.
 - **Size & Time Estimates**: Preview total download size and ETA before starting, with cancelable calculations.
-- **Pagination for Large Lists**: Channels and playlists load in pages to keep the UI responsive.
+- **Large-List Handling**: Channels can be fetched in batches with `Fetch Next`, and playlists use configurable fetch limits to keep fetching responsive.
 - **Thumbnail Previews & Downloads**: See thumbnails as soon as items are fetched, and save them with your downloads.
 - **Playlist Downloads**: Download all or some videos from a playlist URL.
 - **Channel Downloads**: Download all or some videos from a channel URL.
-- **Single Video or Audio Downloads**: Paste any supported link (YouTube, Vimeo, Twitch, SoundCloud, Facebook, Instagram, Twitter/X, TikTok, Udemy*, Reddit, and more via yt-dlp) and download it.
+- **Single Video or Audio Downloads**: Paste any supported link (YouTube, Vimeo, Twitch, SoundCloud, Facebook, Instagram, Twitter/X, TikTok, Udemy*, Reddit, and more via yt-dlp) and download it. Bulk channel and playlist fetching remains YouTube-only.
 - **Runtime Detection**: Get guided prompts if an optional JavaScript runtime for yt-dlp is missing.
-- **Private and Age-Restricted Videos**: Download media on behalf of your Youtube account.
+- **Browser-Cookie Login for Restricted YouTube Content**: Reuse a signed-in browser profile for private, age-restricted, or premium YouTube content.
 
-\*Some providers (for example, Udemy or other premium services) still require valid account cookies/credentials. Configure them via `File -> YouTube login` (cookies-from-browser) before attempting restricted downloads.
+\*Some providers (for example, Udemy or other premium services) still require valid browser cookies or provider-specific credentials. The in-app browser-cookie login flow is primarily intended for restricted YouTube downloads.
 
 ### Coming Soon
 
-- Search field to search within a retrieved list of videos
 - Download history tracking
 - [Suggest a feature!](https://github.com/hyperfield/yt-channel-downloader/issues)
 
@@ -247,14 +253,22 @@ yt-channel-downloader
 ## How to Use
 
 1. Open the application and input a YouTube channel, playlist, or video URL.
-2. Go to "File" -> "Settings" and set your download preferences.
-3. Press the **Get list** button to list available videos.
-4. Review thumbnails plus the size/ETA preview; select the videos you wish to download.
-5. Hit the **Download** button.
+2. Go to `File -> Settings` and set your download preferences, including fetch limits for channels and playlists if needed.
+3. Press **Fetch & Replace** to replace the current list, or **Fetch & Add** to append new items to the existing list.
+4. Review thumbnails, the size/ETA preview, and the title search field; select the items you want to download.
+5. If you fetched a channel, use **Fetch Next** to load the next batch.
+6. Hit the **Download** button.
+
+## Settings & Troubleshooting
+
+- **Fetch limits**: `File -> Settings` lets you control the maximum number of videos fetched per channel and per playlist.
+- **Proxy support**: The Settings dialog includes `HTTPS`, `SOCKS4`, and `SOCKS5` proxy options.
+- **Browser cookies**: Use `File -> Use Browser Cookies for Login` to choose a signed-in browser profile for restricted YouTube downloads. Once configured, the menu item changes to `Clear Login`.
+- **Application logs**: If something fails and you want to report it, check the app log in the config directory under `logs/application.log`. On Linux this is typically `~/.config/yt_chan_dl/logs/application.log`.
 
 ## Contributing
 
-Feel free to open issues and pull requests. I appreciate your feedback and contributions.
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution workflow, commit message conventions, and attribution guidelines. Issues and pull requests are welcome.
 
 ## License
 

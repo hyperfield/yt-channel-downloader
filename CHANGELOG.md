@@ -2,9 +2,19 @@
 
 All notable changes to this project are documented here.
 
+## 0.8.8
+
+- Fixed partial download progress restoration when refetching a playlist or channel list.
+- Added a search bar for filtering fetched items by title.
+- Made fetched item titles, URLs, and speed values read-only.
+- Fixed YouTube video downloads falling back to low quality too aggressively; improved browser-cookie login validation.
+- Improved application logging for YouTube auth and download troubleshooting.
+- Fixed playlist loading to use flat extraction and honor playlist limits/progress more reliably.
+- Added regression tests and docstring cleanup.
+
 ## 0.8.7
 
-- Minor fixes
+- Minor fixes.
 
 ## 0.8.6
 
