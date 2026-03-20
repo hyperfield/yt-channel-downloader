@@ -25,7 +25,7 @@ else:  # pragma: no cover - import only for runtime use
     from PyQt6.QtCore import pyqtSlot as Slot
 from PyQt6.QtWidgets import QHeaderView
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QDialog, QCheckBox,
-                             QMessageBox, QPushButton, QHBoxLayout, QProgressBar,
+                             QMessageBox, QPushButton, QHBoxLayout, QLineEdit, QProgressBar,
                              QLabel, QWidget, QSizePolicy)
 from PyQt6.QtGui import QFont
 from PyQt6.QtGui import QFontMetrics
@@ -135,6 +135,7 @@ class MainWindow(QMainWindow):
         self._auto_update_thread: Optional[QtCore.QThread] = None
         self.channel_fetch_context: Dict[str, Any] | None = None
         self.current_fetch_is_channel = False
+        self.titleSearchEdit: Optional[QLineEdit] = None
         logger.info("Main window initialised")
 
         self.init_styles()
@@ -166,6 +167,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _is_macos() -> bool:
+        """Return True when the application is running on macOS."""
         return sys.platform == "darwin"
 
     def init_styles(self):
@@ -251,6 +253,7 @@ class MainWindow(QMainWindow):
         self.downloadSelectedVidsButton: QPushButton = self.ui.downloadSelectedVidsButton
         self.getVidListButton: QPushButton = self.ui.getVidListButton
         self.getVidListAddButton: QPushButton = self.ui.getVidListAddButton
+        self._init_title_search()
         self._setup_update_action()
         self.setup_buttons()
         self._apply_platform_ui_tweaks()
@@ -392,6 +395,22 @@ class MainWindow(QMainWindow):
         self.ui.treeView.setItemDelegateForColumn(ColumnIndexes.DOWNLOAD,
                                                   cb_delegate)
 
+    def _init_title_search(self):
+        """Insert a search field above the fetched-items list."""
+        self.titleSearchEdit = QLineEdit(self.ui.centralwidget)
+        self.titleSearchEdit.setObjectName("titleSearchEdit")
+        self.titleSearchEdit.setFont(QFont("Arial", 12))
+        self.titleSearchEdit.setPlaceholderText("Search fetched items by title")
+        self.titleSearchEdit.setClearButtonEnabled(True)
+        self.titleSearchEdit.setMinimumHeight(32)
+        self.titleSearchEdit.setVisible(False)
+        self.titleSearchEdit.setEnabled(False)
+        tree_view_index = self.ui.verticalLayout.indexOf(self.ui.treeView)
+        if tree_view_index >= 0:
+            self.ui.verticalLayout.insertWidget(tree_view_index, self.titleSearchEdit)
+        else:
+            self.ui.verticalLayout.addWidget(self.titleSearchEdit)
+
     def set_bold_font(self, widget, size):
         """Applies a bold font to a specific widget.
 
@@ -418,6 +437,8 @@ class MainWindow(QMainWindow):
         self.actionAboutQt.triggered.connect(QApplication.instance().aboutQt)
         self.actionAboutLicense.triggered.connect(self.show_license_dialog)
         self.model.itemChanged.connect(self.on_item_changed)
+        if self.titleSearchEdit:
+            self.titleSearchEdit.textChanged.connect(self.on_title_search_text_changed)
         self.update_download_button_state()
 
     def handle_download_error(self, data):
@@ -895,6 +916,9 @@ class MainWindow(QMainWindow):
             self.size_estimate_toggle.setVisible(False)
         if hasattr(self, "show_thumbnails_toggle") and self.show_thumbnails_toggle:
             self.show_thumbnails_toggle.setVisible(False)
+        if self.titleSearchEdit:
+            self.titleSearchEdit.setVisible(False)
+            self.titleSearchEdit.setEnabled(False)
 
     def show_settings_dialog(self):
         """Display the settings dialog window.
@@ -1019,6 +1043,7 @@ class MainWindow(QMainWindow):
 
     def populate_window_list(self):
         """Populates the main window's list view with video details."""
+        restored_progress_state = self._snapshot_restorable_progress_state()
         self.reinit_model()
         if self._is_thumbnail_enabled() and self.thumbnail_loader:
             thumb_items = []
@@ -1029,7 +1054,10 @@ class MainWindow(QMainWindow):
         else:
             self.prefetched_thumbnails = {}
         for entry in self.yt_chan_vids_titles_links:
-            self._add_video_item_to_list(entry)
+            self._add_video_item_to_list(
+                entry,
+                restored_progress_state=restored_progress_state,
+            )
 
         self._finalize_list_view()
         self.update_selection_size_summary()
@@ -1039,7 +1067,78 @@ class MainWindow(QMainWindow):
         if self._is_thumbnail_enabled():
             QtCore.QTimer.singleShot(0, self._warm_thumbnails_for_current_rows)
 
-    def _add_video_item_to_list(self, video_entry):
+    @staticmethod
+    def _normalize_restorable_progress(progress_value, display_value):
+        """Return a persisted partial-progress state when it is safe to restore."""
+        try:
+            progress = float(progress_value)
+        except (TypeError, ValueError):
+            return None
+        if not 0.0 < progress < 100.0:
+            return None
+        if isinstance(display_value, str) and display_value.strip():
+            label = display_value.strip()
+        else:
+            label = f"Part-downloaded – {progress:.1f}%"
+        return progress, label
+
+    @staticmethod
+    def _progress_restore_keys(link: str, download_path: str) -> tuple[str, ...]:
+        """Build stable lookup keys for restoring progress across list rebuilds."""
+        keys = []
+        if link:
+            keys.append(f"url:{link}")
+        if download_path:
+            keys.append(f"path:{download_path}")
+        return tuple(keys)
+
+    def _snapshot_restorable_progress_state(self):
+        """Capture partial progress from the current model before it is rebuilt."""
+        if not self.model.rowCount():
+            return {}
+
+        restored_state = {}
+        for row in range(self.model.rowCount()):
+            link_item = self.model.item(row, ColumnIndexes.LINK)
+            title_item = self.model.item(row, ColumnIndexes.TITLE)
+            progress_item = self.model.item(row, ColumnIndexes.PROGRESS)
+            if not link_item or not progress_item:
+                continue
+
+            progress_state = MainWindow._normalize_restorable_progress(
+                progress_item.data(Qt.ItemDataRole.UserRole),
+                progress_item.data(Qt.ItemDataRole.DisplayRole),
+            )
+            if not progress_state:
+                continue
+
+            title = title_item.text() if title_item else ""
+            link = link_item.text()
+            download_path = self.dl_path_correspondences.get(title)
+            for key in MainWindow._progress_restore_keys(link, download_path):
+                restored_state[key] = progress_state
+
+        return restored_state
+
+    def _lookup_restorable_progress_state(self, link: str, download_path: str, restored_progress_state):
+        """Return previously captured progress for a video, if available."""
+        for key in MainWindow._progress_restore_keys(link, download_path):
+            progress_state = restored_progress_state.get(key)
+            if progress_state:
+                return progress_state
+        return None
+
+    def _apply_restored_progress_state(self, row_index: int, progress_bar, progress_value: float, label: str):
+        """Reapply saved partial progress to a freshly rebuilt row."""
+        progress_bar.setRange(0, 100)
+        progress_bar.setValue(int(progress_value))
+        progress_bar.setFormat(label)
+        progress_item = self.model.item(row_index, ColumnIndexes.PROGRESS)
+        if progress_item:
+            progress_item.setData(progress_value, Qt.ItemDataRole.UserRole)
+            progress_item.setData(label, Qt.ItemDataRole.DisplayRole)
+
+    def _add_video_item_to_list(self, video_entry, restored_progress_state=None):
         """
         Adds a single video entry to the list view by creating a VideoItem,
         setting its properties, and appending it to the root item.
@@ -1059,6 +1158,18 @@ class MainWindow(QMainWindow):
         progress_bar = self._create_progress_bar(completed=completed)
         self.ui.treeView.setIndexWidget(progress_index, progress_bar)
         self.progress_widgets[row_index] = progress_bar
+        if not completed and restored_progress_state:
+            progress_state = self._lookup_restorable_progress_state(
+                link,
+                download_path,
+                restored_progress_state,
+            )
+            if progress_state:
+                self._apply_restored_progress_state(
+                    row_index,
+                    progress_bar,
+                    *progress_state,
+                )
         preloaded = self.prefetched_thumbnails.get(row_index)
         if preloaded:
             title_item = self.model.item(row_index, ColumnIndexes.TITLE)
@@ -1275,11 +1386,15 @@ class MainWindow(QMainWindow):
                 self.size_estimate_toggle.setVisible(True)
             if self.show_thumbnails_toggle:
                 self.show_thumbnails_toggle.setVisible(True)
+            if self.titleSearchEdit:
+                self.titleSearchEdit.setVisible(True)
+                self.titleSearchEdit.setEnabled(True)
             if self._is_thumbnail_enabled():
                 self._warm_thumbnails_for_current_rows()
             if self.window_resize_needed:
                 self.auto_adjust_window_size()
                 self.window_resize_needed = False
+        self._apply_title_filter()
 
     def _configure_list_columns(self):
         """Sets up column delegates and resizes columns to contents."""
@@ -1339,6 +1454,24 @@ class MainWindow(QMainWindow):
             if checkbox_item and checkbox_item.checkState() == Qt.CheckState.Checked:
                 rows.append(row)
         return rows
+
+    @Slot(str)
+    def on_title_search_text_changed(self, _text: str):
+        """Filter the fetched list by title as the user types."""
+        self._apply_title_filter()
+
+    def _apply_title_filter(self):
+        """Hide rows whose titles do not match the current search text."""
+        if not self.titleSearchEdit:
+            return
+        filter_text = self.titleSearchEdit.text().strip().casefold()
+        parent_index = QtCore.QModelIndex()
+        for row in range(self.model.rowCount()):
+            title_item = self.model.item(row, ColumnIndexes.TITLE)
+            title_text = title_item.text() if title_item else ""
+            is_match = not filter_text or filter_text in title_text.casefold()
+            self.ui.treeView.setRowHidden(row, parent_index, not is_match)
+        self.ui.treeView.viewport().update()
 
     def _calculate_selection_totals(self, selected_rows):
         """Accumulate estimated and remaining bytes for selected rows."""
@@ -1718,12 +1851,15 @@ class MainWindow(QMainWindow):
         return self._pick_best_audio_by_bitrate(audio_formats, preferred_quality)
 
     def _audio_only_formats(self, formats):
+        """Return formats that contain audio but no video stream."""
         return [f for f in formats if f.get('vcodec') == 'none' and f.get('url')]
 
     def _fallback_audio_formats(self, formats):
+        """Return any format that carries audio for fallback selection."""
         return [f for f in formats if f.get('acodec') not in (None, 'none') and f.get('url')]
 
     def _filter_audio_by_extension(self, audio_formats, preferred_ext: Optional[str]):
+        """Filter audio formats to the requested extension or codec when possible."""
         if preferred_ext in (None, 'Any'):
             return audio_formats
         return [
@@ -1732,6 +1868,7 @@ class MainWindow(QMainWindow):
         ]
 
     def _pick_best_audio_by_bitrate(self, audio_formats, preferred_quality: Optional[str]):
+        """Choose the audio format closest to the preferred bitrate target."""
         target_bitrate = self._parse_bitrate_kbps(preferred_quality)
         bitrate = lambda f: self._get_audio_bitrate(f) or 0  # noqa: E731
         if target_bitrate:
@@ -1838,6 +1975,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _format_size(num_bytes: int) -> str:
+        """Format a byte count for display in the selection-size summary."""
         if num_bytes is None or num_bytes <= 0:
             return "—"
         step = 1024.0
@@ -2429,10 +2567,12 @@ class MainWindow(QMainWindow):
             self._handle_progress_error(file_index, progress_bar, speed_item, progress_data)
 
     def _update_speed_item(self, speed_item, progress_data):
+        """Refresh the speed column for a download row when data is available."""
         if speed_item and "speed" in progress_data:
             speed_item.setData(progress_data["speed"], Qt.ItemDataRole.DisplayRole)
 
     def _handle_progress_update(self, file_index, progress_bar, progress_data):
+        """Apply an in-flight progress update to the row widgets and model."""
         progress = float(progress_data["progress"])
         raw_speed = progress_data.get("speed_bps")
         self._record_speed_history(file_index, raw_speed)
@@ -2448,6 +2588,7 @@ class MainWindow(QMainWindow):
         self.update_selection_size_summary()
 
     def _handle_progress_error(self, file_index, progress_bar, speed_item, progress_data):
+        """Handle cancelled or failed download updates for a row."""
         error_message = progress_data["error"]
         progress_value = float(progress_data.get("progress", 0.0))
         progress_item = self.model.item(file_index, ColumnIndexes.PROGRESS)
@@ -2462,11 +2603,13 @@ class MainWindow(QMainWindow):
         self.ui.treeView.viewport().update()
 
     def _record_speed_history(self, file_index, raw_speed):
+        """Store recent raw speed samples for smoothing/summary purposes."""
         if raw_speed:
             history = self.speed_history.setdefault(file_index, deque(maxlen=20))
             history.append(float(raw_speed))
 
     def _mark_cancelled_progress(self, progress_bar, progress_item, speed_item, progress_data, progress_value):
+        """Persist partial progress for a download cancelled by the user."""
         if progress_bar:
             progress_bar.setRange(0, 100)
             progress_bar.setValue(int(progress_value))
@@ -2479,6 +2622,7 @@ class MainWindow(QMainWindow):
             speed_item.setData(progress_data.get("speed", "—"), Qt.ItemDataRole.DisplayRole)
 
     def _mark_failed_progress(self, progress_bar, progress_item, speed_item, error_message):
+        """Reset row progress state after a failed download."""
         if progress_bar:
             progress_bar.setRange(0, 100)
             progress_bar.setValue(0)

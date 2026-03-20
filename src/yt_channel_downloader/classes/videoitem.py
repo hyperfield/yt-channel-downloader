@@ -56,15 +56,18 @@ class VideoItem:
             else QtCore.Qt.CheckState.Unchecked
         )
         item_title = QtGui.QStandardItem(self.title)
+        item_title.setEditable(False)
         if self.thumbnail_url:
             item_title.setData(self.thumbnail_url, THUMBNAIL_URL_ROLE)
         item_link = QtGui.QStandardItem(self.link)
+        item_link.setEditable(False)
         duration_value = self._coerce_duration_value(self.duration_seconds)
         duration_display = self._format_duration(duration_value)
         item_duration = QtGui.QStandardItem(duration_display)
         if duration_value is not None:
             item_duration.setData(duration_value, QtCore.Qt.ItemDataRole.UserRole)
         item_speed = QtGui.QStandardItem("—")
+        item_speed.setEditable(False)
         item_progress = QtGui.QStandardItem()
         if self.is_download_complete:
             item_progress.setData(100.0, QtCore.Qt.ItemDataRole.UserRole)
@@ -116,6 +119,7 @@ class VideoItem:
 
     @staticmethod
     def _coerce_duration_value(duration_seconds):
+        """Convert a duration-like value into a non-negative integer number of seconds."""
         if duration_seconds is None:
             return None
         try:
@@ -126,6 +130,7 @@ class VideoItem:
 
     @staticmethod
     def _format_duration(duration_seconds):
+        """Format a duration in seconds as mm:ss or hh:mm:ss."""
         if duration_seconds is None:
             return "—"
         hours, remainder = divmod(duration_seconds, 3600)
