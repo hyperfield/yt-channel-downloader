@@ -18,6 +18,7 @@ logger = get_logger("YouTubeURLValidator")
 
 
 class YouTubeURLValidator:
+    """Helpers for validating YouTube URLs and extracting lightweight metadata."""
     @staticmethod
     def check_existence(video_id, extra_opts=None):
         """Check if a YouTube video exists and is available using yt-dlp."""
@@ -35,6 +36,7 @@ class YouTubeURLValidator:
 
     @staticmethod
     def _build_ydl_opts(base_opts, extra_opts=None):
+        """Merge shared yt-dlp options with per-call overrides and a quiet logger."""
         opts = base_opts.copy()
         if extra_opts:
             opts.update(extra_opts)
@@ -43,6 +45,7 @@ class YouTubeURLValidator:
 
     @staticmethod
     def playlist_exists(playlist_url, extra_opts=None):
+        """Return True when yt-dlp can resolve at least one playlist entry."""
         try:
             ydl_opts = YouTubeURLValidator._build_ydl_opts({
                 'quiet': False,
@@ -68,6 +71,7 @@ class YouTubeURLValidator:
 
     @staticmethod
     def extract_playlist_entries(playlist_url, extra_opts=None):
+        """Extract flat playlist entries without resolving every video in full."""
         base_opts = {
             'quiet': False,
             'no_warnings': False,
@@ -75,6 +79,7 @@ class YouTubeURLValidator:
             'noplaylist': False,
             'playlist_items': '1-1000',
             'yes_playlist': True,
+            'extract_flat': True,
         }
         ydl_opts = YouTubeURLValidator._build_ydl_opts(base_opts, extra_opts)
         try:
@@ -179,6 +184,7 @@ def extract_single_media(url: str, auth_opts: Optional[Dict[str, Any]] = None) -
 
 
 def _single_media_opts(auth_opts: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Build yt-dlp options for single-item metadata extraction."""
     opts: Dict[str, Any] = {
         'quiet': True,
         'skip_download': True,
@@ -190,6 +196,7 @@ def _single_media_opts(auth_opts: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def _safe_extract_info(url: str, ydl_opts: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Extract yt-dlp metadata while normalising expected failures to None."""
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             return ydl.extract_info(url, download=False)
@@ -201,6 +208,7 @@ def _safe_extract_info(url: str, ydl_opts: Dict[str, Any]) -> Optional[Dict[str,
 
 
 def _first_playlist_entry(info: Dict[str, Any], url: str) -> Optional[Dict[str, Any]]:
+    """Return the first real entry when a single-media probe yields a playlist."""
     if info.get('_type') != 'playlist':
         return info
     entries = info.get('entries') or []
@@ -212,6 +220,7 @@ def _first_playlist_entry(info: Dict[str, Any], url: str) -> Optional[Dict[str, 
 
 
 def _build_media_result(info: Dict[str, Any], original_url: str) -> Dict[str, Any]:
+    """Normalise yt-dlp metadata into the app's title/url/duration shape."""
     title = info.get('title') or 'Unknown Title'
     final_url = info.get('webpage_url') or info.get('url') or original_url
     duration = _normalize_duration(info)
@@ -219,6 +228,7 @@ def _build_media_result(info: Dict[str, Any], original_url: str) -> Dict[str, An
 
 
 def _normalize_duration(info: Dict[str, Any]) -> Optional[int]:
+    """Extract a duration in seconds from the common yt-dlp duration fields."""
     duration = _coerce_duration_value(info.get('duration'))
     if duration is not None:
         return duration
@@ -231,6 +241,7 @@ def _normalize_duration(info: Dict[str, Any]) -> Optional[int]:
 
 
 def _coerce_duration_value(value: Any) -> Optional[int]:
+    """Convert a duration-like value into seconds when possible."""
     if value is None:
         return None
     if isinstance(value, int):

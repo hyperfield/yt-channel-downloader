@@ -23,9 +23,11 @@ from .logger import get_logger
 
 
 class YTChannel(QObject):
+    """Resolve channel, playlist, and single-video sources into app list entries."""
     showError = Signal(str)
 
     def __init__(self, main_window=None, parent=None):
+        """Initialise shared fetch state and access to settings/auth context."""
         super().__init__(parent)
         self.main_window = main_window
         self.channelId = ""
@@ -35,6 +37,7 @@ class YTChannel(QObject):
         self.settings_manager = SettingsManager()
 
     def _get_auth_params(self):
+        """Collect auth and proxy options for yt-dlp source lookups."""
         manager = getattr(self.main_window, "youtube_auth_manager", None)
         opts = {}
         if manager and manager.is_configured:
@@ -46,6 +49,7 @@ class YTChannel(QObject):
         return opts
 
     def is_video_url(self, url):
+        """Return True when the input looks like a direct YouTube video URL or ID."""
         return 'youtube.com/watch?v=' in url or 'youtu.be/' in url \
             or len(url) == 11
 
@@ -55,6 +59,7 @@ class YTChannel(QObject):
         return re.search(playlist_pattern, url) is not None
 
     def is_video_with_playlist_url(self, url):
+        """Return True when the URL points to a video inside a playlist."""
         video_with_playlist_pattern = r'youtube\.com/watch\?.*v=.*&list=[0-9A-Za-z_-]+'
         return re.search(video_with_playlist_pattern, url) is not None
 
@@ -63,6 +68,7 @@ class YTChannel(QObject):
         return 'youtube.com/shorts/' in url
 
     def get_channel_id(self, url):
+        """Resolve a YouTube channel identifier from a channel URL or page HTML."""
         if "channel/" in url:
             split_url = url.split("/")
             for i in range(len(split_url)):
@@ -99,6 +105,7 @@ class YTChannel(QObject):
             raise ValueError
 
     def retrieve_video_metadata(self, video_url):
+        """Fetch lightweight metadata for a single video URL."""
         auth_opts = self._get_auth_params()
         ydl_opts = {
             'quiet': True,
@@ -185,30 +192,36 @@ class YTChannel(QObject):
         return self._normalize_entries(collected_entries)
 
     def _channel_uploads_url(self, channel_id):
+        """Build the uploads playlist URL for a channel when possible."""
         if channel_id and channel_id.startswith("UC") and len(channel_id) > 2:
             uploads_playlist_id = f"UU{channel_id[2:]}"
             return f"https://www.youtube.com/playlist?list={uploads_playlist_id}"
         return f"https://www.youtube.com/channel/{channel_id}/videos"
 
     def _normalize_fetch_limits(self, limit, batch_size):
+        """Normalise caller-provided fetch limits into safe positive integers."""
         items_to_fetch = None if limit in (None, 0) else max(1, int(limit))
         return items_to_fetch, max(1, batch_size or CHANNEL_FETCH_BATCH_SIZE)
 
     @staticmethod
     def _compute_window_size(items_to_fetch, batch_size):
+        """Return the batch size to request for the next channel page."""
         return items_to_fetch or batch_size
 
     @staticmethod
     def _coerce_start_index(start_index):
+        """Clamp the starting index to a valid one-based playlist offset."""
         return max(1, int(start_index) if start_index else 1)
 
     def _is_cancelled(self, is_cancelled, collected_count):
+        """Return True when the caller requested cancellation and log the cutoff."""
         if is_cancelled and is_cancelled():
             self.logger.info("Channel fetch cancelled after %d items", collected_count)
             return True
         return False
 
     def _fetch_entries_with_fallback(self, channel_url, start, end, auth_opts):
+        """Fetch a channel window, retrying with a wider slice when needed."""
         entries = self._fetch_channel_entries(channel_url, start, end, auth_opts=auth_opts)
         if entries:
             return entries
@@ -225,6 +238,7 @@ class YTChannel(QObject):
         return []
 
     def _add_entries(self, collected_entries, new_entries, progress_callback, items_to_fetch):
+        """Append fetched entries, trim to limit, and emit progress updates."""
         collected_entries.extend(new_entries)
         if progress_callback:
             progress_callback(len(collected_entries), items_to_fetch)
@@ -233,10 +247,12 @@ class YTChannel(QObject):
 
     @staticmethod
     def _is_last_batch(entries, window_size):
+        """Return True when the fetched batch was shorter than requested."""
         return len(entries) < window_size
 
     @staticmethod
     def _reached_limit(collected_entries, items_to_fetch):
+        """Return True when the requested channel fetch limit has been satisfied."""
         return items_to_fetch is not None and len(collected_entries) >= items_to_fetch
 
     def _fetch_channel_entries(self, channel_url, start, end, auth_opts, slice_start=None):
@@ -296,6 +312,7 @@ class YTChannel(QObject):
         return self.video_titles_links
 
     def _normalize_entry(self, entry, seen_urls):
+        """Convert a raw yt-dlp entry into the app's canonical row structure."""
         if not entry:
             return None
         video_url = self._resolve_entry_url(entry)
@@ -314,6 +331,7 @@ class YTChannel(QObject):
         }
 
     def _resolve_entry_url(self, entry):
+        """Resolve a usable absolute video URL from a yt-dlp entry."""
         video_id = entry.get('id')
         video_url = entry.get('webpage_url') or entry.get('url')
         if video_url and not video_url.startswith('http'):
@@ -323,6 +341,7 @@ class YTChannel(QObject):
         return video_url
 
     def _extract_entry_title_and_duration(self, entry, video_url):
+        """Return the best available title and duration for a channel entry."""
         title = entry.get('title') or entry.get('alt_title') or entry.get('fulltitle')
         duration = self._extract_duration_seconds(entry)
         metadata = self._maybe_fetch_missing_metadata(video_url, title, duration)
@@ -333,6 +352,7 @@ class YTChannel(QObject):
         return title, duration
 
     def _maybe_fetch_missing_metadata(self, video_url, title, duration):
+        """Fetch fallback metadata only when the flat entry is incomplete."""
         if title and duration is not None:
             return None
         try:
@@ -342,11 +362,13 @@ class YTChannel(QObject):
             return None
 
     def fetch_videos_from_playlist(self, playlist_url):
+        """Fetch playlist entries without progress reporting."""
         return self.fetch_videos_from_playlist_with_progress(
             playlist_url, progress_callback=None, is_cancelled=None
         )
 
     def fetch_videos_from_playlist_with_progress(self, playlist_url, progress_callback=None, is_cancelled=None, limit=None):
+        """Fetch playlist entries while reporting progress and respecting cancellation."""
         auth_opts = self._get_auth_params()
         playlist_url = self._canonical_playlist_url(playlist_url)
         total_entries = self._get_playlist_total_count(playlist_url, auth_opts)
@@ -363,17 +385,20 @@ class YTChannel(QObject):
         self._emit_invalid_playlist_error()
 
     def _report_playlist_start(self, playlist_url, progress_callback, total_entries):
+        """Emit initial playlist progress state before entries are processed."""
         if progress_callback and total_entries:
             progress_callback(0, total_entries)
         self.logger.info("Starting playlist fetch for %s (reported total: %s)", playlist_url, total_entries or "unknown")
 
     def _load_playlist_entries(self, playlist_url, auth_opts, total_entries):
+        """Validate the playlist and load its flat entries."""
         if not YouTubeURLValidator.playlist_exists(playlist_url, auth_opts):
             return [], total_entries
         entries = YouTubeURLValidator.extract_playlist_entries(playlist_url, auth_opts)
         return entries, total_entries or len(entries)
 
     def _collect_playlist_entries(self, entries, limit, is_cancelled, progress_callback, total_entries):
+        """Normalise playlist entries into list rows, applying limits and deduping."""
         video_titles_links = []
         seen_urls = set()
         count = 0
@@ -397,6 +422,7 @@ class YTChannel(QObject):
         return video_titles_links
 
     def _canonical_playlist_entry_url(self, entry):
+        """Resolve a stable absolute URL for a playlist entry."""
         entry_id = entry.get('id')
         video_url = entry.get('webpage_url') or entry.get('url')
         if video_url and not video_url.startswith('http'):
@@ -408,6 +434,7 @@ class YTChannel(QObject):
         return video_url
 
     def _append_playlist_entry(self, entry, canonical_url, video_titles_links):
+        """Append a playlist row and report whether it counted toward progress."""
         title = entry.get('title') or entry.get('alt_title')
         duration = self._extract_duration_seconds(entry)
         if title:
@@ -416,7 +443,7 @@ class YTChannel(QObject):
                 'url': canonical_url,
                 'duration': duration,
             })
-            return False
+            return True
 
         try:
             video_data = self.retrieve_video_metadata(canonical_url)
@@ -425,15 +452,18 @@ class YTChannel(QObject):
 
         if video_data:
             video_titles_links.append(video_data)
-        return True
+            return True
+        return False
 
     def _report_playlist_progress(self, count, total_entries, progress_callback):
+        """Forward playlist progress to the UI and periodic logs."""
         if progress_callback:
             progress_callback(count, total_entries)
         if count == total_entries or count % 25 == 0:
             self.logger.info("Playlist fetch progress: %d/%s", count, total_entries or "unknown")
 
     def _emit_invalid_playlist_error(self):
+        """Raise a consistent invalid-playlist error and notify the UI."""
         self.showError.emit("The URL is incorrect or unreachable.")
         raise ValueError("Invalid playlist URL")
 
@@ -479,6 +509,7 @@ class YTChannel(QObject):
         return url
 
     def get_single_video(self, video_url):
+        """Resolve a single YouTube or generic media URL into one list entry."""
         auth_params = self._get_auth_params()
         validation_result, formatted_url_or_id = YouTubeURLValidator.is_valid(
             video_url, auth_params)
@@ -500,6 +531,7 @@ class YTChannel(QObject):
 
     @staticmethod
     def _extract_duration_seconds(info):
+        """Extract a duration in seconds from the various yt-dlp duration fields."""
         if not info:
             return None
 
