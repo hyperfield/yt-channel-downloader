@@ -9,7 +9,7 @@ import requests
 from PyQt6.QtWidgets import QWidget
 
 from .custom_dialog import CustomDialog
-from .runtime_info import RuntimeInfo, detect_runtime
+from .runtime_info import detect_runtime
 from .runtime_mode import RuntimeMode
 from .update_context import UpdateContext
 from .release_info import ReleaseInfo

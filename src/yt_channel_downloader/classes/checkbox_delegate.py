@@ -1,4 +1,4 @@
-from PyQt6 import QtWidgets, QtCore, QtGui
+from PyQt6 import QtWidgets
 from PyQt6.QtCore import Qt, QEvent, QPoint, QRect, pyqtSignal as Signal
 
 
@@ -37,21 +37,29 @@ class CheckBoxDelegate(QtWidgets.QStyledItemDelegate):
     def editorEvent(self, event, model, option, index):
         if not (index.flags() & Qt.ItemFlag.ItemIsEditable):
             return False
-        # Do not change the checkbox-state
-        if event.type() == QEvent.Type.MouseButtonRelease or event.type() == QEvent.Type.MouseButtonDblClick:
-            if event.button() != Qt.MouseButton.LeftButton or not self.getCheckBoxRect(option).contains(event.pos()):
-                return False
-            if event.type() == QEvent.Type.MouseButtonDblClick:
-                return True
-        elif event.type() == QEvent.Type.KeyPress:
-            if event.key() != Qt.Key.Key_Space and event.key() != Qt.Key.Key_Select:
-                return False
-        else:
+        action = self._toggle_action_for_event(event, option)
+        if action is None:
             return False
-        # Change the checkbox-state
+        if action is False:
+            return True
         self.setModelData(None, model, index)
         self.checkBoxStateChanged.emit()
         return True
+
+    def _toggle_action_for_event(self, event, option):
+        event_type = event.type()
+        if event_type in (QEvent.Type.MouseButtonRelease, QEvent.Type.MouseButtonDblClick):
+            return self._mouse_toggle_action(event, option, event_type)
+        if event_type == QEvent.Type.KeyPress:
+            return event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Select)
+        return None
+
+    def _mouse_toggle_action(self, event, option, event_type):
+        if event.button() != Qt.MouseButton.LeftButton:
+            return None
+        if not self.getCheckBoxRect(option).contains(event.pos()):
+            return None
+        return event_type != QEvent.Type.MouseButtonDblClick
 
     def getCheckBoxRect(self, option):
         check_box_style_option = QtWidgets.QStyleOptionButton()

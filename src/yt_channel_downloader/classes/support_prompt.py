@@ -58,7 +58,7 @@ class SupportPrompt:
         )
 
         support_btn = msg.addButton("Support", QMessageBox.ButtonRole.AcceptRole)
-        later_btn = msg.addButton("I'm not yet sure", QMessageBox.ButtonRole.DestructiveRole)
+        msg.addButton("I'm not yet sure", QMessageBox.ButtonRole.DestructiveRole)
         cannot_btn = msg.addButton("I cannot donate", QMessageBox.ButtonRole.RejectRole)
         msg.exec()
 
