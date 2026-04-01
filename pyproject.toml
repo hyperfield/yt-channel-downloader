@@ -31,7 +31,7 @@ classifiers = [
 dependencies = [
   "appdirs>=1.4.4",
   "requests>=2.31",
-  "yt-dlp>=2025.11.12",
+  "yt-dlp[default]>=2025.11.12",
   "PyQt6>=6.6.0",
 ]
 

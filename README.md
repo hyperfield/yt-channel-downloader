@@ -84,6 +84,8 @@ pip install yt-channel-downloader
 
 If you don't have `pip`, you can use `python -m pip` instead.
 
+The package depends on `yt-dlp[default]`, so the Python install will also pull in yt-dlp's recommended companion components such as `yt-dlp-ejs`. You still need an external JavaScript runtime like Deno or Node.js installed separately on your system for the best YouTube support.
+
 To update the app to the latest version from PyPI:
 
 ```bash
@@ -135,7 +137,7 @@ On Arch Linux:
 
 #### Recommended: JavaScript runtime (improves YouTube format coverage)
 
-yt-dlp can use a JavaScript runtime to parse YouTube player code; having one installed reduces missing formats and silences runtime warnings. Install any of:
+yt-dlp can use a JavaScript runtime to parse YouTube player code; having one installed reduces missing formats and silences runtime warnings. The Python dependency install includes yt-dlp's `default` extras, but it does not install an external runtime for you. Install any of:
 
 - **Node.js** via your package manager:
   - Debian/Ubuntu: `sudo apt update && sudo apt install nodejs npm`
@@ -160,7 +162,13 @@ yt-dlp can use a JavaScript runtime to parse YouTube player code; having one ins
 
 ##### Activate the virtual environment
 
-    .venv/bin/activate
+For `bash`/`zsh`:
+
+    source .venv/bin/activate
+
+For `fish`:
+
+    source .venv/bin/activate.fish
 
 ##### Install the project in editable mode
 
@@ -210,7 +218,7 @@ to check if it's on your system.
 
 #### Recommended: Node.js runtime (improves YouTube format coverage)
 
-yt-dlp can use a JavaScript runtime to parse YouTube player code; having Node.js installed reduces missing formats and silences runtime warnings.
+yt-dlp can use a JavaScript runtime to parse YouTube player code; having Node.js installed reduces missing formats and silences runtime warnings. The Python package install includes yt-dlp's `default` extras, but Node.js or Deno must still be installed separately.
 
 - Download and install the LTS version from [nodejs.org](https://nodejs.org/)
 - Or with Chocolatey: `choco install nodejs-lts`
