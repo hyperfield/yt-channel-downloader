@@ -4,7 +4,7 @@
 
 from pathlib import Path
 import shutil
-import subprocess
+import subprocess  # nosec B404 - only used with fixed argv lists and validated absolute executable paths
 
 from PyQt6.QtWidgets import QMessageBox, QCheckBox
 from PyQt6.QtCore import QUrl
@@ -61,7 +61,8 @@ class NodeRuntimeNotifier:
                 continue
             try:
                 subprocess.run([runtime_path, "--version"], check=True,  # nosec B603
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               timeout=2, shell=False)
                 logger.debug("%s detected at %s", binary, runtime_path)
                 return True
             except Exception:  # noqa: BLE001
