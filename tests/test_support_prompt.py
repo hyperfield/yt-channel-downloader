@@ -1,4 +1,21 @@
+import pytest
+
 from yt_channel_downloader.classes import support_prompt as sp
+
+
+def _expect_equal(actual, expected):
+    if actual != expected:
+        pytest.fail(f"Expected {expected!r}, got {actual!r}")
+
+
+def _expect_true(value):
+    if value is not True:
+        pytest.fail(f"Expected True, got {value!r}")
+
+
+def _expect_false(value):
+    if value is not False:
+        pytest.fail(f"Expected False, got {value!r}")
 
 
 class FakeMessageBox:
@@ -64,27 +81,27 @@ def _build_prompt(monkeypatch, desired_label):
 
 def test_should_prompt_threshold():
     prompt = sp.SupportPrompt(parent=None, settings_manager=None)
-    assert prompt.should_prompt(10, 10) is True
-    assert prompt.should_prompt(11, 10) is True
-    assert prompt.should_prompt(9, 10) is False
+    _expect_true(prompt.should_prompt(10, 10))
+    _expect_true(prompt.should_prompt(11, 10))
+    _expect_false(prompt.should_prompt(9, 10))
 
 
 def test_support_choice_opens_url_and_uses_long_snooze(monkeypatch):
     prompt, opened = _build_prompt(monkeypatch, "Support")
     next_threshold = prompt.show_and_get_next_threshold(100)
-    assert next_threshold == 120
-    assert opened == [sp.SUPPORT_URL]
+    _expect_equal(next_threshold, 120)
+    _expect_equal(opened, [sp.SUPPORT_URL])
 
 
 def test_cannot_donate_choice_uses_medium_snooze(monkeypatch):
     prompt, opened = _build_prompt(monkeypatch, "I cannot donate")
     next_threshold = prompt.show_and_get_next_threshold(50)
-    assert next_threshold == 60
-    assert opened == []
+    _expect_equal(next_threshold, 60)
+    _expect_equal(opened, [])
 
 
 def test_not_sure_choice_uses_short_snooze(monkeypatch):
     prompt, opened = _build_prompt(monkeypatch, "I'm not yet sure")
     next_threshold = prompt.show_and_get_next_threshold(25)
-    assert next_threshold == 30
-    assert opened == []
+    _expect_equal(next_threshold, 30)
+    _expect_equal(opened, [])

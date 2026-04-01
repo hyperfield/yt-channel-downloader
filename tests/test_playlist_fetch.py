@@ -1,5 +1,6 @@
 import importlib
 import pathlib
+import pytest
 import sys
 import types
 
@@ -10,6 +11,16 @@ sys.path.insert(0, str(SRC_ROOT))
 
 from yt_channel_downloader.classes.validators import YouTubeURLValidator  # noqa: E402
 import yt_channel_downloader.classes.validators as validators_module  # noqa: E402
+
+
+def _expect_equal(actual, expected):
+    if actual != expected:
+        pytest.fail(f"Expected {expected!r}, got {actual!r}")
+
+
+def _expect_true(value):
+    if value is not True:
+        pytest.fail(f"Expected True, got {value!r}")
 
 
 class _DummyYoutubeDL:
@@ -76,8 +87,8 @@ def test_extract_playlist_entries_requests_flat_playlist_metadata(monkeypatch):
         "https://www.youtube.com/playlist?list=PL123"
     )
 
-    assert _DummyYoutubeDL.captured_opts["extract_flat"] is True
-    assert entries == [{"id": "abc123def45", "title": "Video One"}]
+    _expect_true(_DummyYoutubeDL.captured_opts["extract_flat"])
+    _expect_equal(entries, [{"id": "abc123def45", "title": "Video One"}])
 
 
 def test_playlist_collection_respects_limit_for_flat_entries():
@@ -100,5 +111,5 @@ def test_playlist_collection_respects_limit_for_flat_entries():
         total_entries=3,
     )
 
-    assert [item["title"] for item in collected] == ["Video One", "Video Two"]
-    assert progress_updates == [(1, 3), (2, 3)]
+    _expect_equal([item["title"] for item in collected], ["Video One", "Video Two"])
+    _expect_equal(progress_updates, [(1, 3), (2, 3)])
