@@ -30,7 +30,7 @@ class SettingsDialog(QDialog):
         #         box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.2);
         #     }
         #     QGroupBox {
-        #         border: 1px solid #d3d3d3; 
+        #         border: 1px solid #d3d3d3;
         #         padding: 10px;
         #         margin-top: 10px;
         #         border-radius: 5px;
