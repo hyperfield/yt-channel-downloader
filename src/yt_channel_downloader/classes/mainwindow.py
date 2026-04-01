@@ -74,6 +74,11 @@ from .auto_update_worker import AutoUpdateWorker
 
 
 logger = get_logger("MainWindow")
+YOUTUBE_ID_PATTERNS = (
+    re.compile(r"youtu\.be/([^?&/]+)"),
+    re.compile(r"[?&]v=([^?&/]+)"),
+    re.compile(r"/shorts/([^?&/]+)"),
+)
 
 
 class MainWindow(QMainWindow):
@@ -109,6 +114,16 @@ class MainWindow(QMainWindow):
             parent (QWidget, optional): Parent widget, defaults to None.
         """
         super().__init__(parent)
+        self._init_runtime_state()
+        logger.info("Main window initialised")
+        self.init_styles()
+
+        # Limit to 4 simultaneous downloads (threading.Semaphore avoids GUI thread stalls)
+        # TODO: Make this controllable in the Settings
+        self.download_semaphore = threading.Semaphore(4)
+        self._bootstrap_main_window()
+
+    def _init_runtime_state(self) -> None:
         self.window_resize_needed = True
         self.youtube_auth_manager = None
         self.yt_chan_vids_titles_links = []
@@ -136,14 +151,8 @@ class MainWindow(QMainWindow):
         self.channel_fetch_context: Dict[str, Any] | None = None
         self.current_fetch_is_channel = False
         self.titleSearchEdit: Optional[QLineEdit] = None
-        logger.info("Main window initialised")
 
-        self.init_styles()
-
-        # Limit to 4 simultaneous downloads (threading.Semaphore avoids GUI thread stalls)
-        # TODO: Make this controllable in the Settings
-        self.download_semaphore = threading.Semaphore(4)
-
+    def _bootstrap_main_window(self) -> None:
         self.set_icon()
         self.setup_ui()
         self.root_item = self.model.invisibleRootItem()
@@ -613,25 +622,22 @@ class MainWindow(QMainWindow):
             logger.info("yt-dlp reported missing JS runtime; showing recommendation dialog")
             self.node_notifier.maybe_prompt(force=True)
 
-    def maybe_show_support_prompt(self):
-        """Show a support prompt when download milestones are reached."""
-        if not self.support_prompt:
-            return
-        def _coerce_int(value, default, setting_key):
-            try:
-                return int(value)
-            except (TypeError, ValueError):
-                logger.warning(
-                    "Invalid value for %s (%r); using %s.",
-                    setting_key,
-                    value,
-                    default,
-                )
-                return default
+    def _coerce_support_prompt_int(self, value, default: int, setting_key: str) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Invalid value for %s (%r); using %s.",
+                setting_key,
+                value,
+                default,
+            )
+            return default
 
-        min_gap = max(
+    def _support_prompt_min_gap(self) -> int:
+        return max(
             1,
-            _coerce_int(
+            self._coerce_support_prompt_int(
                 getattr(
                     self.support_prompt,
                     "default_short_snooze",
@@ -641,17 +647,19 @@ class MainWindow(QMainWindow):
                 "support_prompt_min_gap",
             ),
         )
-        next_at = _coerce_int(
+
+    def _support_prompt_state(self, min_gap: int) -> tuple[int, int, int]:
+        next_at = self._coerce_support_prompt_int(
             self.user_settings.get('support_prompt_next_at', DEFAULT_SUPPORT_PROMPT_INITIAL_THRESHOLD),
             DEFAULT_SUPPORT_PROMPT_INITIAL_THRESHOLD,
             'support_prompt_next_at',
         )
-        completed = _coerce_int(
+        completed = self._coerce_support_prompt_int(
             self.user_settings.get('downloads_completed', 0),
             0,
             'downloads_completed',
         )
-        last_shown_at = _coerce_int(
+        last_shown_at = self._coerce_support_prompt_int(
             self.user_settings.get('support_prompt_last_shown_at', 0),
             0,
             'support_prompt_last_shown_at',
@@ -662,13 +670,13 @@ class MainWindow(QMainWindow):
         if next_at <= last_shown_at:
             next_at = last_shown_at + min_gap
             self.user_settings['support_prompt_next_at'] = next_at
-        if completed - last_shown_at < min_gap:
-            return
-        if not self.support_prompt.should_prompt(completed, next_at):
-            return
-        new_threshold = _coerce_int(
+        return completed, last_shown_at, next_at
+
+    def _next_support_prompt_threshold(self, completed: int, min_gap: int) -> int:
+        fallback = completed + min_gap
+        new_threshold = self._coerce_support_prompt_int(
             self.support_prompt.show_and_get_next_threshold(completed),
-            completed + min_gap,
+            fallback,
             "support_prompt_new_threshold",
         )
         if new_threshold <= completed:
@@ -676,8 +684,20 @@ class MainWindow(QMainWindow):
                 "Support prompt returned an invalid threshold (%s); using fallback.",
                 new_threshold,
             )
-            new_threshold = completed + min_gap
-        self.user_settings['support_prompt_next_at'] = new_threshold
+            return fallback
+        return new_threshold
+
+    def maybe_show_support_prompt(self):
+        """Show a support prompt when download milestones are reached."""
+        if not self.support_prompt:
+            return
+        min_gap = self._support_prompt_min_gap()
+        completed, last_shown_at, next_at = self._support_prompt_state(min_gap)
+        if completed - last_shown_at < min_gap:
+            return
+        if not self.support_prompt.should_prompt(completed, next_at):
+            return
+        self.user_settings['support_prompt_next_at'] = self._next_support_prompt_threshold(completed, min_gap)
         self.user_settings['support_prompt_last_shown_at'] = completed
 
     def initialize_youtube_login(self):
@@ -776,6 +796,24 @@ class MainWindow(QMainWindow):
         if total_width > self.width() or total_height > self.height():
             self.resize(math.ceil(total_width), math.ceil(total_height))
 
+    def _prepare_select_all_change(self, new_value: bool) -> None:
+        if not new_value or not self._is_size_estimation_enabled():
+            return
+        if self._size_recalc_worker_thread and self._size_recalc_worker_thread.isRunning():
+            self._cancel_selection_recalc()
+        self._size_recalc_indicator_needed = True
+
+    def _is_download_complete_for_row(self, row: int) -> bool:
+        title = self._item_text(row, ColumnIndexes.TITLE)
+        full_file_path = self.dl_path_correspondences.get(title)
+        return bool(full_file_path and DownloadThread.is_download_complete(full_file_path))
+
+    def _set_row_checked(self, row: int, checked: bool) -> None:
+        index = self.model.index(row, ColumnIndexes.DOWNLOAD)
+        check_state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
+        self.model.setData(index, checked, Qt.ItemDataRole.DisplayRole)
+        self.model.setData(index, check_state, Qt.ItemDataRole.CheckStateRole)
+
     def on_select_all_state_changed(self, state):
         """Toggle the selection state of all rows based on the 'Select All'
         checkbox.
@@ -788,31 +826,16 @@ class MainWindow(QMainWindow):
         accordingly. If an item corresponds to a completed download, it is
         excluded from selection toggling.
         """
-        new_value = state == 2
-        if new_value and self._is_size_estimation_enabled():
-            if self._size_recalc_worker_thread and self._size_recalc_worker_thread.isRunning():
-                # Restart estimation for the new selection set.
-                self._cancel_selection_recalc()
-            self._size_recalc_indicator_needed = True
+        new_value = state == Qt.CheckState.Checked.value
+        self._prepare_select_all_change(new_value)
         self._suppress_item_changed = True
-        for row in range(self.model.rowCount()):
-            item_title_index = self.model.index(row, 1)
-            item_title = self.model.data(item_title_index)
-            full_file_path = self.dl_path_correspondences[item_title]
-
-            if full_file_path and \
-               DownloadThread.is_download_complete(full_file_path):
-                continue
-
-            index = self.model.index(row, 0)
-            self.model.setData(index, new_value, Qt.ItemDataRole.DisplayRole)
-
-            # Update the Qt.CheckStateRole accordingly
-            new_check_state = Qt.CheckState.Checked if new_value \
-                else Qt.CheckState.Unchecked
-            self.model.setData(index, new_check_state,
-                               Qt.ItemDataRole.CheckStateRole)
-        self._suppress_item_changed = False
+        try:
+            for row in range(self.model.rowCount()):
+                if self._is_download_complete_for_row(row):
+                    continue
+                self._set_row_checked(row, new_value)
+        finally:
+            self._suppress_item_changed = False
         self.update_download_button_state()
         self.update_selection_size_summary()
 
@@ -1150,22 +1173,32 @@ class MainWindow(QMainWindow):
         download_dir = self.user_settings.get('download_directory', './')
         return os.path.join(download_dir, filename)
 
-    def _thumbnail_url_for_entry(self, video_entry: dict) -> Optional[str]:
-        """Return a best-effort thumbnail URL for a video entry."""
-        thumb = video_entry.get('thumbnail')
-        if isinstance(thumb, str) and thumb:
-            return thumb
+    @staticmethod
+    def _thumbnail_candidate_url(candidate) -> Optional[str]:
+        if isinstance(candidate, dict):
+            return candidate.get('url') or candidate.get('thumb')
+        if isinstance(candidate, str):
+            return candidate
+        return None
+
+    def _iter_thumbnail_urls(self, video_entry: dict):
+        primary_thumb = self._thumbnail_candidate_url(video_entry.get('thumbnail'))
+        if primary_thumb:
+            yield primary_thumb
 
         thumbs = video_entry.get('thumbnails')
-        if isinstance(thumbs, list):
-            for cand in thumbs:
-                url = None
-                if isinstance(cand, dict):
-                    url = cand.get('url') or cand.get('thumb')
-                elif isinstance(cand, str):
-                    url = cand
-                if url:
-                    return url
+        if not isinstance(thumbs, list):
+            return
+
+        for candidate in thumbs:
+            url = self._thumbnail_candidate_url(candidate)
+            if url:
+                yield url
+
+    def _thumbnail_url_for_entry(self, video_entry: dict) -> Optional[str]:
+        """Return a best-effort thumbnail URL for a video entry."""
+        for url in self._iter_thumbnail_urls(video_entry):
+            return url
 
         link = video_entry.get('url') or ""
         video_id = self._extract_youtube_id(link)
@@ -1322,21 +1355,12 @@ class MainWindow(QMainWindow):
         """Extract a YouTube video ID from common URL shapes."""
         if not link:
             return None
-        if "youtu.be/" in link:
-            parts = link.split("youtu.be/")
-            if len(parts) > 1:
-                vid = parts[1].split("?")[0].split("&")[0]
-                return vid or None
-        if "watch?v=" in link:
-            parts = link.split("watch?v=")
-            if len(parts) > 1:
-                vid = parts[1].split("&")[0]
-                return vid or None
-        if "/shorts/" in link:
-            parts = link.split("/shorts/")
-            if len(parts) > 1:
-                vid = parts[1].split("?")[0].split("&")[0]
-                return vid or None
+        for pattern in YOUTUBE_ID_PATTERNS:
+            match = pattern.search(link)
+            if match:
+                video_id = match.group(1)
+                if video_id:
+                    return video_id
         return None
 
     def _finalize_list_view(self):
@@ -1382,34 +1406,35 @@ class MainWindow(QMainWindow):
         }
         """)
 
-    def update_selection_size_summary(self):
-        """Calculate and display estimated download sizes for checked rows."""
+    def _cleanup_finished_selection_recalc(self) -> None:
         if self._size_recalc_worker_thread and not self._size_recalc_worker_thread.isRunning():
             self._cleanup_async_thread(self._size_recalc_worker_thread)
 
+    def _selection_summary_text(self) -> Optional[str]:
         if self.model.rowCount() == 0:
-            self.selection_summary_label.setText("")
-            return
+            return ""
 
         selected_rows = self._checked_row_indexes()
         if not selected_rows:
-            self.selection_summary_label.setText("No items selected")
-            return
+            return "No items selected"
 
         if not self._is_size_estimation_enabled():
-            summary = f"Selected: {len(selected_rows)} | Size estimation disabled"
-            self.selection_summary_label.setText(summary)
             self._hide_recalc_status()
             self._stop_recalc_watchdog()
-            return
+            return f"Selected: {len(selected_rows)} | Size estimation disabled"
 
-        if self._size_recalc_indicator_needed and selected_rows:
-            if self._start_async_selection_summary(selected_rows):
-                return
+        if self._size_recalc_indicator_needed and self._start_async_selection_summary(selected_rows):
+            return None
 
         total_estimated, total_remaining, has_unknown = self._calculate_selection_totals(selected_rows)
-        summary = self._format_selection_summary(len(selected_rows), total_estimated, total_remaining, has_unknown)
-        self.selection_summary_label.setText(summary)
+        return self._format_selection_summary(len(selected_rows), total_estimated, total_remaining, has_unknown)
+
+    def update_selection_size_summary(self):
+        """Calculate and display estimated download sizes for checked rows."""
+        self._cleanup_finished_selection_recalc()
+        summary = self._selection_summary_text()
+        if summary is not None:
+            self.selection_summary_label.setText(summary)
 
     def _checked_row_indexes(self):
         """Return the row indexes that are marked for download."""
@@ -1626,6 +1651,10 @@ class MainWindow(QMainWindow):
         """Fetch UserRole data safely."""
         return item.data(Qt.ItemDataRole.UserRole) if item else None
 
+    def _item_text(self, row: int, column: int) -> str:
+        item = self.model.item(row, column)
+        return item.text() if item else ""
+
     @staticmethod
     def _remaining_bytes(estimate: int, progress_val) -> int:
         """Calculate remaining bytes based on progress percentage."""
@@ -1655,14 +1684,18 @@ class MainWindow(QMainWindow):
         estimate = self._estimate_size_from_info(info, duration_seconds)
         self.size_estimate_cache[cache_key] = estimate
         if estimate and cache_row_lookup:
-            # Keep a quick lookup for ETA calculations keyed by row index later
-            try:
-                row_index = self._link_to_row_index(link)
-                if row_index is not None:
-                    self.estimated_download_sizes[row_index] = estimate
-            except Exception:  # noqa: BLE001
-                pass
+            self._cache_row_estimate(link, estimate)
         return estimate
+
+    def _cache_row_estimate(self, link: str, estimate: int) -> None:
+        """Store a per-row estimate for ETA calculations when row lookup succeeds."""
+        try:
+            row_index = self._link_to_row_index(link)
+        except Exception:  # noqa: BLE001
+            logger.debug("Failed to map estimated link back to row: %s", link, exc_info=True)
+            return
+        if row_index is not None:
+            self.estimated_download_sizes[row_index] = estimate
 
     def _link_to_row_index(self, link: str) -> Optional[int]:
         """Find the first row whose link matches; used to cache estimates."""
@@ -1773,13 +1806,25 @@ class MainWindow(QMainWindow):
         sorted_formats = self._sort_video_formats_by_preference(filtered, target_height)
         return sorted_formats[0] if sorted_formats else None
 
+    @staticmethod
+    def _video_extension_key(target_ext: Optional[str]) -> str:
+        return target_ext if target_ext not in (None, 'Any') else 'Any'
+
+    def _filtered_video_candidates(self, formats, ext_key: str):
+        filtered = filter_formats(formats, ext_key) or []
+        if filtered or ext_key == 'Any':
+            return filtered
+        return filter_formats(formats, 'Any') or []
+
+    @staticmethod
+    def _valid_video_formats(formats):
+        return [fmt for fmt in formats if fmt.get('format_id') and fmt.get('url')]
+
     def _filter_video_formats(self, formats, target_ext: Optional[str]):
         """Filter and sanitize video formats based on extension preference."""
-        ext_key = target_ext if target_ext not in (None, 'Any') else 'Any'
-        filtered = filter_formats(formats, ext_key) or []
-        if not filtered and ext_key != 'Any':
-            filtered = filter_formats(formats, 'Any') or []
-        return [f for f in filtered if f.get('format_id') and f.get('url')]
+        ext_key = self._video_extension_key(target_ext)
+        filtered = self._filtered_video_candidates(formats, ext_key)
+        return self._valid_video_formats(filtered)
 
     def _parse_target_height(self, target_resolution: Optional[str]) -> Optional[int]:
         """Extract a numeric target height from a resolution label."""
@@ -2185,6 +2230,45 @@ class MainWindow(QMainWindow):
         """Fetches and appends videos to the existing list based on the URL."""
         self._show_vid_list_internal(append=True)
 
+    def _playlist_finish_handler(self, append: bool):
+        return self.handle_video_list_add if append else self.handle_video_list
+
+    def _single_video_finish_handler(self, append: bool):
+        return self.handle_single_video_add if append else self.handle_single_video
+
+    def _start_playlist_fetch(self, yt_channel, channel_url: str, append: bool) -> None:
+        logger.debug("Detected playlist URL")
+        self.current_fetch_is_channel = False
+        self.channel_fetch_context = None
+        self._start_fetch_dialog(
+            "playlist",
+            yt_channel,
+            channel_url,
+            self._playlist_finish_handler(append),
+            limit=self._get_playlist_fetch_limit(),
+        )
+
+    def _start_single_video_fetch(self, yt_channel, channel_url: str, append: bool) -> None:
+        fetch_type = "short" if yt_channel.is_short_video_url(channel_url) else None
+        logger.debug("Detected single video URL (short=%s)", bool(fetch_type))
+        self.current_fetch_is_channel = False
+        self.channel_fetch_context = None
+        self._start_fetch_dialog(
+            fetch_type,
+            yt_channel,
+            channel_url,
+            self._single_video_finish_handler(append),
+        )
+
+    def _start_generic_media_fetch(self, yt_channel, channel_url: str, append: bool) -> None:
+        logger.debug("URL supported by generic extractor; treating as single media")
+        self._start_fetch_dialog(
+            None,
+            yt_channel,
+            channel_url,
+            self._single_video_finish_handler(append),
+        )
+
     def _show_vid_list_internal(self, append: bool):
         """Shared fetch handler for replace and append modes."""
         if self.node_notifier:
@@ -2196,42 +2280,26 @@ class MainWindow(QMainWindow):
         yt_channel = self._prepare_yt_channel()
 
         if self._is_playlist_or_video_with_playlist(yt_channel, channel_url):
-            logger.debug("Detected playlist URL")
-            self.current_fetch_is_channel = False
-            self.channel_fetch_context = None
-            playlist_limit = self._get_playlist_fetch_limit()
-            finish_handler = self.handle_video_list_add if append else self.handle_video_list
-            self._start_fetch_dialog("playlist", yt_channel, channel_url,
-                                     finish_handler,
-                                     limit=playlist_limit)
+            self._start_playlist_fetch(yt_channel, channel_url, append)
+            return
 
-        elif self._is_video(yt_channel, channel_url):
-            fetch_type = "short" if yt_channel.is_short_video_url(
-                channel_url) else None
-            logger.debug("Detected single video URL (short=%s)", bool(fetch_type))
-            self.current_fetch_is_channel = False
-            self.channel_fetch_context = None
-            finish_handler = self.handle_single_video_add if append else self.handle_single_video
-            self._start_fetch_dialog(fetch_type, yt_channel, channel_url,
-                                     finish_handler)
-        else:
-            # Treat remaining YouTube URLs as channels
-            if "youtube.com" in channel_url or "youtu.be" in channel_url:
-                logger.debug("Attempting to fetch channel data")
-                self._handle_channel_fetch(yt_channel, channel_url, append=append)
-            else:
-                auth_opts = self._get_auth_options()
-                if is_supported_media_url(channel_url, auth_opts):
-                    logger.debug("URL supported by generic extractor; treating as single media")
-                    finish_handler = self.handle_single_video_add if append else self.handle_single_video
-                    self._start_fetch_dialog(None, yt_channel, channel_url,
-                                             finish_handler)
-                else:
-                    logger.warning("Unsupported URL submitted: %s", channel_url)
-                    self.display_error_dialog(
-                        "The URL is incorrect or unsupported."
-                    )
-                    self.enable_get_vid_list_button()
+        if self._is_video(yt_channel, channel_url):
+            self._start_single_video_fetch(yt_channel, channel_url, append)
+            return
+
+        if "youtube.com" in channel_url or "youtu.be" in channel_url:
+            logger.debug("Attempting to fetch channel data")
+            self._handle_channel_fetch(yt_channel, channel_url, append=append)
+            return
+
+        auth_opts = self._get_auth_options()
+        if is_supported_media_url(channel_url, auth_opts):
+            self._start_generic_media_fetch(yt_channel, channel_url, append)
+            return
+
+        logger.warning("Unsupported URL submitted: %s", channel_url)
+        self.display_error_dialog("The URL is incorrect or unsupported.")
+        self.enable_get_vid_list_button()
 
     def _prepare_yt_channel(self):
         """Prepares and returns a YTChannel instance."""
@@ -2358,6 +2426,37 @@ class MainWindow(QMainWindow):
         self.channel_fetch_context = None
         self._append_video_list(video_list)
 
+    def _prefetch_batch_thumbnails(self, video_list, start_index: int, context: str) -> None:
+        if not self._is_thumbnail_enabled() or not self.thumbnail_loader:
+            return
+        thumb_items = [
+            (start_index + offset, self._thumbnail_url_for_entry(entry))
+            for offset, entry in enumerate(video_list)
+        ]
+        try:
+            prefetched = self.thumbnail_loader.preload_bulk(thumb_items)
+            self.prefetched_thumbnails.update(prefetched)
+        except Exception as exc:  # noqa: BLE001
+            logger.info("Thumbnail preload for %s failed: %s", context, exc)
+
+    def _finalize_appended_entries(self, start_index: int) -> None:
+        self._finalize_list_view()
+        if self._is_thumbnail_enabled():
+            new_rows = range(start_index, self.model.rowCount())
+            QtCore.QTimer.singleShot(0, lambda: self._warm_thumbnails_for_rows(new_rows, force=True))
+        self.update_selection_size_summary()
+        self._maybe_prompt_on_js_warning()
+
+    def _append_entries(self, video_list, thumbnail_context: str) -> int:
+        start_index = len(self.yt_chan_vids_titles_links)
+        self._prefetch_batch_thumbnails(video_list, start_index, thumbnail_context)
+        self.yt_chan_vids_titles_links.extend(video_list)
+        for entry in video_list:
+            self._add_video_item_to_list(entry)
+        self._finalize_appended_entries(start_index)
+        logger.info("Appended %d videos (total now %d)", len(video_list), len(self.yt_chan_vids_titles_links))
+        return start_index
+
     def _append_video_list(self, video_list):
         """Append fetched video entries to the existing list view."""
         if self.ui.treeView.model() is not self.model or not hasattr(self, "root_item"):
@@ -2368,27 +2467,7 @@ class MainWindow(QMainWindow):
             self._maybe_prompt_on_js_warning()
             self._update_load_next_button_state()
             return
-        start_index = len(self.yt_chan_vids_titles_links)
-        if self._is_thumbnail_enabled() and self.thumbnail_loader:
-            thumb_items = []
-            for offset, entry in enumerate(video_list):
-                url = self._thumbnail_url_for_entry(entry)
-                thumb_items.append((start_index + offset, url))
-            try:
-                prefetched = self.thumbnail_loader.preload_bulk(thumb_items)
-                self.prefetched_thumbnails.update(prefetched)
-            except Exception as exc:  # noqa: BLE001
-                logger.info("Thumbnail preload for append failed: %s", exc)
-        self.yt_chan_vids_titles_links.extend(video_list)
-        for entry in video_list:
-            self._add_video_item_to_list(entry)
-        self._finalize_list_view()
-        if self._is_thumbnail_enabled():
-            new_rows = range(start_index, self.model.rowCount())
-            QtCore.QTimer.singleShot(0, lambda: self._warm_thumbnails_for_rows(new_rows, force=True))
-        self.update_selection_size_summary()
-        self._maybe_prompt_on_js_warning()
-        logger.info("Appended %d videos (total now %d)", len(video_list), len(self.yt_chan_vids_titles_links))
+        self._append_entries(video_list, "append")
         self._update_load_next_button_state()
 
     @Slot()
@@ -2417,31 +2496,9 @@ class MainWindow(QMainWindow):
                 "No additional videos were fetched for this channel.",
             )
             return
-        start_index = len(self.yt_chan_vids_titles_links)
-        # Preload thumbnails for the incoming batch before adding rows.
-        if self._is_thumbnail_enabled() and self.thumbnail_loader:
-            thumb_items = []
-            for offset, entry in enumerate(video_list):
-                url = self._thumbnail_url_for_entry(entry)
-                thumb_items.append((start_index + offset, url))
-            try:
-                prefetched = self.thumbnail_loader.preload_bulk(thumb_items)
-                self.prefetched_thumbnails.update(prefetched)
-            except Exception as exc:  # noqa: BLE001
-                logger.info("Thumbnail preload for next batch failed: %s", exc)
-
-        self.yt_chan_vids_titles_links.extend(video_list)
-        for entry in video_list:
-            self._add_video_item_to_list(entry)
-        self._finalize_list_view()
-        if self._is_thumbnail_enabled():
-            new_rows = range(start_index, self.model.rowCount())
-            QtCore.QTimer.singleShot(0, lambda: self._warm_thumbnails_for_rows(new_rows, force=True))
-        self.update_selection_size_summary()
-        self._maybe_prompt_on_js_warning()
+        self._append_entries(video_list, "next batch")
         if self.channel_fetch_context:
             self.channel_fetch_context["fetched"] = len(self.yt_chan_vids_titles_links)
-        logger.info("Appended %d videos (total now %d)", len(video_list), len(self.yt_chan_vids_titles_links))
         self._update_load_next_button_state()
 
     @Slot()
@@ -2456,6 +2513,76 @@ class MainWindow(QMainWindow):
             return
         self._set_fetch_controls_enabled(True)
 
+    def _mark_row_completed(self, row: int) -> None:
+        progress_bar = self.progress_widgets.get(row)
+        if progress_bar:
+            progress_bar.setRange(0, 100)
+            progress_bar.setValue(100)
+            progress_bar.setFormat("Completed")
+        progress_item = self.model.item(row, ColumnIndexes.PROGRESS)
+        if progress_item:
+            progress_item.setData(100.0, Qt.ItemDataRole.UserRole)
+            progress_item.setData("Completed", Qt.ItemDataRole.DisplayRole)
+
+    def _skip_completed_download(self, row: int, item) -> bool:
+        download_path = self.dl_path_correspondences.get(self._item_text(row, ColumnIndexes.TITLE))
+        if not download_path or not DownloadThread.is_download_complete(download_path):
+            return False
+        item.setCheckState(Qt.CheckState.Unchecked)
+        self._mark_row_completed(row)
+        return True
+
+    def _selected_download_rows(self):
+        rows = []
+        for row in range(self.model.rowCount()):
+            item = self.model.item(row, ColumnIndexes.DOWNLOAD)
+            if not item or item.checkState() != Qt.CheckState.Checked:
+                continue
+            if self._skip_completed_download(row, item):
+                continue
+            rows.append(row)
+        return rows
+
+    def _progress_bar_for_download(self, index: int):
+        progress_bar = self.progress_widgets.get(index)
+        if progress_bar is None:
+            progress_bar = self._create_progress_bar()
+            progress_index = self.model.index(index, ColumnIndexes.PROGRESS)
+            self.ui.treeView.setIndexWidget(progress_index, progress_bar)
+            self.progress_widgets[index] = progress_bar
+        progress_bar.setRange(0, 0)
+        progress_bar.setFormat("Preparing...")
+        return progress_bar
+
+    def _register_download_thread(self, index: int):
+        link = self._item_text(index, ColumnIndexes.LINK)
+        title = self._item_text(index, ColumnIndexes.TITLE)
+        dl_thread = DownloadThread(link, index, title, self)
+        dl_thread.downloadCompleteSignal.connect(self.on_download_complete)
+        dl_thread.downloadProgressSignal.connect(self.update_progress)
+        dl_thread.finished.connect(lambda idx=index: self.cleanup_download_thread(idx))
+        self.dl_threads.append(dl_thread)
+        self.active_download_threads[index] = dl_thread
+        return dl_thread
+
+    def _handle_download_thread_start_error(self, error: RuntimeError):
+        if len(self.dl_threads) == 0:
+            self.display_error_dialog("Trying to restart threads after a crash...")
+            self.dl_vids()
+            return
+        raise RuntimeError(
+            "Failed to start download thread. Please check your system resources.",
+            error,
+        )
+
+    def _start_download_for_row(self, index: int) -> None:
+        self._progress_bar_for_download(index)
+        dl_thread = self._register_download_thread(index)
+        try:
+            dl_thread.start()
+        except RuntimeError as error:
+            self._handle_download_thread_start_error(error)
+
     @Slot()
     def dl_vids(self):
         """
@@ -2463,26 +2590,7 @@ class MainWindow(QMainWindow):
         Clears existing download indexes, identifies checked items, and
         starts a download thread for each selected video.
         """
-        self.vid_dl_indexes.clear()
-        for row in range(self.model.rowCount()):
-            item = self.model.item(row, 0)
-            if item.checkState() == Qt.CheckState.Checked:
-                # Skip already completed downloads
-                title = self.model.item(row, 1).text()
-                download_path = self.dl_path_correspondences.get(title)
-                if download_path and DownloadThread.is_download_complete(download_path):
-                    item.setCheckState(Qt.CheckState.Unchecked)
-                    progress_bar = self.progress_widgets.get(row)
-                    if progress_bar:
-                        progress_bar.setRange(0, 100)
-                        progress_bar.setValue(100)
-                        progress_bar.setFormat("Completed")
-                    progress_item = self.model.item(row, ColumnIndexes.PROGRESS)
-                    if progress_item:
-                        progress_item.setData(100.0, Qt.ItemDataRole.UserRole)
-                        progress_item.setData("Completed", Qt.ItemDataRole.DisplayRole)
-                    continue
-                self.vid_dl_indexes.append(row)
+        self.vid_dl_indexes = self._selected_download_rows()
         if not self.vid_dl_indexes:
             QMessageBox.information(
                 self,
@@ -2493,36 +2601,7 @@ class MainWindow(QMainWindow):
         self._set_fetch_controls_enabled(False)
         self.downloadSelectedVidsButton.setEnabled(False)
         for index in self.vid_dl_indexes:
-            progress_bar = self.progress_widgets.get(index)
-            if progress_bar is None:
-                progress_bar = self._create_progress_bar()
-                progress_index = self.model.index(index, ColumnIndexes.PROGRESS)
-                self.ui.treeView.setIndexWidget(progress_index, progress_bar)
-                self.progress_widgets[index] = progress_bar
-            progress_bar.setRange(0, 0)
-            progress_bar.setFormat("Preparing...")
-            link = self.model.item(index, ColumnIndexes.LINK).text()
-            title = self.model.item(index, 1).text()
-            dl_thread = DownloadThread(link, index, title, self)
-            dl_thread.downloadCompleteSignal.connect(self.on_download_complete)
-            dl_thread.downloadProgressSignal.connect(self.update_progress)
-            dl_thread.finished.connect(lambda idx=index: self.cleanup_download_thread(idx))
-            self.dl_threads.append(dl_thread)
-            self.active_download_threads[index] = dl_thread
-            try:
-                dl_thread.start()
-            except RuntimeError as e:
-                if len(self.dl_threads) == 0:
-                    self.display_error_dialog(
-                        "Trying to restart threads after a crash..."
-                    )
-                    self.dl_vids()
-                    break
-                raise RuntimeError(
-                    "Failed to start download thread. Please check your "
-                    "system resources.",
-                    e
-                )
+            self._start_download_for_row(index)
         self.update_cancel_button_state()
                 
 
