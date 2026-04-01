@@ -24,7 +24,7 @@ from .logger import get_logger
 
 class YTChannel(QObject):
     """Resolve channel, playlist, and single-video sources into app list entries."""
-    showError = Signal(str)
+    show_error = Signal(str)
 
     def __init__(self, main_window=None, parent=None):
         """Initialise shared fetch state and access to settings/auth context."""
@@ -148,7 +148,7 @@ class YTChannel(QObject):
             }
         except yt_dlp.utils.DownloadError as e:
             self.logger.exception("Error fetching video metadata for %s: %s", video_url, e)
-            self.showError.emit(f"Failed to fetch video metadata: {e}")
+            self.show_error.emit(f"Failed to fetch video metadata: {e}")
             raise
 
     def fetch_all_videos_in_channel(
@@ -488,7 +488,7 @@ class YTChannel(QObject):
 
     def _emit_invalid_playlist_error(self):
         """Raise a consistent invalid-playlist error and notify the UI."""
-        self.showError.emit("The URL is incorrect or unreachable.")
+        self.show_error.emit("The URL is incorrect or unreachable.")
         raise ValueError("Invalid playlist URL")
 
     def _get_playlist_total_count(self, playlist_url, auth_opts):
@@ -550,7 +550,7 @@ class YTChannel(QObject):
             self.video_titles_links.append(generic)
             return self.video_titles_links
 
-        self.showError.emit("The URL is incorrect or unreachable.")
+        self.show_error.emit("The URL is incorrect or unreachable.")
         raise ValueError("Invalid video URL")
 
     @staticmethod

@@ -7,7 +7,7 @@ class CheckBoxDelegate(QtWidgets.QStyledItemDelegate):
     A delegate that places a fully functioning QCheckBox cell of
     the column to which it's applied.
     """
-    checkBoxStateChanged = Signal()
+    check_box_state_changed = Signal()
 
     def __init__(self, parent=None):
         QtWidgets.QStyledItemDelegate.__init__(self, parent)
@@ -43,7 +43,7 @@ class CheckBoxDelegate(QtWidgets.QStyledItemDelegate):
         if action is False:
             return True
         self.setModelData(None, model, index)
-        self.checkBoxStateChanged.emit()
+        self.check_box_state_changed.emit()
         return True
 
     def _toggle_action_for_event(self, event, option):

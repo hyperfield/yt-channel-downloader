@@ -31,9 +31,9 @@ class DownloadThread(QThread):
     specificformats and qualities.
 
     Attributes:
-        downloadProgressSignal (Signal): Signal emitted during the download
+        download_progress_signal (Signal): Signal emitted during the download
         process with progress details.
-        downloadCompleteSignal (Signal): Signal emitted once the download
+        download_complete_signal (Signal): Signal emitted once the download
         is complete.
 
     Args:
@@ -47,8 +47,8 @@ class DownloadThread(QThread):
         parent (QObject, optional): The parent QObject. Defaults to None.
     """
 
-    downloadProgressSignal = Signal(dict)
-    downloadCompleteSignal = Signal(int)
+    download_progress_signal = Signal(dict)
+    download_complete_signal = Signal(int)
 
     def __init__(self, url, index, title, mainWindow, parent=None):
         """Store download context and initialise throttled progress tracking."""
@@ -116,7 +116,7 @@ class DownloadThread(QThread):
         else:
             self._download_video_flow(ydl_opts, auth_opts)
 
-        self.downloadCompleteSignal.emit(self.index)
+        self.download_complete_signal.emit(self.index)
         logger.info("Download finished successfully for index %s", self.index)
 
     def _build_download_options(self, sanitized_title):
@@ -332,7 +332,7 @@ class DownloadThread(QThread):
 
     def _emit_cancelled_progress(self):
         """Notify the UI that the current download stopped at partial progress."""
-        self.downloadProgressSignal.emit({
+        self.download_progress_signal.emit({
             "index": str(self.index),
             "error": "Cancelled",
             "progress": self._last_progress,
@@ -342,7 +342,7 @@ class DownloadThread(QThread):
 
     def _emit_progress_error(self, message):
         """Notify the UI that the current download ended with an error."""
-        self.downloadProgressSignal.emit({
+        self.download_progress_signal.emit({
             "index": str(self.index),
             "error": message,
             "speed": "—",
@@ -463,7 +463,7 @@ class DownloadThread(QThread):
                 speed_display = self._format_speed(raw_speed)
                 self._last_emit_timestamp = now
                 self._last_emitted_progress = progress
-                self.downloadProgressSignal.emit(
+                self.download_progress_signal.emit(
                     {
                         "index": str(self.index),
                         "progress": progress,

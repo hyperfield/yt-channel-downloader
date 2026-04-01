@@ -1469,7 +1469,7 @@ class MainWindow(QMainWindow):
         total_bytes_estimated = 0
         total_bytes_remaining = 0
 
-        for idx, row in enumerate(selected_rows):
+        for row in selected_rows:
             link_item = self.model.item(row, ColumnIndexes.LINK)
             if link_item is None:
                 has_unknown = True
@@ -2305,7 +2305,7 @@ class MainWindow(QMainWindow):
         """Prepares and returns a YTChannel instance."""
         yt_channel = YTChannel(main_window=self)
         logger.debug("YTChannel helper prepared")
-        yt_channel.showError.connect(self._handle_channel_error)
+        yt_channel.show_error.connect(self._handle_channel_error)
         return yt_channel
 
     @Slot(str)
@@ -2558,8 +2558,8 @@ class MainWindow(QMainWindow):
         link = self._item_text(index, ColumnIndexes.LINK)
         title = self._item_text(index, ColumnIndexes.TITLE)
         dl_thread = DownloadThread(link, index, title, self)
-        dl_thread.downloadCompleteSignal.connect(self.on_download_complete)
-        dl_thread.downloadProgressSignal.connect(self.update_progress)
+        dl_thread.download_complete_signal.connect(self.on_download_complete)
+        dl_thread.download_progress_signal.connect(self.update_progress)
         dl_thread.finished.connect(lambda idx=index: self.cleanup_download_thread(idx))
         self.dl_threads.append(dl_thread)
         self.active_download_threads[index] = dl_thread
