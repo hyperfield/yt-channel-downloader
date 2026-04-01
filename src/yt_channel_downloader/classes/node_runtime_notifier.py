@@ -2,6 +2,7 @@
 # Project: YT Channel Downloader
 # Description: Helper to prompt users to install a JavaScript runtime for yt-dlp
 
+from pathlib import Path
 import shutil
 import subprocess
 
@@ -55,14 +56,28 @@ class NodeRuntimeNotifier:
             runtime_path = shutil.which(binary)
             if not runtime_path:
                 continue
+            runtime_path = self._validated_runtime_path(runtime_path)
+            if not runtime_path:
+                continue
             try:
-                subprocess.run([runtime_path, "--version"], check=True,
+                subprocess.run([runtime_path, "--version"], check=True,  # nosec B603
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
                 logger.debug("%s detected at %s", binary, runtime_path)
                 return True
             except Exception:  # noqa: BLE001
                 logger.info("%s binary found at %s but version check failed", binary, runtime_path)
         return False
+
+    @staticmethod
+    def _validated_runtime_path(runtime_path: str) -> str | None:
+        """Resolve PATH results to an absolute executable file before running it."""
+        try:
+            resolved = Path(runtime_path).resolve(strict=True)
+        except OSError:
+            return None
+        if not resolved.is_absolute() or not resolved.is_file():
+            return None
+        return str(resolved)
 
     def _show_prompt(self, settings):
         """Render and handle the optional-runtime dialog."""

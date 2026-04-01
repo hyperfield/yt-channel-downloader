@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QDialog, QCheckBox,
                              QLabel, QWidget, QSizePolicy)
 from PyQt6.QtGui import QFont
 from PyQt6.QtGui import QFontMetrics
-from PyQt6.QtGui import QStandardItem, QPixmap
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import QUrl, QSize
 from PyQt6.QtGui import QDesktopServices
 import yt_dlp
@@ -602,45 +602,10 @@ class MainWindow(QMainWindow):
 
     def maybe_warn_node_runtime(self, force: bool = False):
         """Inform users (optionally) to install Node.js for broader YouTube support."""
-        if self.user_settings.get('suppress_node_runtime_warning'):
-            logger.info("Node.js warning suppressed by user preference")
-            return
-
-        node_missing = True
-        node_path = shutil.which("node")
-        if node_path and not force:
-            try:
-                subprocess.run([node_path, "--version"], check=True,
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
-                node_missing = False
-                logger.debug("Node.js detected at %s; skipping runtime warning", node_path)
-            except Exception:  # noqa: BLE001
-                logger.info("Node.js binary found at %s but version check failed; will prompt", node_path)
-
-        if not force and not node_missing:
-            return
-
-        if self._node_prompted_this_session and not force:
-            logger.debug("Node.js warning already shown this session")
-            return
-
-        msg = QMessageBox(self)
-        msg.setIcon(QMessageBox.Icon.Information)
-        msg.setWindowTitle("Optional dependency recommended")
-        msg.setText("Node.js is recommended for more complete YouTube format coverage.")
-        msg.setInformativeText(
-            "yt-dlp reported that a JavaScript runtime is missing. "
-            "Installing Node.js reduces missing formats and silences related warnings.\n\n"
-            "See the README section “Recommended: Node.js runtime” for install steps."
-        )
-        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-        dont_show = QCheckBox("Don't show again", msg)
-        msg.setCheckBox(dont_show)
-        msg.exec()
-        self._node_prompted_this_session = True
-        if dont_show.isChecked():
-            self.user_settings['suppress_node_runtime_warning'] = True
-            self.settings_manager.save_settings_to_file(self.user_settings)
+        if not self.node_notifier:
+            self._init_node_notifier()
+        if self.node_notifier:
+            self.node_notifier.maybe_prompt(force=force)
 
     def _maybe_prompt_on_js_warning(self):
         """If yt-dlp emitted a JS runtime warning, prompt the user."""
@@ -1323,7 +1288,7 @@ class MainWindow(QMainWindow):
                 idx = self.model.index(row_index, ColumnIndexes.TITLE)
                 self.ui.treeView.update(idx)
             except Exception:  # noqa: BLE001
-                pass
+                logger.debug("Failed to refresh thumbnail row=%s", row_index, exc_info=True)
         else:
             logger.info("Thumbnail ready discarded (mismatch): row=%s current_url=%s expected=%s", row_index, current_url, expected_url)
 
@@ -1350,7 +1315,7 @@ class MainWindow(QMainWindow):
             try:
                 self.thumbnail_loader.shutdown()
             except Exception:  # noqa: BLE001
-                pass
+                logger.debug("Thumbnail loader shutdown failed", exc_info=True)
 
     @staticmethod
     def _extract_youtube_id(link: str) -> Optional[str]:
@@ -1901,15 +1866,31 @@ class MainWindow(QMainWindow):
         """Estimate size in bytes for a stream using explicit size or bitrate×duration."""
         if fmt is None:
             return None
+        explicit_size = self._explicit_stream_size(fmt)
+        if explicit_size is not None:
+            return explicit_size
+        return self._estimated_size_from_bitrate(fmt, duration_seconds)
+
+    @staticmethod
+    def _explicit_stream_size(fmt) -> Optional[int]:
         for key in ('filesize', 'filesize_approx'):
             value = fmt.get(key)
             if isinstance(value, (int, float)) and value > 0:
                 return int(value)
-        if duration_seconds and duration_seconds > 0:
-            bitrate_kbps = self._get_audio_bitrate(fmt) if fmt.get('vcodec') == 'none' else self._get_video_bitrate(fmt)
-            if bitrate_kbps:
-                return int(bitrate_kbps * 1000 / 8 * duration_seconds)
         return None
+
+    def _estimated_size_from_bitrate(self, fmt, duration_seconds: Optional[int]) -> Optional[int]:
+        if not duration_seconds or duration_seconds <= 0:
+            return None
+        bitrate_kbps = self._stream_bitrate_kbps(fmt)
+        if bitrate_kbps:
+            return int(bitrate_kbps * 1000 / 8 * duration_seconds)
+        return None
+
+    def _stream_bitrate_kbps(self, fmt) -> Optional[float]:
+        if fmt.get('vcodec') == 'none':
+            return self._get_audio_bitrate(fmt)
+        return self._get_video_bitrate(fmt)
 
     @staticmethod
     def _parse_bitrate_kbps(label: Optional[str]) -> Optional[int]:
