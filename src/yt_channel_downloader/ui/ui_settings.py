@@ -10,6 +10,40 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 
 class Ui_Settings(object):
+    VIDEO_QUALITY_ITEMS = (
+        "144p",
+        "240p",
+        "360p",
+        "480p",
+        "720p (HD)",
+        "1080p (Full HD)",
+        "1440p (2K)",
+        "2160p (4K)",
+        "Best available",
+    )
+    VIDEO_FORMAT_ITEMS = ("Any", "mp4", "webm", "avi", "mov", "mkv", "flv", "3gp")
+    AUDIO_QUALITY_ITEMS = (
+        "32 kbps",
+        "64 kbps",
+        "128 kbps",
+        "160 kbps",
+        "192 kbps",
+        "256 kbps",
+        "320 kbps",
+        "Best available",
+    )
+    AUDIO_FORMAT_ITEMS = (
+        "Any",
+        "mp3",
+        "ogg / oga [Vorbis]",
+        "m4a",
+        "aac",
+        "opus",
+        "flac",
+        "wav",
+    )
+    PROXY_TYPE_ITEMS = ("None", "HTTPS", "SOCKS4", "SOCKS5")
+
     def setupUi(self, Settings):
         self._configure_root(Settings)
         self._create_buttons(Settings)
@@ -189,53 +223,27 @@ class Ui_Settings(object):
         font.setPointSize(12)
         return font
 
+    @staticmethod
+    def _set_combo_items(combo_box, context, values):
+        _translate = QtCore.QCoreApplication.translate
+        for index, text in enumerate(values):
+            combo_box.setItemText(index, _translate(context, text))
+
     def retranslateUi(self, Settings):
         _translate = QtCore.QCoreApplication.translate
         Settings.setWindowTitle(_translate("Settings", "Settings"))
         self.save_button.setText(_translate("Settings", "Save"))
         self.close_button.setText(_translate("Settings", "Close"))
         self.pref_vid_quality_label.setText(_translate("Settings", "Preferred video quality:"))
-        self.pref_vid_quality_dropdown.setItemText(0, _translate("Settings", "144p"))
-        self.pref_vid_quality_dropdown.setItemText(1, _translate("Settings", "240p"))
-        self.pref_vid_quality_dropdown.setItemText(2, _translate("Settings", "360p"))
-        self.pref_vid_quality_dropdown.setItemText(3, _translate("Settings", "480p"))
-        self.pref_vid_quality_dropdown.setItemText(4, _translate("Settings", "720p (HD)"))
-        self.pref_vid_quality_dropdown.setItemText(5, _translate("Settings", "1080p (Full HD)"))
-        self.pref_vid_quality_dropdown.setItemText(6, _translate("Settings", "1440p (2K)"))
-        self.pref_vid_quality_dropdown.setItemText(7, _translate("Settings", "2160p (4K)"))
-        self.pref_vid_quality_dropdown.setItemText(8, _translate("Settings", "Best available"))
+        self._set_combo_items(self.pref_vid_quality_dropdown, "Settings", self.VIDEO_QUALITY_ITEMS)
         self.pref_vid_format.setText(_translate("Settings", "Preferred video format:"))
-        self.pref_vid_format_dropdown.setItemText(0, _translate("Settings", "Any"))
-        self.pref_vid_format_dropdown.setItemText(1, _translate("Settings", "mp4"))
-        self.pref_vid_format_dropdown.setItemText(2, _translate("Settings", "webm"))
-        self.pref_vid_format_dropdown.setItemText(3, _translate("Settings", "avi"))
-        self.pref_vid_format_dropdown.setItemText(4, _translate("Settings", "mov"))
-        self.pref_vid_format_dropdown.setItemText(5, _translate("Settings", "mkv"))
-        self.pref_vid_format_dropdown.setItemText(6, _translate("Settings", "flv"))
-        self.pref_vid_format_dropdown.setItemText(7, _translate("Settings", "3gp"))
+        self._set_combo_items(self.pref_vid_format_dropdown, "Settings", self.VIDEO_FORMAT_ITEMS)
         self.audio_quality_label.setText(_translate("Settings", "Preferred audio quality:"))
-        self.pref_aud_quality_dropdown.setItemText(0, _translate("Settings", "32 kbps"))
-        self.pref_aud_quality_dropdown.setItemText(1, _translate("Settings", "64 kbps"))
-        self.pref_aud_quality_dropdown.setItemText(2, _translate("Settings", "128 kbps"))
-        self.pref_aud_quality_dropdown.setItemText(3, _translate("Settings", "160 kbps"))
-        self.pref_aud_quality_dropdown.setItemText(4, _translate("Settings", "192 kbps"))
-        self.pref_aud_quality_dropdown.setItemText(5, _translate("Settings", "256 kbps"))
-        self.pref_aud_quality_dropdown.setItemText(6, _translate("Settings", "320 kbps"))
-        self.pref_aud_quality_dropdown.setItemText(7, _translate("Settings", "Best available"))
+        self._set_combo_items(self.pref_aud_quality_dropdown, "Settings", self.AUDIO_QUALITY_ITEMS)
         self.pref_aud_format.setText(_translate("Settings", "Preferred audio format:"))
-        self.pref_aud_format_dropdown.setItemText(0, _translate("Settings", "Any"))
-        self.pref_aud_format_dropdown.setItemText(1, _translate("Settings", "mp3"))
-        self.pref_aud_format_dropdown.setItemText(2, _translate("Settings", "ogg / oga [Vorbis]"))
-        self.pref_aud_format_dropdown.setItemText(3, _translate("Settings", "m4a"))
-        self.pref_aud_format_dropdown.setItemText(4, _translate("Settings", "aac"))
-        self.pref_aud_format_dropdown.setItemText(5, _translate("Settings", "opus"))
-        self.pref_aud_format_dropdown.setItemText(6, _translate("Settings", "flac"))
-        self.pref_aud_format_dropdown.setItemText(7, _translate("Settings", "wav"))
+        self._set_combo_items(self.pref_aud_format_dropdown, "Settings", self.AUDIO_FORMAT_ITEMS)
         self.proxy_label.setText(_translate("Settings", "SOCKS / proxy:"))
-        self.proxy_server_type.setItemText(0, _translate("Settings", "None"))
-        self.proxy_server_type.setItemText(1, _translate("Settings", "HTTPS"))
-        self.proxy_server_type.setItemText(2, _translate("Settings", "SOCKS4"))
-        self.proxy_server_type.setItemText(3, _translate("Settings", "SOCKS5"))
+        self._set_combo_items(self.proxy_server_type, "Settings", self.PROXY_TYPE_ITEMS)
         self.proxy_server_label.setText(_translate("Settings", "Server:"))
         self.proxy_port_label.setText(_translate("Settings", "Port:"))
         self.save_downloads_label.setText(_translate("Settings", "Save downloads to:"))

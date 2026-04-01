@@ -83,6 +83,32 @@ class ThumbnailLoader(QtCore.QObject):
         """Shutdown executor threads."""
         self._executor.shutdown(wait=False, cancel_futures=True)
 
+    def _cached_thumbnail(self, url: str) -> Optional[QtGui.QPixmap]:
+        with self._lock:
+            return self._cache.get(url)
+
+    def _submit_preload_item(self, row_index: int, url: Optional[str], target_size, results, futures):
+        if not url:
+            return
+        cached = self._cached_thumbnail(url)
+        if cached:
+            results[row_index] = cached
+            return
+        future = self._executor.submit(self._download_and_scale, url, target_size)
+        futures[future] = (row_index, url)
+
+    def _collect_preload_result(self, future, futures, results):
+        row_index, url = futures[future]
+        try:
+            pixmap = future.result()
+        except Exception as exc:  # noqa: BLE001
+            logger.info("Thumbnail preload failed: row=%s url=%s error=%s", row_index, url, exc)
+            return
+        if pixmap and not pixmap.isNull():
+            with self._lock:
+                self._cache[url] = pixmap
+            results[row_index] = pixmap
+
     def preload_bulk(self, items: Iterable[Tuple[int, str]], target_size=None) -> Dict[int, QtGui.QPixmap]:
         """
         Prefetch a batch of thumbnails and return a map of row->pixmap.
@@ -93,25 +119,8 @@ class ThumbnailLoader(QtCore.QObject):
         results: Dict[int, QtGui.QPixmap] = {}
         futures = {}
         for row_index, url in items:
-            if not url:
-                continue
-            with self._lock:
-                cached = self._cache.get(url)
-            if cached:
-                results[row_index] = cached
-                continue
-            fut = self._executor.submit(self._download_and_scale, url, target_size)
-            futures[fut] = (row_index, url)
+            self._submit_preload_item(row_index, url, target_size, results, futures)
 
-        for fut in as_completed(futures):
-            row_index, url = futures[fut]
-            try:
-                pixmap = fut.result()
-            except Exception as exc:  # noqa: BLE001
-                logger.info("Thumbnail preload failed: row=%s url=%s error=%s", row_index, url, exc)
-                continue
-            if pixmap and not pixmap.isNull():
-                with self._lock:
-                    self._cache[url] = pixmap
-                results[row_index] = pixmap
+        for future in as_completed(futures):
+            self._collect_preload_result(future, futures, results)
         return results

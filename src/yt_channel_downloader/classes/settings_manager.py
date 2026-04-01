@@ -12,6 +12,11 @@ from ..config.constants import DEFAULT_VIDEO_FORMAT, DEFAULT_AUDIO_FORMAT, \
 
 class SettingsManager:
     _instance = None
+    PROXY_SCHEMES = {
+        'https': 'https',
+        'socks4': 'socks4',
+        'socks5': 'socks5',
+    }
 
     def __new__(cls):
         if cls._instance is None:
@@ -101,22 +106,23 @@ class SettingsManager:
     # ------------------------------------------------------------------ #
     # Proxy helpers
     # ------------------------------------------------------------------ #
-    def build_proxy_url(self, settings=None):
-        settings = settings or self.settings
-        proxy_type = (settings.get('proxy_server_type') or '').strip().lower()
-        proxy_addr = (settings.get('proxy_server_addr') or '').strip()
-        proxy_port = (settings.get('proxy_server_port') or '').strip()
+    def _proxy_settings_values(self, settings=None):
+        active_settings = settings or self.settings
+        return (
+            (active_settings.get('proxy_server_type') or '').strip().lower(),
+            (active_settings.get('proxy_server_addr') or '').strip(),
+            (active_settings.get('proxy_server_port') or '').strip(),
+        )
 
+    def _proxy_scheme(self, proxy_type: str):
         if proxy_type in ('', 'none'):
             return None
+        return self.PROXY_SCHEMES.get(proxy_type)
 
-        scheme_map = {
-            'https': 'https',
-            'socks4': 'socks4',
-            'socks5': 'socks5',
-        }
-        scheme = scheme_map.get(proxy_type)
-        if not scheme or not proxy_addr or not proxy_port:
+    def build_proxy_url(self, settings=None):
+        proxy_type, proxy_addr, proxy_port = self._proxy_settings_values(settings)
+        scheme = self._proxy_scheme(proxy_type)
+        if not all((scheme, proxy_addr, proxy_port)):
             return None
 
         return f"{scheme}://{proxy_addr}:{proxy_port}"

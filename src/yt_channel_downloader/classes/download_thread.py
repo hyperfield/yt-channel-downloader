@@ -360,6 +360,14 @@ class DownloadThread(QThread):
             selectors.append(f"bestvideo[ext={file_ext}]+bestaudio")
             selectors.append(f"bestvideo[ext={file_ext}]")
         selectors.append("bestvideo*+bestaudio/bestvideo*")
+        return self._join_unique_selectors(selectors)
+
+    @staticmethod
+    def _has_specific_extension(file_ext) -> bool:
+        return bool(file_ext and file_ext != 'Any')
+
+    @staticmethod
+    def _join_unique_selectors(selectors) -> str:
         seen = set()
         ordered = []
         for item in selectors:
@@ -367,30 +375,37 @@ class DownloadThread(QThread):
                 seen.add(item)
                 ordered.append(item)
         return '/'.join(ordered)
+
+    def _height_bound_quality_selectors(self, height, file_ext):
+        selectors = []
+        if self._has_specific_extension(file_ext):
+            selectors.extend([
+                f"bestvideo[ext={file_ext}][height<={height}]+bestaudio",
+                f"best[ext={file_ext}][height<={height}]",
+            ])
+        selectors.extend([
+            f"bestvideo[height<={height}]+bestaudio",
+            f"best[height<={height}]",
+        ])
+        return selectors
+
+    def _extension_only_quality_selectors(self, file_ext):
+        if not self._has_specific_extension(file_ext):
+            return []
+        return [
+            f"bestvideo[ext={file_ext}]+bestaudio",
+            f"best[ext={file_ext}]",
+        ]
 
     def _build_quality_fallback_selector(self, height, file_ext):
         """Build a selector that keeps the requested height/extension when possible."""
-        selectors = []
         if height:
-            if file_ext and file_ext != 'Any':
-                selectors.append(f"bestvideo[ext={file_ext}][height<={height}]+bestaudio")
-                selectors.append(f"best[ext={file_ext}][height<={height}]")
-            selectors.append(f"bestvideo[height<={height}]+bestaudio")
-            selectors.append(f"best[height<={height}]")
-        elif file_ext and file_ext != 'Any':
-            selectors.append(f"bestvideo[ext={file_ext}]+bestaudio")
-            selectors.append(f"best[ext={file_ext}]")
-
+            selectors = self._height_bound_quality_selectors(height, file_ext)
+        else:
+            selectors = self._extension_only_quality_selectors(file_ext)
         if not selectors:
             return ""
-
-        seen = set()
-        ordered = []
-        for item in selectors:
-            if item not in seen:
-                seen.add(item)
-                ordered.append(item)
-        return '/'.join(ordered)
+        return self._join_unique_selectors(selectors)
 
     def _execute_download(self, options):
         """Run yt-dlp with the prepared options, respecting cancellation."""
