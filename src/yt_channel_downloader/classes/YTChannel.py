@@ -10,9 +10,9 @@ from urllib import error
 
 import requests
 
-from .validators import YouTubeURLValidator, extract_single_media, is_supported_media_url
+from .validators import YouTubeURLValidator, extract_single_media
 from .quiet_ydl_logger import QuietYDLLogger
-from ..config.constants import KEYWORD_LEN, OFFSET_TO_CHANNEL_ID, DEFAULT_CHANNEL_FETCH_LIMIT, CHANNEL_FETCH_BATCH_SIZE
+from ..config.constants import DEFAULT_CHANNEL_FETCH_LIMIT, CHANNEL_FETCH_BATCH_SIZE
 from .settings_manager import SettingsManager
 
 import yt_dlp
@@ -69,12 +69,22 @@ class YTChannel(QObject):
 
     def get_channel_id(self, url):
         """Resolve a YouTube channel identifier from a channel URL or page HTML."""
-        if "channel/" in url:
-            split_url = url.split("/")
-            for i in range(len(split_url)):
-                if split_url[i] == "channel":
-                    self.channelId = split_url[i+1]
-                    return self.channelId
+        channel_id = self._channel_id_from_url(url)
+        if channel_id is None:
+            channel_id = self._fetch_channel_id(url)
+        self.channelId = channel_id
+        return self.channelId
+
+    @staticmethod
+    def _channel_id_from_url(url):
+        """Extract a channel ID directly from /channel/<id> URLs when present."""
+        match = re.search(r"/channel/([^/?#]+)", url)
+        if match:
+            return match.group(1)
+        return None
+
+    def _fetch_channel_id(self, url):
+        """Fetch a channel page and extract the externalId field."""
         try:
             response = requests.get(
                 url,
@@ -82,27 +92,26 @@ class YTChannel(QObject):
                 proxies=self.settings_manager.build_requests_proxies(),
             )
             response.raise_for_status()
-            html = response.text
-            channelId_first_index = html.find("externalId") + KEYWORD_LEN + \
-                OFFSET_TO_CHANNEL_ID
-            channelId_last_index = channelId_first_index
-            for symbol in html[channelId_first_index:]:
-                if symbol == '"':
-                    break
-                channelId_last_index += 1
-            self.channelId = html[channelId_first_index: channelId_last_index]
-            return self.channelId
-        except requests.exceptions.HTTPError as e:
-            self.logger.exception("HTTP error while resolving channel ID: %s", e)
-            status = e.response.status_code if e.response else None
-            headers = e.response.headers if e.response else None
-            raise error.HTTPError(url, status, str(e), headers, None) from e
-        except requests.exceptions.RequestException as e:
-            self.logger.exception("Request error while resolving channel ID: %s", e)
-            raise error.URLError(str(e)) from e
-        except ValueError as e:
-            self.logger.exception("Value error while resolving channel ID: %s", e)
-            raise ValueError
+            return self._channel_id_from_html(response.text)
+        except requests.exceptions.HTTPError as exc:
+            self.logger.exception("HTTP error while resolving channel ID: %s", exc)
+            status = exc.response.status_code if exc.response else None
+            headers = exc.response.headers if exc.response else None
+            raise error.HTTPError(url, status, str(exc), headers, None) from exc
+        except requests.exceptions.RequestException as exc:
+            self.logger.exception("Request error while resolving channel ID: %s", exc)
+            raise error.URLError(str(exc)) from exc
+        except ValueError:
+            self.logger.exception("Value error while resolving channel ID for %s", url)
+            raise
+
+    @staticmethod
+    def _channel_id_from_html(html):
+        """Parse the channel externalId from fetched HTML."""
+        match = re.search(r'"externalId":"([^"]+)"', html)
+        if not match:
+            raise ValueError("Channel externalId not found")
+        return match.group(1)
 
     def retrieve_video_metadata(self, video_url):
         """Fetch lightweight metadata for a single video URL."""
@@ -257,45 +266,49 @@ class YTChannel(QObject):
 
     def _fetch_channel_entries(self, channel_url, start, end, auth_opts, slice_start=None):
         """Internal helper to fetch a slice of channel entries."""
-        strategies = [
+        entries = []
+        for opts in self._channel_fetch_strategies(start, end):
+            entries = self._fetch_channel_entries_for_strategy(channel_url, opts, auth_opts)
+            if entries:
+                break
+        return self._slice_channel_entries(entries, slice_start, end)
+
+    @staticmethod
+    def _channel_fetch_strategies(start, end):
+        return [
             {'playlist_items': f"{start}-{end}", 'lazy_playlist': False, 'extract_flat': True},
             {'playliststart': start, 'playlistend': end, 'lazy_playlist': False, 'extract_flat': True},
         ]
 
-        for opts in strategies:
-            ydl_opts = {
-                'quiet': True,
-                'skip_download': True,
-                'extract_flat': True,
-                'retries': 3,
-                'socket_timeout': 10,
-            }
-            ydl_opts.update(opts)
-            if auth_opts:
-                ydl_opts.update(auth_opts)
-            ydl_opts.setdefault('logger', QuietYDLLogger())
+    def _fetch_channel_entries_for_strategy(self, channel_url, opts, auth_opts):
+        ydl_opts = {
+            'quiet': True,
+            'skip_download': True,
+            'extract_flat': True,
+            'retries': 3,
+            'socket_timeout': 10,
+        }
+        ydl_opts.update(opts)
+        if auth_opts:
+            ydl_opts.update(auth_opts)
+        ydl_opts.setdefault('logger', QuietYDLLogger())
 
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(channel_url, download=False)
-            except yt_dlp.utils.DownloadError as exc:
-                self.logger.exception("yt-dlp failed to fetch channel videos for %s with opts %s: %s", channel_url, opts, exc)
-                continue
-            except Exception as exc:  # noqa: BLE001
-                self.logger.exception("Unexpected error while using yt-dlp for %s with opts %s: %s", channel_url, opts, exc)
-                continue
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(channel_url, download=False)
+        except yt_dlp.utils.DownloadError as exc:
+            self.logger.exception("yt-dlp failed to fetch channel videos for %s with opts %s: %s", channel_url, opts, exc)
+            return []
+        except Exception as exc:  # noqa: BLE001
+            self.logger.exception("Unexpected error while using yt-dlp for %s with opts %s: %s", channel_url, opts, exc)
+            return []
 
-            entries = info.get('entries') if isinstance(info, dict) else None
-            if entries:
-                break
-        else:
-            entries = []
+        return info.get('entries') if isinstance(info, dict) else []
 
+    @staticmethod
+    def _slice_channel_entries(entries, slice_start, end):
         if slice_start and slice_start > 1:
-            slice_from = slice_start - 1
-            slice_to = end
-            entries = entries[slice_from:slice_to]
-
+            return entries[slice_start - 1:end]
         return entries
 
     def _normalize_entries(self, entries):
@@ -403,16 +416,12 @@ class YTChannel(QObject):
         seen_urls = set()
         count = 0
         for entry in entries:
-            if limit and count >= limit:
-                break
-            if is_cancelled and is_cancelled():
-                self.logger.info("Playlist fetch cancelled after %d items", count)
+            if self._stop_playlist_collection(limit, count, is_cancelled):
                 break
 
-            canonical_url = self._canonical_playlist_entry_url(entry)
-            if not canonical_url or canonical_url in seen_urls:
+            canonical_url = self._register_playlist_entry_url(entry, seen_urls)
+            if not canonical_url:
                 continue
-            seen_urls.add(canonical_url)
 
             increment_count = self._append_playlist_entry(entry, canonical_url, video_titles_links)
             if increment_count:
@@ -420,6 +429,21 @@ class YTChannel(QObject):
                 self._report_playlist_progress(count, total_entries, progress_callback)
 
         return video_titles_links
+
+    def _stop_playlist_collection(self, limit, count, is_cancelled):
+        if limit and count >= limit:
+            return True
+        if is_cancelled and is_cancelled():
+            self.logger.info("Playlist fetch cancelled after %d items", count)
+            return True
+        return False
+
+    def _register_playlist_entry_url(self, entry, seen_urls):
+        canonical_url = self._canonical_playlist_entry_url(entry)
+        if not canonical_url or canonical_url in seen_urls:
+            return None
+        seen_urls.add(canonical_url)
+        return canonical_url
 
     def _canonical_playlist_entry_url(self, entry):
         """Resolve a stable absolute URL for a playlist entry."""
@@ -535,26 +559,34 @@ class YTChannel(QObject):
         if not info:
             return None
 
-        def _coerce(value):
-            if value is None:
-                return None
-            if isinstance(value, (int, float)):
-                if value >= 0:
-                    return int(value)
-                return None
-            if isinstance(value, str):
-                value = value.strip()
-                if not value:
-                    return None
-                if value.isdigit():
-                    return int(value)
-                parsed = parse_duration(value)
-                if parsed is not None:
-                    return parsed
-            return None
+        duration = YTChannel._first_known_duration(info)
+        if duration is not None:
+            return duration
+        return YTChannel._duration_from_length_text(info.get('lengthText'))
 
+    @staticmethod
+    def _coerce_duration(value):
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            if value >= 0:
+                return int(value)
+            return None
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return None
+            if value.isdigit():
+                return int(value)
+            parsed = parse_duration(value)
+            if parsed is not None:
+                return parsed
+        return None
+
+    @staticmethod
+    def _first_known_duration(info):
         for key in ("duration", "duration_seconds", "lengthSeconds", "length_seconds"):
-            duration = _coerce(info.get(key))
+            duration = YTChannel._coerce_duration(info.get(key))
             if duration is not None:
                 return duration
 
@@ -562,20 +594,18 @@ class YTChannel(QObject):
         if isinstance(duration_ms, (int, float)) and duration_ms >= 0:
             return int(duration_ms // 1000)
 
-        duration_str = info.get('duration_string')
-        parsed = _coerce(duration_str)
-        if parsed is not None:
-            return parsed
+        return YTChannel._coerce_duration(info.get('duration_string'))
 
-        length_text = info.get('lengthText')
+    @staticmethod
+    def _duration_from_length_text(length_text):
         if isinstance(length_text, dict):
             length_simple = length_text.get('simpleText') or length_text.get('accessibility', {}).get('accessibilityData', {}).get('label')
-            parsed = _coerce(length_simple)
+            parsed = YTChannel._coerce_duration(length_simple)
             if parsed is not None:
                 return parsed
 
         if isinstance(length_text, str):
-            parsed = _coerce(length_text)
+            parsed = YTChannel._coerce_duration(length_text)
             if parsed is not None:
                 return parsed
 

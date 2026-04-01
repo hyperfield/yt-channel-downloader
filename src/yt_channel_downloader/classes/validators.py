@@ -46,122 +46,123 @@ class YouTubeURLValidator:
     @staticmethod
     def playlist_exists(playlist_url, extra_opts=None):
         """Return True when yt-dlp can resolve at least one playlist entry."""
-        try:
-            ydl_opts = YouTubeURLValidator._build_ydl_opts({
+        info = YouTubeURLValidator._safe_playlist_extract(
+            playlist_url,
+            {
                 'quiet': False,
                 'no_warnings': False,
                 'skip_download': True,
                 'extract_flat': True,
                 'playlistend': 1,
-            }, extra_opts)
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(playlist_url, download=False)
-            entries = info.get('entries') or []
-            if any(entry for entry in entries):
-                return True
-            if info.get('_type') != 'playlist' and info.get('webpage_url'):
-                return True
-        except yt_dlp.utils.DownloadError as e:
-            logger.debug("yt-dlp failed to validate playlist %s: %s", playlist_url, e)
-        except Exception as e:  # noqa: BLE001
-            logger.exception("Unexpected error while validating playlist %s: %s", playlist_url, e)
-        except HTTPError as e:
-            logger.exception("HTTP error while validating playlist %s: %s", playlist_url, e)
-        return False
+            },
+            extra_opts,
+            "validate playlist",
+        )
+        return bool(info and YouTubeURLValidator._playlist_has_entries(info))
 
     @staticmethod
     def extract_playlist_entries(playlist_url, extra_opts=None):
         """Extract flat playlist entries without resolving every video in full."""
-        base_opts = {
-            'quiet': False,
-            'no_warnings': False,
-            'skip_download': True,
-            'noplaylist': False,
-            'playlist_items': '1-1000',
-            'yes_playlist': True,
-            'extract_flat': True,
-        }
-        ydl_opts = YouTubeURLValidator._build_ydl_opts(base_opts, extra_opts)
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(playlist_url, download=False)
-        except yt_dlp.utils.DownloadError as e:
-            logger.debug("yt-dlp failed to extract playlist entries for %s: %s", playlist_url, e)
+        info = YouTubeURLValidator._safe_playlist_extract(
+            playlist_url,
+            {
+                'quiet': False,
+                'no_warnings': False,
+                'skip_download': True,
+                'noplaylist': False,
+                'playlist_items': '1-1000',
+                'yes_playlist': True,
+                'extract_flat': True,
+            },
+            extra_opts,
+            "extract playlist entries",
+        )
+        if not info:
             return []
-        except Exception as e:  # noqa: BLE001
-            logger.exception("Unexpected error while extracting playlist %s: %s", playlist_url, e)
-            return []
-
-        entries = info.get('entries') or []
-        if entries:
-            return [entry for entry in entries if entry]
-
-        if info.get('_type') != 'playlist' and info.get('webpage_url'):
-            return [info]
-
-        logger.warning("Playlist extraction returned no entries for URL: %s", playlist_url)
-        return []
+        return YouTubeURLValidator._playlist_entries_from_info(info, playlist_url)
 
     @staticmethod
     def is_valid(url_or_video_id, extra_opts=None):
         """Validate the URL or video ID."""
-        url_pattern = (
+        candidate_url = YouTubeURLValidator._validated_youtube_url(url_or_video_id, extra_opts)
+        if candidate_url:
+            return True, candidate_url
+        logger.warning("URL validation failed for input: %s", url_or_video_id)
+        return False, None
+
+    @staticmethod
+    def _safe_playlist_extract(playlist_url, base_opts, extra_opts, action):
+        ydl_opts = YouTubeURLValidator._build_ydl_opts(base_opts, extra_opts)
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                return ydl.extract_info(playlist_url, download=False)
+        except yt_dlp.utils.DownloadError as exc:
+            logger.debug("yt-dlp failed to %s for %s: %s", action, playlist_url, exc)
+        except HTTPError as exc:
+            logger.exception("HTTP error while trying to %s for %s: %s", action, playlist_url, exc)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Unexpected error while trying to %s for %s: %s", action, playlist_url, exc)
+        return None
+
+    @staticmethod
+    def _playlist_has_entries(info):
+        entries = info.get('entries') or []
+        return any(entry for entry in entries) or (
+            info.get('_type') != 'playlist' and info.get('webpage_url')
+        )
+
+    @staticmethod
+    def _playlist_entries_from_info(info, playlist_url):
+        entries = info.get('entries') or []
+        if entries:
+            return [entry for entry in entries if entry]
+        if info.get('_type') != 'playlist' and info.get('webpage_url'):
+            return [info]
+        logger.warning("Playlist extraction returned no entries for URL: %s", playlist_url)
+        return []
+
+    @staticmethod
+    def _validated_youtube_url(url_or_video_id, extra_opts):
+        for pattern, transform in YouTubeURLValidator._video_matchers():
+            match = re.match(pattern, url_or_video_id)
+            if not match:
+                continue
+            video_id = match.group(3) if match.lastindex else url_or_video_id
+            if YouTubeURLValidator.check_existence(video_id, extra_opts):
+                return transform(video_id, url_or_video_id)
+        return None
+
+    @staticmethod
+    def _video_matchers():
+        watch_pattern = (
             r'(https?://)?'
             r'(www\.)?'
             r'youtube\.com/watch\?v='
             r'([0-9A-Za-z_-]{11})'
         )
-
         shorts_pattern = (
             r'(https?://)?'
             r'(www\.)?'
             r'youtube\.com/shorts/'
             r'([0-9A-Za-z_-]{11})'
         )
-
         short_link_pattern = (
             r'(https?://)?'
             r'(www\.)?'
             r'youtu\.be/'
             r'([0-9A-Za-z_-]{11})'
         )
-
         video_id_pattern = r'^[0-9A-Za-z_-]{11}$'
+        return (
+            (watch_pattern, lambda _video_id, original: original),
+            (shorts_pattern, lambda video_id, _original: YouTubeURLValidator._watch_url(video_id)),
+            (short_link_pattern, lambda video_id, _original: YouTubeURLValidator._watch_url(video_id)),
+            (video_id_pattern, lambda video_id, _original: YouTubeURLValidator._watch_url(video_id)),
+        )
 
-        # Check if the URL is a regular video
-        url_match = re.match(url_pattern, url_or_video_id)
-        if url_match:
-            video_id = url_match.group(3)
-            if YouTubeURLValidator.check_existence(video_id, extra_opts):
-                return True, url_or_video_id
-
-        # Check if the URL is a YouTube Shorts video
-        shorts_match = re.match(shorts_pattern, url_or_video_id)
-        if shorts_match:
-            video_id = shorts_match.group(3)
-            if YouTubeURLValidator.check_existence(video_id, extra_opts):
-                # Convert Shorts URL to standard watch URL
-                full_url = f"https://www.youtube.com/watch?v={video_id}"
-                return True, full_url
-
-        # Check if the URL is a youtu.be short link
-        short_link_match = re.match(short_link_pattern, url_or_video_id)
-        if short_link_match:
-            video_id = short_link_match.group(3)
-            if YouTubeURLValidator.check_existence(video_id, extra_opts):
-                # Convert to standard watch URL
-                full_url = f"https://www.youtube.com/watch?v={video_id}"
-                return True, full_url
-
-        # Check if it's a direct video ID
-        if re.match(video_id_pattern, url_or_video_id):
-            if YouTubeURLValidator.check_existence(url_or_video_id, extra_opts):
-                full_url = f"https://www.youtube.com/watch?v={url_or_video_id}"
-                return True, full_url
-
-        # If no matches
-        logger.warning("URL validation failed for input: %s", url_or_video_id)
-        return False, None
+    @staticmethod
+    def _watch_url(video_id):
+        return f"https://www.youtube.com/watch?v={video_id}"
 
 
 def extract_single_media(url: str, auth_opts: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
