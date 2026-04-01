@@ -4,7 +4,6 @@ import yt_dlp
 
 from .logger import get_logger
 from .quiet_ydl_logger import QuietYDLLogger
-from .js_warning_tracker import js_warning_tracker
 
 
 logger = get_logger("utils")
@@ -78,19 +77,23 @@ def find_closest_resolution_with_fallback(formats, target_resolution):
     target_height = int(target_resolution[:-1])
     available_resolutions = sorted([f.get('height') for f in formats if f.get('height')])
 
-    # First, check if the target resolution is available
-    if target_height in available_resolutions:
-        for format in formats:
-            if format.get('height') == target_height:
-                return format['format_id']
+    matched_format = _first_format_id_for_height(formats, target_height)
+    if matched_format is not None:
+        return matched_format
 
-    # Find the next closest resolution, either higher or lower
-    closest_resolution = min(available_resolutions, key=lambda x: abs(x - target_height))
-    for format in formats:
-        if format.get('height') == closest_resolution:
-            return format['format_id']
+    closest_resolution = _closest_resolution(available_resolutions, target_height)
+    return _first_format_id_for_height(formats, closest_resolution)
 
+
+def _first_format_id_for_height(formats, height):
+    for fmt in formats:
+        if fmt.get('height') == height:
+            return fmt['format_id']
     return None
+
+
+def _closest_resolution(available_resolutions, target_height):
+    return min(available_resolutions, key=lambda value: abs(value - target_height))
 
 
 def get_format_candidates(
