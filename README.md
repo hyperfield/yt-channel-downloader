@@ -86,10 +86,12 @@ If you don't have `pip`, you can use `python -m pip` instead.
 
 The package depends on `yt-dlp[default]`, so the Python install will also pull in yt-dlp's recommended companion components such as `yt-dlp-ejs`. You still need an external JavaScript runtime like Deno or Node.js installed separately on your system for the best YouTube support.
 
+If `yt-dlp` is already present in your Python environment, upgrade it alongside the app. `pip install yt-channel-downloader` can otherwise keep an older `yt-dlp` that still satisfies the dependency floor but no longer works reliably against recent YouTube player changes.
+
 To update the app to the latest version from PyPI:
 
 ```bash
-pip install --upgrade yt-channel-downloader
+pip install --upgrade yt-channel-downloader yt-dlp
 yt-channel-downloader
 ```
 
@@ -272,6 +274,7 @@ yt-channel-downloader
 - **Fetch limits**: `File -> Settings` lets you control the maximum number of videos fetched per channel and per playlist.
 - **Proxy support**: The Settings dialog includes `HTTPS`, `SOCKS4`, and `SOCKS5` proxy options.
 - **Browser cookies**: Use `File -> Use Browser Cookies for Login` to choose a signed-in browser profile for restricted YouTube downloads. Once configured, the menu item changes to `Clear Login`.
+- **YouTube 403 / missing formats**: If downloads fail with `HTTP Error 403`, `Requested format is not available`, `n challenge solving failed`, or `SABR` warnings, upgrade both the app and `yt-dlp` with `python -m pip install --upgrade yt-channel-downloader yt-dlp`. Older `yt-dlp` builds can still satisfy the package dependency but fail against newer YouTube player scripts.
 - **Application logs**: If something fails and you want to report it, check the app log in the config directory under `logs/application.log`. On Linux this is typically `~/.config/yt_chan_dl/logs/application.log`.
 
 ## Contributing
