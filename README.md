@@ -34,18 +34,8 @@ Latest: **0.8.9**
 
 ## 0.8.9
 
-- Raised the minimum `yt-dlp` dependency to `2026.03.17` to avoid stale PyPI environments that hit YouTube `n challenge` / `HTTP 403` download failures.
-- Documented that PyPI users should upgrade `yt-dlp` alongside the app when troubleshooting recent YouTube download issues.
-
-## 0.8.8
-
-- Fixed partial download progress restoration when refetching a playlist or channel list.
-- Added a search bar for filtering fetched items by title.
-- Made fetched item titles, URLs, and speed values read-only.
-- Fixed YouTube video downloads falling back to low quality too aggressively; improved browser-cookie login validation.
-- Improved application logging for YouTube auth and download troubleshooting.
-- Fixed playlist loading to use flat extraction and honor playlist limits/progress more reliably.
-- Added regression tests and docstring cleanup.
+- Raised the minimum `yt-dlp` dependency to `2026.03.17` to fix the YouTube `HTTP 403` download failures.
+- Documented that PyPI users should upgrade `yt-dlp`.
 
 [Full changelog](CHANGELOG.md).
 

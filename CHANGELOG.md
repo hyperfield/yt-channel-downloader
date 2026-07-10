@@ -4,8 +4,8 @@ All notable changes to this project are documented here.
 
 ## 0.8.9
 
-- Raised the minimum `yt-dlp` dependency to `2026.03.17` to avoid stale PyPI environments that hit YouTube `n challenge` / `HTTP 403` download failures.
-- Documented that PyPI users should upgrade `yt-dlp` alongside the app when troubleshooting recent YouTube download issues.
+- Raised the minimum `yt-dlp` dependency to `2026.03.17` to fix the YouTube `HTTP 403` download failures.
+- Documented that PyPI users should upgrade `yt-dlp`.
 
 ## 0.8.8
 
