@@ -30,6 +30,8 @@ DEFAULT_VIDEO_FORMAT = 'Any'
 DEFAULT_AUDIO_FORMAT = 'mp3'
 DEFAULT_AUDIO_QUALITY = 'Best available'
 DEFAULT_VIDEO_QUALITY = '1080p (Full HD)'
+PROXY_SCHEMES = {'http': 'http', 'https': 'https', 'socks4': 'socks4', 'socks5': 'socks5'}
+LOSSY_AUDIO_FORMATS = frozenset(('mp3', 'vorbis', 'm4a', 'aac', 'opus'))
 
 settings_map: Dict[str, Dict[str, Optional[str]]] = {
     'preferred_video_quality': {

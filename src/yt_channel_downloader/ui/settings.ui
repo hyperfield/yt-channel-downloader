@@ -58,7 +58,7 @@
     <item>
      <widget class="QLabel" name="pref_vid_quality_label">
       <property name="text">
-       <string>Preferred video quality:</string>
+       <string>Maximum video quality:</string>
       </property>
      </widget>
     </item>
@@ -132,7 +132,7 @@
     <item>
      <widget class="QLabel" name="pref_vid_format">
       <property name="text">
-       <string>Preferred video format:</string>
+       <string>Video output format:</string>
       </property>
      </widget>
     </item>
@@ -201,7 +201,7 @@
     <item>
      <widget class="QLabel" name="audio_quality_label">
       <property name="text">
-       <string>Preferred audio quality:</string>
+       <string>Audio encoding quality:</string>
       </property>
      </widget>
     </item>
@@ -354,6 +354,11 @@
       <item>
        <property name="text">
         <string>None</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>HTTP</string>
        </property>
       </item>
       <item>

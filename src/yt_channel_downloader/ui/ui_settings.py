@@ -7,42 +7,15 @@
 
 
 from PyQt6 import QtCore, QtGui, QtWidgets
+from ..config.constants import PROXY_SCHEMES, settings_map
 
 
 class Ui_Settings(object):
-    VIDEO_QUALITY_ITEMS = (
-        "144p",
-        "240p",
-        "360p",
-        "480p",
-        "720p (HD)",
-        "1080p (Full HD)",
-        "1440p (2K)",
-        "2160p (4K)",
-        "Best available",
-    )
-    VIDEO_FORMAT_ITEMS = ("Any", "mp4", "webm", "avi", "mov", "mkv", "flv", "3gp")
-    AUDIO_QUALITY_ITEMS = (
-        "32 kbps",
-        "64 kbps",
-        "128 kbps",
-        "160 kbps",
-        "192 kbps",
-        "256 kbps",
-        "320 kbps",
-        "Best available",
-    )
-    AUDIO_FORMAT_ITEMS = (
-        "Any",
-        "mp3",
-        "ogg / oga [Vorbis]",
-        "m4a",
-        "aac",
-        "opus",
-        "flac",
-        "wav",
-    )
-    PROXY_TYPE_ITEMS = ("None", "HTTPS", "SOCKS4", "SOCKS5")
+    VIDEO_QUALITY_ITEMS = tuple(reversed(settings_map['preferred_video_quality']))
+    VIDEO_FORMAT_ITEMS = tuple(settings_map['preferred_video_format'])
+    AUDIO_QUALITY_ITEMS = tuple(reversed(settings_map['preferred_audio_quality']))
+    AUDIO_FORMAT_ITEMS = tuple(settings_map['preferred_audio_format'])
+    PROXY_TYPE_ITEMS = ("None", *(name.upper() for name in PROXY_SCHEMES))
 
     def setupUi(self, Settings):
         self._configure_root(Settings)
@@ -144,7 +117,7 @@ class Ui_Settings(object):
         self.proxy_server_type = QtWidgets.QComboBox(parent=self.layoutWidget_5)
         self.proxy_server_type.setFont(self._mono_font())
         self.proxy_server_type.setObjectName("proxy_server_type")
-        self.proxy_server_type.addItems([""] * 4)
+        self.proxy_server_type.addItems([""] * len(self.PROXY_TYPE_ITEMS))
         self.proxy_server_layout.addWidget(self.proxy_server_type)
         self.proxy_server_label = QtWidgets.QLabel(parent=self.layoutWidget_5)
         self.proxy_server_label.setObjectName("proxy_server_label")
@@ -234,21 +207,26 @@ class Ui_Settings(object):
         Settings.setWindowTitle(_translate("Settings", "Settings"))
         self.save_button.setText(_translate("Settings", "Save"))
         self.close_button.setText(_translate("Settings", "Close"))
-        self.pref_vid_quality_label.setText(_translate("Settings", "Preferred video quality:"))
+        self.pref_vid_quality_label.setText(_translate("Settings", "Maximum video quality:"))
+        self.pref_vid_quality_dropdown.setToolTip('Choose the highest available resolution at or below this limit. Unknown source resolutions are allowed.')
         self._set_combo_items(self.pref_vid_quality_dropdown, "Settings", self.VIDEO_QUALITY_ITEMS)
-        self.pref_vid_format.setText(_translate("Settings", "Preferred video format:"))
+        self.pref_vid_format.setText(_translate("Settings", "Video output format:"))
+        self.pref_vid_format_dropdown.setToolTip('Convert to this container when needed. Conversion can take extra time and may re-encode the media.')
         self._set_combo_items(self.pref_vid_format_dropdown, "Settings", self.VIDEO_FORMAT_ITEMS)
-        self.audio_quality_label.setText(_translate("Settings", "Preferred audio quality:"))
+        self.audio_quality_label.setText(_translate("Settings", "Audio encoding quality:"))
         self._set_combo_items(self.pref_aud_quality_dropdown, "Settings", self.AUDIO_QUALITY_ITEMS)
         self.pref_aud_format.setText(_translate("Settings", "Preferred audio format:"))
         self._set_combo_items(self.pref_aud_format_dropdown, "Settings", self.AUDIO_FORMAT_ITEMS)
         self.proxy_label.setText(_translate("Settings", "SOCKS / proxy:"))
         self._set_combo_items(self.proxy_server_type, "Settings", self.PROXY_TYPE_ITEMS)
         self.proxy_server_label.setText(_translate("Settings", "Server:"))
+        self.proxy_server_addr.setToolTip('Hostname or IP address, optionally user:password@host. URL-encode special characters in credentials.')
+        self.proxy_server_type.setToolTip('None restores the proxy environment used when the application started.')
         self.proxy_port_label.setText(_translate("Settings", "Port:"))
         self.save_downloads_label.setText(_translate("Settings", "Save downloads to:"))
         self.browse_btn.setText(_translate("Settings", "Browse"))
         self.check_download_thumbnails.setText(_translate("Settings", "Download thumbnails"))
+        self.check_download_thumbnails.setToolTip('Save thumbnails alongside new downloads.')
         self.check_audio_only.setText(_translate("Settings", "Only the associated audio tracks"))
         self.label.setText(_translate("Settings", "(Entire videos may be downloaded, then"))
         self.label_2.setText(_translate("Settings", "audio would be extracted and the videos"))

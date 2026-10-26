@@ -6,8 +6,12 @@
 
 from ..ui.ui_settings import Ui_Settings
 from .settings_manager import SettingsManager
+from ..config.constants import DEFAULT_CHANNEL_FETCH_LIMIT, DEFAULT_PLAYLIST_FETCH_LIMIT, LOSSY_AUDIO_FORMATS, settings_map
 
-from PyQt6.QtWidgets import QDialog, QFileDialog, QSpinBox, QLabel, QHBoxLayout, QVBoxLayout
+import os
+from pathlib import Path
+
+from PyQt6.QtWidgets import QDialog, QFileDialog, QSpinBox, QLabel, QHBoxLayout, QVBoxLayout, QMessageBox
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
@@ -61,6 +65,7 @@ class SettingsDialog(QDialog):
         self.ui.proxy_server_type.currentIndexChanged.connect(self.toggle_proxy_fields)
         self.ui.save_button.clicked.connect(self.save_settings)
         self.ui.check_audio_only.stateChanged.connect(self.toggle_video_fields)
+        self.ui.pref_aud_format_dropdown.currentIndexChanged.connect(self.toggle_video_fields)
 
         self.default_directory = self.settings_manager.set_default_directory()
 
@@ -128,7 +133,14 @@ class SettingsDialog(QDialog):
         self.ui.pref_vid_format_dropdown.setDisabled(is_checked)
         self.ui.pref_vid_quality_dropdown.setDisabled(is_checked)
         self.ui.pref_aud_format_dropdown.setEnabled(is_checked)
-        self.ui.pref_aud_quality_dropdown.setEnabled(is_checked)
+        audio_format = settings_map['preferred_audio_format'].get(self.ui.pref_aud_format_dropdown.currentText())
+        bitrate_applies = audio_format in LOSSY_AUDIO_FORMATS
+        self.ui.pref_aud_quality_dropdown.setEnabled(is_checked and bitrate_applies)
+        if not bitrate_applies:
+            self.ui.pref_aud_quality_dropdown.setCurrentText('Best available')
+        self.ui.pref_aud_quality_dropdown.setToolTip(
+            'Target bitrate when encoding lossy audio. Any, FLAC, and WAV preserve the source without a bitrate target.'
+        )
         self._mark_dirty()
 
     def browse_directory(self):
@@ -145,9 +157,6 @@ class SettingsDialog(QDialog):
         is_proxy_enabled = current_text != "None"
         self.ui.proxy_server_addr.setDisabled(not is_proxy_enabled)
         self.ui.proxy_server_port.setDisabled(not is_proxy_enabled)
-        if not is_proxy_enabled:
-            self.ui.proxy_server_addr.clear()
-            self.ui.proxy_server_port.clear()
         self._mark_dirty()
 
     def populate_ui_from_settings(self):
@@ -163,18 +172,8 @@ class SettingsDialog(QDialog):
         self.ui.check_audio_only.setChecked(user_settings.get('audio_only'))
         self.ui.check_download_thumbnails.setChecked(user_settings.get('download_thumbnail', False))
         # show_thumbnails currently managed via main window toggle; keep in sync with stored value
-        channel_limit = user_settings.get('channel_fetch_limit')
-        if channel_limit:
-            try:
-                self.channel_limit_spin.setValue(int(channel_limit))
-            except (TypeError, ValueError):
-                pass
-        playlist_limit = user_settings.get('playlist_fetch_limit')
-        if playlist_limit:
-            try:
-                self.playlist_limit_spin.setValue(int(playlist_limit))
-            except (TypeError, ValueError):
-                pass
+        self.channel_limit_spin.setValue(int(user_settings.get('channel_fetch_limit') or DEFAULT_CHANNEL_FETCH_LIMIT))
+        self.playlist_limit_spin.setValue(int(user_settings.get('playlist_fetch_limit') or DEFAULT_PLAYLIST_FETCH_LIMIT))
         # Reset dirty tracking after populate
         self._saved_snapshot = self._gather_ui_settings()
         self._initializing = False
@@ -186,48 +185,38 @@ class SettingsDialog(QDialog):
             dropdown.setCurrentIndex(index)
 
     def save_settings(self):
-        proxy_type = self.ui.proxy_server_type.currentText()
-        proxy_addr = self.ui.proxy_server_addr.text().strip()
-        proxy_port = self.ui.proxy_server_port.text().strip()
-
-        if proxy_type == "None":
-            proxy_addr = ''
-            proxy_port = ''
-
-        new_settings = {
-            'download_directory': self.ui.save_downloads_edit.text(),
-            'preferred_video_format': self.ui.pref_vid_format_dropdown.currentText(),
-            'preferred_audio_format': self.ui.pref_aud_format_dropdown.currentText(),
-            'preferred_video_quality': self.ui.pref_vid_quality_dropdown.currentText(),
-            'preferred_audio_quality': self.ui.pref_aud_quality_dropdown.currentText(),
-            'proxy_server_type': proxy_type,
-            'proxy_server_addr': proxy_addr,
-            'proxy_server_port': proxy_port,
-            'download_thumbnail': self.ui.check_download_thumbnails.isChecked(),
-            'show_thumbnails': self.settings_manager.settings.get('show_thumbnails', True),
-            'audio_only': self.ui.check_audio_only.isChecked(),
-            # Preserve opt-out flags that aren't represented in the UI
-            'suppress_node_runtime_warning': self.settings_manager.settings.get('suppress_node_runtime_warning', False),
-            'dont_show_login_prompt': self.settings_manager.settings.get('dont_show_login_prompt', False),
-            'downloads_completed': self.settings_manager.settings.get('downloads_completed', 0),
-            'support_prompt_next_at': self.settings_manager.settings.get('support_prompt_next_at', 30),
-            'support_prompt_last_shown_at': self.settings_manager.settings.get('support_prompt_last_shown_at', 0),
-            # Channel fetch tuning (no UI fields yet, just preserve them)
-            'channel_fetch_limit': self.channel_limit_spin.value(),
-            'playlist_fetch_limit': self.playlist_limit_spin.value(),
-            'channel_fetch_batch_size': self.settings_manager.settings.get('channel_fetch_batch_size'),
-        }
-        self.update_settings(new_settings)
+        new_settings = self._gather_ui_settings()
+        try:
+            self._validate_settings(new_settings)
+            self.update_settings(new_settings)
+        except (OSError, TypeError, ValueError) as error:
+            QMessageBox.warning(self, 'Settings could not be saved', str(error))
+            return
+        self.ui.save_downloads_edit.setText(new_settings['download_directory'])
+        self.ui.proxy_server_addr.setText(new_settings['proxy_server_addr'])
+        self.ui.proxy_server_port.setText(new_settings['proxy_server_port'])
         self._saved_snapshot = self._gather_ui_settings()
         self._update_save_button()
+
+    def _validate_settings(self, settings):
+        directory = settings['download_directory'].strip()
+        if not directory:
+            raise ValueError('Choose a download directory.')
+        if '\x00' in directory:
+            raise ValueError('The download directory contains an invalid character.')
+        directory = str(Path(directory).expanduser().absolute())
+        if os.path.exists(directory) and not os.path.isdir(directory):
+            raise ValueError('The download directory points to a file. Choose a folder.')
+        settings['download_directory'] = directory
+        self.settings_manager.validate_proxy_settings(settings)
 
     def get_settings(self):
         return self.settings_manager.settings
 
     def update_settings(self, new_settings):
         merged_settings = {**self.settings_manager.settings, **new_settings}
-        self.settings_manager.settings = merged_settings
         self.settings_manager.save_settings_to_file(merged_settings)
+        self.settings_manager.settings = merged_settings
 
     # ------------------------------------------------------------------ #
     # Dirty tracking
@@ -252,9 +241,6 @@ class SettingsDialog(QDialog):
         proxy_type = self.ui.proxy_server_type.currentText()
         proxy_addr = self.ui.proxy_server_addr.text().strip()
         proxy_port = self.ui.proxy_server_port.text().strip()
-        if proxy_type == "None":
-            proxy_addr = ''
-            proxy_port = ''
         return {
             'download_directory': self.ui.save_downloads_edit.text(),
             'preferred_video_format': self.ui.pref_vid_format_dropdown.currentText(),
