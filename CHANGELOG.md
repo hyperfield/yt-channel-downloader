@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## 0.9.0
+
+Release date: 2026-10-27
+
+- **Python 3.14+ required**: Updated dependencies and installation instructions for the new minimum Python version.
+- **More reliable YouTube downloads**: Improved recovery from HTTP 403/404 errors and support for both Deno and Node.js runtimes.
+- **Consistent format and quality settings**: Video downloads respect the selected maximum resolution and output format. Audio extraction honors format and bitrate choices, with clearer options for native and lossless audio.
+- **Safer filenames and completion checks**: Prevented downloads with matching titles or different quality settings from overwriting or incorrectly skipping each other. Unfinished files no longer appear complete. Older files are kept, but may need downloading again.
+- **Better non-YouTube support**: Fixed URL handling and thumbnail previews for individual media links. Pages containing multiple media items now request a direct link to one item.
+- **A more responsive app**: Size estimates run in the background, with improved cancellation and safer closing during active fetches or downloads.
+- **More dependable Settings**: Improved validation and saving, added HTTP proxy support, improved SOCKS and IPv6 handling, and fixed playlist fetch limits above 1,000 items.
+
 ## 0.8.9
 
 - Raised the minimum `yt-dlp` dependency to `2026.03.17` to fix the YouTube `HTTP 403` download failures.
