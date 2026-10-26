@@ -75,6 +75,9 @@ class GetListThread(QThread):
         with the video list.
         """
         video_list = []
+        if self._is_cancelled:
+            self.cancelled.emit()
+            return
 
         try:
             if not self.channel_id or self.channel_id == "short":
@@ -95,6 +98,9 @@ class GetListThread(QThread):
                     start_index=self.start_index,
                 )
         except Exception as exc:  # noqa: BLE001
+            if self._is_cancelled:
+                self.cancelled.emit()
+                return
             logger.exception("Failed to fetch video list: %s", exc)
             self.error.emit(str(exc))
             return

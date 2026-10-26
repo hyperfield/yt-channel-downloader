@@ -4,6 +4,8 @@ import yt_dlp
 
 from .logger import get_logger
 from .quiet_ydl_logger import QuietYDLLogger
+from .yt_dlp_options import javascript_options
+from .validators import single_media_entry
 
 
 logger = get_logger("utils")
@@ -62,7 +64,7 @@ def find_highest_resolution(formats):
     if not formats:
         return None
 
-    highest_format = max(formats, key=lambda x: x.get('height', 0))
+    highest_format = max(formats, key=lambda x: x.get('height') or 0)
     return highest_format['format_id']
 
 
@@ -93,7 +95,7 @@ def _first_format_id_for_height(formats, height):
 
 
 def _closest_resolution(available_resolutions, target_height):
-    return min(available_resolutions, key=lambda value: abs(value - target_height))
+    return max((value for value in available_resolutions if value <= target_height), default=None)
 
 
 def get_format_candidates(
@@ -102,35 +104,39 @@ def get_format_candidates(
     target_ext: str,
     auth_opts: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
-    """Return format_ids ordered by closeness to the requested resolution."""
+    """Return format IDs ordered by quality within the requested resolution limit."""
     ydl_opts = _build_metadata_opts(auth_opts)
     info = _extract_format_info(url, ydl_opts)
     if not info:
         return []
 
-    ext_key = _normalize_ext(target_ext)
-    filtered = _filter_candidate_formats(info.get('formats', []), ext_key)
-    if not filtered:
-        return []
+    return _dedupe_format_ids(rank_video_formats(info.get('formats', []), target_resolution, target_ext))
 
-    target_height = _parse_target_height(target_resolution)
-    if target_resolution == 'bestvideo':
-        sorted_formats = _sort_bestvideo_formats(filtered)
-    else:
-        sorted_formats = _sort_by_height_preference(filtered, target_height)
 
-    return _dedupe_format_ids(sorted_formats)
+def rank_video_formats(formats, target_resolution, target_ext=None):
+    """Prefer the highest resolution within the limit, then a native container."""
+    height = _parse_target_height(target_resolution)
+    candidates = _filter_candidate_formats(formats, 'Any')
+    candidates = [fmt for fmt in candidates if not height or not fmt.get('height') or fmt['height'] <= height]
+    return sorted(candidates, key=lambda fmt: (
+        -(fmt.get('height') or 0),
+        bool(target_ext and target_ext != 'Any' and fmt.get('ext') != target_ext),
+        -(fmt.get('tbr') or 0),
+    ))
 
 
 def _build_metadata_opts(auth_opts: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Assemble yt-dlp options for metadata extraction, including auth/remote components."""
     ydl_opts = {
+        **javascript_options(),
         'quiet': True,
         'no_warnings': True,
         'dump_single_json': True,
         'noplaylist': True,
+        'playlist_items': '1',
+        'lazy_playlist': True,
+        'socket_timeout': 15,
         'logger': QuietYDLLogger(),
-        'remote_components': ['ejs:github'],
     }
     if auth_opts:
         ydl_opts.update(auth_opts)
@@ -141,8 +147,9 @@ def _extract_format_info(url: str, ydl_opts: Dict[str, Any]) -> Optional[Dict[st
     """Fetch format metadata for a URL, logging and returning None on failure."""
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            return ydl.extract_info(url, download=False)
-    except yt_dlp.utils.DownloadError as e:
+            info = ydl.extract_info(url, download=False)
+            return single_media_entry(info, url) if info else None
+    except (yt_dlp.utils.DownloadError, ValueError) as e:
         logger.exception("Error extracting info for %s: %s", url, e)
         return None
 
@@ -157,7 +164,7 @@ def _filter_candidate_formats(formats: List[Dict[str, Any]], ext_key: str) -> Li
     filtered = filter_formats(formats, ext_key)
     if not filtered and ext_key != 'Any':
         filtered = filter_formats(formats, 'Any')
-    return [f for f in filtered if f.get('format_id') and f.get('height') and f.get('url')]
+    return [f for f in filtered if f.get('format_id') and f.get('url')]
 
 
 def _parse_target_height(target_resolution: str) -> Optional[int]:
@@ -178,16 +185,10 @@ def _sort_by_height_preference(
     formats: List[Dict[str, Any]],
     target_height: Optional[int],
 ) -> List[Dict[str, Any]]:
-    """Sort formats closest to the requested height, preferring equal-or-lower first."""
+    """Sort formats from highest to lowest without exceeding the height limit."""
     if target_height is None:
-        return formats
-
-    def sort_key(fmt):
-        height = fmt.get('height') or 0
-        delta = height - target_height
-        return (abs(delta), 0 if delta <= 0 else 1, -height if delta <= 0 else height)
-
-    return sorted(formats, key=sort_key)
+        return _sort_bestvideo_formats(formats)
+    return _sort_bestvideo_formats([fmt for fmt in formats if (fmt.get('height') or 0) <= target_height])
 
 
 def _dedupe_format_ids(formats: List[Dict[str, Any]]) -> List[str]:

@@ -54,6 +54,8 @@ class FetchProgressDialog(QDialog):
                                         Defaults to None.
         """
         super().__init__(parent)
+        self._cancelled = False
+        self._settled = False
         self.setWindowTitle("Fetching items")
         self.limit = limit
         self.start_index = start_index
@@ -91,7 +93,8 @@ class FetchProgressDialog(QDialog):
             dialog_rect.moveCenter(parent_center)
             QTimer.singleShot(0, lambda: self.setGeometry(dialog_rect))
 
-        self.thread = GetListThread(channel_id, yt_channel, channel_url, limit=limit, start_index=start_index)
+        self.thread = GetListThread(channel_id, yt_channel, channel_url, limit=limit,
+                                    start_index=start_index, parent=self)
         self.thread.finished.connect(self.on_fetch_complete)
         self.thread.cancelled.connect(self.on_fetch_cancel)
         self.thread.error.connect(self.on_fetch_error)
@@ -113,10 +116,20 @@ class FetchProgressDialog(QDialog):
 
     def on_fetch_cancel(self):
         """Stop the timer and close the dialog."""
+        if self._cancelled or self._settled:
+            return
+        self._cancelled = True
         self.timer.stop()
         self.thread.cancel()
         self.cancelled.emit()
         self.reject()
+
+    def reject(self):
+        """Treat Escape and closing the dialog as cancellation too."""
+        if not self._cancelled and not self._settled:
+            self.on_fetch_cancel()
+            return
+        super().reject()
 
     def start_fetch(self):
         """Run this to display the dialog and start the fetch."""
@@ -125,18 +138,26 @@ class FetchProgressDialog(QDialog):
 
     def on_fetch_complete(self, video_list):
         """Handle thread completion and emit finished signal with results."""
+        if self._cancelled:
+            return
+        self._settled = True
         self.timer.stop()
         self.finished.emit(video_list)
         self.accept()
 
     def on_fetch_error(self, message):
         """Forward worker errors and close the dialog."""
+        if self._cancelled:
+            return
+        self._settled = True
         self.timer.stop()
         self.error.emit(message)
         self.reject()
 
     def on_progress(self, count, total):
         """Update progress bar and text as batches are fetched."""
+        if self._cancelled:
+            return
         if self.is_playlist:
             # Keep the bar indeterminate and show a friendly status message.
             self.progress_bar.setRange(0, 0)

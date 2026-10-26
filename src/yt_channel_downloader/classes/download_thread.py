@@ -4,7 +4,6 @@
 # Description: This module contains the class DownloadThread
 # License: MIT License
 
-import glob
 import os
 import re
 import time
@@ -12,8 +11,12 @@ import unicodedata
 
 from .utils import get_format_candidates
 from .quiet_ydl_logger import QuietYDLLogger
+from .yt_dlp_options import javascript_options
+from .download_identity import audio_preferences, download_path, video_preferences
+from .media_postprocessors import AudioBitratePP, FinalizeDownloadPP, VideoContainerPP
+from .media_files import FINAL_MEDIA_EXTENSIONS
 from .settings_manager import SettingsManager
-from ..config.constants import settings_map
+from ..config.constants import LOSSY_AUDIO_FORMATS
 from .logger import get_logger
 
 import yt_dlp
@@ -22,7 +25,6 @@ from PyQt6.QtCore import QThread, pyqtSignal as Signal
 
 
 logger = get_logger("DownloadThread")
-ANSI_ESCAPE_RE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
 
 class DownloadThread(QThread):
@@ -50,7 +52,7 @@ class DownloadThread(QThread):
     download_progress_signal = Signal(dict)
     download_complete_signal = Signal(int)
 
-    def __init__(self, url, index, title, mainWindow, parent=None):
+    def __init__(self, url, index, title, mainWindow, parent=None, *, output_path=None):
         """Store download context and initialise throttled progress tracking."""
         super().__init__(parent)
         self.url = url
@@ -58,7 +60,8 @@ class DownloadThread(QThread):
         self.title = title
         self.main_window = mainWindow
         self.settings_manager = SettingsManager()
-        self.user_settings = self.settings_manager.settings
+        self.user_settings = dict(self.settings_manager.settings)
+        self.output_path = output_path
         self._cancel_requested = False
         self._last_progress = 0.0
         self._last_emitted_progress = -1.0
@@ -75,8 +78,12 @@ class DownloadThread(QThread):
         Configures download options based on user preferences, fetches the video,
         and emits signals to update the UI on progress and completion.
         """
-        self.main_window.download_semaphore.acquire()
+        acquired = False
         try:
+            while not acquired:
+                self._raise_if_cancelled()
+                acquired = self.main_window.download_semaphore.acquire(timeout=0.1)
+            self._raise_if_cancelled()
             self._perform_download()
 
         except yt_dlp.utils.DownloadCancelled:
@@ -95,12 +102,17 @@ class DownloadThread(QThread):
             self._emit_progress_error("Unexpected error")
 
         finally:
-            # Release semaphore regardless of outcome
-            self.main_window.download_semaphore.release()
-            logger.debug("Released download semaphore for index %s", self.index)
+            if acquired:
+                self.main_window.download_semaphore.release()
+                logger.debug("Released download semaphore for index %s", self.index)
+
+    def _raise_if_cancelled(self):
+        if self._cancel_requested:
+            raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
 
     def _perform_download(self):
         """Dispatch the download through the audio-only or video flow."""
+        self._raise_if_cancelled()
         logger.info(
             "Download started for index %s url=%s audio_only=%s yt_dlp=%s",
             self.index,
@@ -121,16 +133,23 @@ class DownloadThread(QThread):
 
     def _build_download_options(self, sanitized_title):
         """Build the base yt-dlp options shared by all download modes."""
-        download_directory = self.user_settings.get('download_directory')
         write_thumbnail = self.user_settings.get('download_thumbnail')
+        output_path = self.output_path or download_path(sanitized_title, self.url, self.user_settings)
+        self._resolved_output_path = output_path
+        output_base = output_path.replace('%', '%%')
         ydl_opts = {
-            'outtmpl': os.path.join(download_directory, f'{sanitized_title}.%(ext)s'),
+            **javascript_options(),
+            'outtmpl': {'default': f'{output_base}.source.%(ext)s', 'thumbnail': f'{output_base}.%(ext)s'},
             'progress_hooks': [self.dl_hook],
             'writethumbnail': write_thumbnail,
+            'noplaylist': True,
+            # Some extractors return a collection even with noplaylist enabled.
+            'playlist_items': '1',
+            'lazy_playlist': True,
+            'socket_timeout': 15,
             'quiet': True,
             'no_warnings': True,
             'logger': QuietYDLLogger(),
-            'remote_components': ['ejs:github'],
         }
 
         auth_opts = self._build_auth_options()
@@ -156,13 +175,20 @@ class DownloadThread(QThread):
     def _download_audio_only_flow(self, ydl_opts):
         """Download audio using the preferred selector and fallback if required."""
         audio_format, audio_quality = self._audio_preferences()
-        audio_filter = f"[ext={audio_format}]" if audio_format and audio_format != 'Any' else ''
-        if audio_filter:
-            ydl_opts['postprocessors'] = [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': audio_format
-            }]
-        ydl_opts['format'] = f"{audio_quality}{audio_filter}/bestaudio/best"
+        source_ext = 'ogg' if audio_format == 'vorbis' else audio_format
+        if audio_quality.endswith('k'):
+            source_ext = None
+        audio_filter = f"[ext={source_ext}]" if source_ext and source_ext != 'Any' else ''
+        postprocessor = {
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': audio_format if audio_format and audio_format != 'Any' else 'best',
+        }
+        if audio_quality.endswith('k'):
+            postprocessor['preferredquality'] = audio_quality[:-1]
+        elif audio_format in LOSSY_AUDIO_FORMATS:
+            postprocessor['preferredquality'] = '256' if audio_format == 'opus' else '0'
+        ydl_opts['postprocessors'] = [postprocessor]
+        ydl_opts['format'] = f"bestaudio{audio_filter}/bestaudio/best" if audio_filter else 'bestaudio/best'
 
         try:
             self._execute_download(ydl_opts)
@@ -183,7 +209,7 @@ class DownloadThread(QThread):
         fallback_opts['format'] = 'best'
         postprocessors = fallback_opts.get('postprocessors')
         if not postprocessors:
-            preferred_codec = audio_format if audio_format and audio_format != 'Any' else 'mp3'
+            preferred_codec = audio_format if audio_format and audio_format != 'Any' else 'best'
             fallback_opts['postprocessors'] = [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': preferred_codec
@@ -197,17 +223,14 @@ class DownloadThread(QThread):
 
     def _audio_preferences(self):
         """Resolve the preferred audio format and selector from user settings."""
-        audio_format = settings_map['preferred_audio_format'].get(
-            self.user_settings.get('preferred_audio_format', 'Any'),
-            'Any')
-        audio_quality = settings_map['preferred_audio_quality'].get(
-            self.user_settings.get('preferred_audio_quality', 'Best available'),
-            'bestaudio')
-        return audio_format, audio_quality
+        return audio_preferences(self.user_settings)
 
     def _download_video_flow(self, ydl_opts, auth_opts):
         """Download video with a primary selector and a quality-preserving fallback."""
+        self._raise_if_cancelled()
         video_format, video_quality = self._video_preferences()
+        if video_format:
+            ydl_opts['postprocessors'] = [{'key': 'FFmpegVideoConvertor', 'preferedformat': video_format}]
         ydl_opts['format_sort'] = ['hasvid']
         ydl_opts['format_sort_force'] = True
         format_candidates = get_format_candidates(
@@ -264,7 +287,6 @@ class DownloadThread(QThread):
 
     def _download_video_fallback(self, err, ydl_opts, quality_fallback_selector):
         """Retry video downloads with broader selectors before giving up."""
-        latest_err = err
         err_str = str(err)
         if not self._is_retryable_video_download_error(err_str):
             raise err
@@ -284,21 +306,17 @@ class DownloadThread(QThread):
                 self._execute_download(retry_opts)
                 return
             except yt_dlp.utils.DownloadError as retry_err:
-                latest_err = retry_err
                 err_str = str(retry_err)
                 if not self._is_retryable_video_download_error(err_str):
                     raise retry_err
 
-        if "Requested format is not available" not in err_str:
-            raise latest_err
-
         fallback_opts = dict(ydl_opts)
-        fallback_opts.pop('postprocessors', None)
         fallback_opts.pop('format_sort', None)
         fallback_opts.pop('format_sort_force', None)
-        fallback_opts['format'] = 'best'
+        height = self._parse_height(self._video_preferences()[1])
+        fallback_opts['format'] = f'best[height<=?{height}]' if height else 'best'
         logger.warning(
-            "Preferred format remains unavailable for index %s (%s); falling back to generic best.",
+            "Preferred video download failed for index %s (%s); falling back to progressive best.",
             self.index,
             err_str,
         )
@@ -306,16 +324,7 @@ class DownloadThread(QThread):
 
     def _video_preferences(self):
         """Resolve the preferred video extension and quality selector."""
-        video_format = settings_map['preferred_video_format'].get(
-            self.user_settings.get('preferred_video_format', 'Any'), 'Any')
-        video_quality = settings_map['preferred_video_quality'].get(
-            self.user_settings.get('preferred_video_quality', 'bestvideo'),
-            'Any')
-        if video_format == 'Any':
-            video_format = None
-        if video_quality in ('Any', None):
-            video_quality = 'bestvideo'
-        return video_format, video_quality
+        return video_preferences(self.user_settings)
 
     @staticmethod
     def _parse_height(video_quality):
@@ -351,15 +360,14 @@ class DownloadThread(QThread):
     def _build_format_selector(self, candidates, height, file_ext):
         """Build the primary yt-dlp selector from exact candidates plus fallbacks."""
         selectors = []
+        height_filter = f'[height<=?{height}]' if height else ''
         for fmt in candidates:
-            selectors.append(f"{fmt}+bestaudio")
-        if height:
-            selectors.append(f"bestvideo[height<={height}]+bestaudio")
-            selectors.append(f"bestvideo[height<={height}]")
-        if file_ext and file_ext != 'Any':
-            selectors.append(f"bestvideo[ext={file_ext}]+bestaudio")
-            selectors.append(f"bestvideo[ext={file_ext}]")
-        selectors.append("bestvideo*+bestaudio/bestvideo*")
+            selectors.append(f"{fmt}{height_filter}+bestaudio")
+            selectors.append(f"{fmt}{height_filter}[acodec!=none]")
+        quality_selector = self._build_quality_fallback_selector(height, file_ext)
+        if quality_selector:
+            selectors.append(quality_selector)
+        selectors.append(f"bestvideo*{height_filter}+bestaudio/best{height_filter}/bestvideo*{height_filter}")
         return self._join_unique_selectors(selectors)
 
     @staticmethod
@@ -376,42 +384,40 @@ class DownloadThread(QThread):
                 ordered.append(item)
         return '/'.join(ordered)
 
-    def _height_bound_quality_selectors(self, height, file_ext):
-        selectors = []
-        if self._has_specific_extension(file_ext):
-            selectors.extend([
-                f"bestvideo[ext={file_ext}][height<={height}]+bestaudio",
-                f"best[ext={file_ext}][height<={height}]",
-            ])
-        selectors.extend([
-            f"bestvideo[height<={height}]+bestaudio",
-            f"best[height<={height}]",
-        ])
-        return selectors
-
-    def _extension_only_quality_selectors(self, file_ext):
-        if not self._has_specific_extension(file_ext):
-            return []
-        return [
-            f"bestvideo[ext={file_ext}]+bestaudio",
-            f"best[ext={file_ext}]",
-        ]
-
     def _build_quality_fallback_selector(self, height, file_ext):
-        """Build a selector that keeps the requested height/extension when possible."""
+        """Retry without format IDs, keeping the resolution limit before conversion."""
         if height:
-            selectors = self._height_bound_quality_selectors(height, file_ext)
-        else:
-            selectors = self._extension_only_quality_selectors(file_ext)
-        if not selectors:
-            return ""
-        return self._join_unique_selectors(selectors)
+            return f"bestvideo[height<=?{height}]+bestaudio/best[height<=?{height}]"
+        if self._has_specific_extension(file_ext):
+            return 'bestvideo+bestaudio/best'
+        return ''
 
     def _execute_download(self, options):
         """Run yt-dlp with the prepared options, respecting cancellation."""
+        self._raise_if_cancelled()
+        options = dict(options)
+        audio_encoder = None
+        video_converter = None
+        explicit_audio_bitrate = bool(self.user_settings.get('audio_only') and self._audio_preferences()[1].endswith('k'))
+        postprocessors = []
+        for processor in options.get('postprocessors', []):
+            if processor['key'] == 'FFmpegExtractAudio' and explicit_audio_bitrate:
+                audio_encoder = processor
+            elif processor['key'] == 'FFmpegVideoConvertor':
+                video_converter = processor
+            else:
+                postprocessors.append(processor)
+        options['postprocessors'] = postprocessors
         with yt_dlp.YoutubeDL(options) as ydl:
-            if self._cancel_requested:
-                raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
+            if video_converter:
+                ydl.add_post_processor(VideoContainerPP(ydl, preferedformat=video_converter['preferedformat']))
+            if audio_encoder:
+                ydl.add_post_processor(AudioBitratePP(
+                    ydl, audio_encoder['preferredcodec'], audio_encoder['preferredquality']))
+            raw_aac = self.user_settings.get('audio_only') and self._audio_preferences()[0] == 'aac'
+            ydl.add_post_processor(FinalizeDownloadPP(
+                ydl, self._resolved_output_path, 'aac' if raw_aac else None), when='after_move')
+            self._raise_if_cancelled()
             ydl.download([self.url])
 
     @staticmethod
@@ -445,11 +451,13 @@ class DownloadThread(QThread):
             d (dict): A dictionary containing status information about the
             ongoing download.
         """
-        if self._cancel_requested:
-            raise yt_dlp.utils.DownloadCancelled("Cancelled by user")
+        self._raise_if_cancelled()
         if d['status'] == 'downloading':
-            progress_str = ANSI_ESCAPE_RE.sub('', d['_percent_str'])
-            progress = float(progress_str.strip('%'))
+            total = d.get('total_bytes') or d.get('total_bytes_estimate')
+            downloaded = d.get('downloaded_bytes')
+            progress = self._last_progress
+            if total and total > 0 and downloaded is not None:
+                progress = max(0.0, min(100.0, 100.0 * downloaded / total))
             self._last_progress = progress
             now = time.monotonic()
             should_emit = (
@@ -473,13 +481,14 @@ class DownloadThread(QThread):
                 )
 
     @staticmethod
-    def sanitize_filename(filename):
+    def sanitize_filename(filename, *, legacy=False):
         """
         Sanitizes the filename by removing illegal characters, emoji, hashtags, and
         other symbols unsuitable for file names. Also checks against reserved filenames.
 
         Args:
             filename (str): The initial filename based on the video title.
+            legacy (bool): Preserve the old naming rules when finding existing files.
 
         Returns:
             str: A sanitized filename safe for use in file systems.
@@ -491,8 +500,9 @@ class DownloadThread(QThread):
         filename = unicodedata.normalize("NFKD", filename)
 
         # Remove emoji and other non-ASCII characters
+        excluded_categories = ("So",) if legacy else ("So", "Cc", "Cs")
         filename = ''.join(c for c in filename if not
-                           unicodedata.category(c).startswith("So"))
+                           unicodedata.category(c).startswith(excluded_categories))
 
         # Replace spaces with underscores
         filename = filename.replace(' ', '_')
@@ -500,24 +510,25 @@ class DownloadThread(QThread):
         # Remove characters that are illegal in Windows filenames and hashtags
         filename = re.sub(r'[\\/*?:"<>|\[\]#]', '', filename)
 
-        filename = filename[:250]
-
         # Check for Windows reserved filenames and modify if necessary
         reserved_filenames = {
             "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5",
             "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4",
             "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
         }
-        if filename.upper() in reserved_filenames:
-            filename += "_"
+        if legacy:
+            filename = filename[:250]
+            return filename + '_' if filename.upper() in reserved_filenames else filename
+        if filename.split('.', 1)[0].upper() in reserved_filenames:
+            filename = '_' + filename
 
-        return filename
+        # Leave space for stream IDs, extensions, and yt-dlp's temporary suffixes.
+        return filename.encode('utf-8')[:200].decode('utf-8', errors='ignore').rstrip('. ') or 'video'
 
     @staticmethod
     def is_download_complete(filepath):
         """
-        Checks if the download for a given file is complete by looking for
-        temporary `.part` or `.ytdl` files.
+        Check for a nonempty final media file, excluding thumbnails and fragments.
 
         Args:
             filepath (str): The path to the file without the extension.
@@ -526,18 +537,11 @@ class DownloadThread(QThread):
             bool: True if the download is complete, False otherwise.
         """
 
-        part_files = glob.glob(f"{filepath}*.part")
-        ytdl_files = glob.glob(f"{filepath}*.ytdl")
-
-        # If any partially downloaded files are found,
-        # the download is incomplete
-        if part_files or ytdl_files:
-            return False
-
-        matching_files = glob.glob(f"{filepath}.*")
-
-        # Otherwise only completely downloaded files would be found
-        if not matching_files:
-            return False
-
-        return True
+        for extension in FINAL_MEDIA_EXTENSIONS:
+            candidate = f"{filepath}.{extension}"
+            try:
+                if os.path.isfile(candidate) and os.path.getsize(candidate) > 0:
+                    return True
+            except OSError:
+                continue
+        return False

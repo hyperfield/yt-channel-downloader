@@ -5,13 +5,15 @@
 # and DownloadThread.
 # License: MIT License
 
-import re
+import math
 from typing import Any, Dict, Optional
 from urllib.error import HTTPError
 import yt_dlp
 
 from .logger import get_logger
 from .quiet_ydl_logger import QuietYDLLogger
+from .yt_dlp_options import javascript_options
+from .source_urls import youtube_video_id
 
 
 logger = get_logger("YouTubeURLValidator")
@@ -23,7 +25,7 @@ class YouTubeURLValidator:
     def check_existence(video_id, extra_opts=None):
         """Check if a YouTube video exists and is available using yt-dlp."""
         try:
-            ydl_opts = {'quiet': True}
+            ydl_opts = {**javascript_options(), 'quiet': True}
             if extra_opts:
                 ydl_opts.update(extra_opts)
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -37,7 +39,7 @@ class YouTubeURLValidator:
     @staticmethod
     def _build_ydl_opts(base_opts, extra_opts=None):
         """Merge shared yt-dlp options with per-call overrides and a quiet logger."""
-        opts = base_opts.copy()
+        opts = {**javascript_options(), **base_opts}
         if extra_opts:
             opts.update(extra_opts)
         opts.setdefault('logger', QuietYDLLogger())
@@ -61,7 +63,7 @@ class YouTubeURLValidator:
         return bool(info and YouTubeURLValidator._playlist_has_entries(info))
 
     @staticmethod
-    def extract_playlist_entries(playlist_url, extra_opts=None):
+    def extract_playlist_entries(playlist_url, extra_opts=None, limit=None):
         """Extract flat playlist entries without resolving every video in full."""
         info = YouTubeURLValidator._safe_playlist_extract(
             playlist_url,
@@ -70,7 +72,7 @@ class YouTubeURLValidator:
                 'no_warnings': False,
                 'skip_download': True,
                 'noplaylist': False,
-                'playlist_items': '1-1000',
+                'playlist_items': f'1-{limit}' if limit else None,
                 'yes_playlist': True,
                 'extract_flat': True,
             },
@@ -123,42 +125,10 @@ class YouTubeURLValidator:
 
     @staticmethod
     def _validated_youtube_url(url_or_video_id, extra_opts):
-        for pattern, transform in YouTubeURLValidator._video_matchers():
-            match = re.match(pattern, url_or_video_id)
-            if not match:
-                continue
-            video_id = match.group(3) if match.lastindex else url_or_video_id
-            if YouTubeURLValidator.check_existence(video_id, extra_opts):
-                return transform(video_id, url_or_video_id)
+        video_id = youtube_video_id(url_or_video_id)
+        if video_id and YouTubeURLValidator.check_existence(video_id, extra_opts):
+            return YouTubeURLValidator._watch_url(video_id)
         return None
-
-    @staticmethod
-    def _video_matchers():
-        watch_pattern = (
-            r'(https?://)?'
-            r'(www\.)?'
-            r'youtube\.com/watch\?v='
-            r'([0-9A-Za-z_-]{11})'
-        )
-        shorts_pattern = (
-            r'(https?://)?'
-            r'(www\.)?'
-            r'youtube\.com/shorts/'
-            r'([0-9A-Za-z_-]{11})'
-        )
-        short_link_pattern = (
-            r'(https?://)?'
-            r'(www\.)?'
-            r'youtu\.be/'
-            r'([0-9A-Za-z_-]{11})'
-        )
-        video_id_pattern = r'^[0-9A-Za-z_-]{11}$'
-        return (
-            (watch_pattern, lambda _video_id, original: original),
-            (shorts_pattern, lambda video_id, _original: YouTubeURLValidator._watch_url(video_id)),
-            (short_link_pattern, lambda video_id, _original: YouTubeURLValidator._watch_url(video_id)),
-            (video_id_pattern, lambda video_id, _original: YouTubeURLValidator._watch_url(video_id)),
-        )
 
     @staticmethod
     def _watch_url(video_id):
@@ -177,19 +147,21 @@ def extract_single_media(url: str, auth_opts: Optional[Dict[str, Any]] = None) -
     if not info:
         return None
 
-    entry = _first_playlist_entry(info, url)
-    if not entry:
-        return None
-
-    return _build_media_result(entry, url)
+    return _build_media_result(info, url)
 
 
 def _single_media_opts(auth_opts: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Build yt-dlp options for single-item metadata extraction."""
     opts: Dict[str, Any] = {
+        **javascript_options(),
         'quiet': True,
         'skip_download': True,
         'noplaylist': True,
+        # Inspect at most two entries to reject collections without resolving them all.
+        'playlist_items': '1:2',
+        'lazy_playlist': True,
+        'socket_timeout': 15,
+        'logger': QuietYDLLogger(),
     }
     if auth_opts:
         opts.update(auth_opts)
@@ -197,35 +169,49 @@ def _single_media_opts(auth_opts: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def _safe_extract_info(url: str, ydl_opts: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Extract yt-dlp metadata while normalising expected failures to None."""
+    """Resolve a single item while retaining useful extractor errors for the UI."""
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            return ydl.extract_info(url, download=False)
+            info = ydl.extract_info(url, download=False)
+            return single_media_entry(info, url) if info else None
     except yt_dlp.utils.DownloadError as exc:
         logger.debug("yt-dlp failed to extract metadata for %s: %s", url, exc)
+        raise ValueError(str(exc)) from exc
+    except ValueError:
+        raise
     except Exception as exc:  # noqa: BLE001
         logger.exception("Unexpected error while extracting metadata for %s: %s", url, exc)
     return None
 
 
-def _first_playlist_entry(info: Dict[str, Any], url: str) -> Optional[Dict[str, Any]]:
-    """Return the first real entry when a single-media probe yields a playlist."""
-    if info.get('_type') != 'playlist':
+def single_media_entry(info: Dict[str, Any], url: str) -> Optional[Dict[str, Any]]:
+    """Unwrap single-item embeds, rejecting ambiguous playlists and multi-video posts."""
+    if info.get('_type') not in ('playlist', 'multi_video'):
         return info
-    entries = info.get('entries') or []
-    first = next((entry for entry in entries if entry), None)
+    entries = iter(info.get('entries') or [])
+    first = next(entries, None)
+    second = next(entries, None)
+    count = info.get('playlist_count')
+    if second is not None or (isinstance(count, (int, float)) and count > 1):
+        raise ValueError(
+            'This URL contains multiple media items. Paste a direct link to one item. '
+            'Bulk channel and playlist fetching is available for YouTube only.')
     if not first:
         logger.warning("Playlist has no entries for URL: %s", url)
         return None
-    return first
+    return single_media_entry(first, url)
 
 
 def _build_media_result(info: Dict[str, Any], original_url: str) -> Dict[str, Any]:
-    """Normalise yt-dlp metadata into the app's title/url/duration shape."""
+    """Keep the source page so yt-dlp can refresh signed streams and request headers."""
     title = info.get('title') or 'Unknown Title'
-    final_url = info.get('webpage_url') or info.get('url') or original_url
+    final_url = original_url
     duration = _normalize_duration(info)
-    return {'title': title, 'url': final_url, 'duration': duration}
+    result = {'title': title, 'url': final_url, 'duration': duration}
+    for key in ('thumbnail', 'thumbnails'):
+        if info.get(key):
+            result[key] = info[key]
+    return result
 
 
 def _normalize_duration(info: Dict[str, Any]) -> Optional[int]:
@@ -235,7 +221,7 @@ def _normalize_duration(info: Dict[str, Any]) -> Optional[int]:
         return duration
     if info.get('duration_string'):
         try:
-            return yt_dlp.utils.parse_duration(info['duration_string'])
+            return _coerce_duration_value(info['duration_string'])
         except Exception:  # noqa: BLE001
             return None
     return None
@@ -243,19 +229,21 @@ def _normalize_duration(info: Dict[str, Any]) -> Optional[int]:
 
 def _coerce_duration_value(value: Any) -> Optional[int]:
     """Convert a duration-like value into seconds when possible."""
-    if value is None:
+    if value is None or isinstance(value, bool):
         return None
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
     if isinstance(value, str):
-        if value.isdigit():
-            return int(value)
-        return yt_dlp.utils.parse_duration(value)
+        try:
+            value = yt_dlp.utils.parse_duration(value.strip())
+        except (TypeError, ValueError, OverflowError):
+            return None
+    if isinstance(value, (int, float)) and math.isfinite(value) and value >= 0:
+        return int(value)
     return None
 
 
 def is_supported_media_url(url: str, auth_opts: Optional[Dict[str, Any]] = None) -> bool:
-    """Check whether the provided URL is supported by yt-dlp."""
-    return extract_single_media(url, auth_opts=auth_opts) is not None
+    """Probe support; callers must run this network operation off the GUI thread."""
+    try:
+        return extract_single_media(url, auth_opts=auth_opts) is not None
+    except ValueError:
+        return False

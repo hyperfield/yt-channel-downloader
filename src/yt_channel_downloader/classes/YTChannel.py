@@ -5,15 +5,16 @@
 # License: MIT License
 
 import re
-from urllib.parse import urlparse, parse_qs
 from urllib import error
 
 import requests
 
 from .validators import YouTubeURLValidator, extract_single_media
 from .quiet_ydl_logger import QuietYDLLogger
+from .yt_dlp_options import javascript_options
 from ..config.constants import DEFAULT_CHANNEL_FETCH_LIMIT, CHANNEL_FETCH_BATCH_SIZE
 from .settings_manager import SettingsManager
+from .source_urls import youtube_playlist_id, youtube_url_parts, youtube_video_id
 
 import yt_dlp
 from yt_dlp.utils import parse_duration
@@ -50,22 +51,20 @@ class YTChannel(QObject):
 
     def is_video_url(self, url):
         """Return True when the input looks like a direct YouTube video URL or ID."""
-        return 'youtube.com/watch?v=' in url or 'youtu.be/' in url \
-            or len(url) == 11
+        return youtube_video_id(url) is not None
 
     def is_playlist_url(self, url):
         """Check if the URL is related to a YouTube playlist."""
-        playlist_pattern = r'list=[0-9A-Za-z_-]+'
-        return re.search(playlist_pattern, url) is not None
+        return youtube_playlist_id(url) is not None
 
     def is_video_with_playlist_url(self, url):
         """Return True when the URL points to a video inside a playlist."""
-        video_with_playlist_pattern = r'youtube\.com/watch\?.*v=.*&list=[0-9A-Za-z_-]+'
-        return re.search(video_with_playlist_pattern, url) is not None
+        return self.is_video_url(url) and self.is_playlist_url(url)
 
     def is_short_video_url(self, url):
         """Check if the URL is related to a YouTube Shorts video."""
-        return 'youtube.com/shorts/' in url
+        parsed = youtube_url_parts(url)
+        return bool(parsed and parsed.path.startswith('/shorts/') and youtube_video_id(url))
 
     def get_channel_id(self, url):
         """Resolve a YouTube channel identifier from a channel URL or page HTML."""
@@ -78,7 +77,8 @@ class YTChannel(QObject):
     @staticmethod
     def _channel_id_from_url(url):
         """Extract a channel ID directly from /channel/<id> URLs when present."""
-        match = re.search(r"/channel/([^/?#]+)", url)
+        parsed = youtube_url_parts(url)
+        match = re.fullmatch(r"/channel/([^/]+)/?", parsed.path) if parsed else None
         if match:
             return match.group(1)
         return None
@@ -117,6 +117,7 @@ class YTChannel(QObject):
         """Fetch lightweight metadata for a single video URL."""
         auth_opts = self._get_auth_params()
         ydl_opts = {
+            **javascript_options(),
             'quiet': True,
             'no_warnings': True,
             'extract_flat': True,   # Only extract metadata
@@ -282,6 +283,7 @@ class YTChannel(QObject):
 
     def _fetch_channel_entries_for_strategy(self, channel_url, opts, auth_opts):
         ydl_opts = {
+            **javascript_options(),
             'quiet': True,
             'skip_download': True,
             'extract_flat': True,
@@ -387,7 +389,7 @@ class YTChannel(QObject):
         total_entries = self._get_playlist_total_count(playlist_url, auth_opts)
         self._report_playlist_start(playlist_url, progress_callback, total_entries)
 
-        entries, total_entries = self._load_playlist_entries(playlist_url, auth_opts, total_entries)
+        entries, total_entries = self._load_playlist_entries(playlist_url, auth_opts, total_entries, limit)
         if entries:
             video_titles_links = self._collect_playlist_entries(
                 entries, limit, is_cancelled, progress_callback, total_entries
@@ -403,11 +405,11 @@ class YTChannel(QObject):
             progress_callback(0, total_entries)
         self.logger.info("Starting playlist fetch for %s (reported total: %s)", playlist_url, total_entries or "unknown")
 
-    def _load_playlist_entries(self, playlist_url, auth_opts, total_entries):
+    def _load_playlist_entries(self, playlist_url, auth_opts, total_entries, limit=None):
         """Validate the playlist and load its flat entries."""
         if not YouTubeURLValidator.playlist_exists(playlist_url, auth_opts):
             return [], total_entries
-        entries = YouTubeURLValidator.extract_playlist_entries(playlist_url, auth_opts)
+        entries = YouTubeURLValidator.extract_playlist_entries(playlist_url, auth_opts, limit=limit)
         return entries, total_entries or len(entries)
 
     def _collect_playlist_entries(self, entries, limit, is_cancelled, progress_callback, total_entries):
@@ -499,6 +501,7 @@ class YTChannel(QObject):
         ]
         for opts in attempts:
             ydl_opts = {
+                **javascript_options(),
                 'quiet': True,
                 'skip_download': True,
                 'playlist_items': '1',
@@ -525,9 +528,7 @@ class YTChannel(QObject):
 
     def _canonical_playlist_url(self, url):
         """Ensure we query the playlist endpoint even if a watch URL was provided."""
-        parsed = urlparse(url)
-        qs = parse_qs(parsed.query)
-        list_id = qs.get('list', [None])[0]
+        list_id = youtube_playlist_id(url)
         if list_id:
             return f"https://www.youtube.com/playlist?list={list_id}"
         return url
@@ -535,11 +536,9 @@ class YTChannel(QObject):
     def get_single_video(self, video_url):
         """Resolve a single YouTube or generic media URL into one list entry."""
         auth_params = self._get_auth_params()
-        validation_result, formatted_url_or_id = YouTubeURLValidator.is_valid(
-            video_url, auth_params)
-
-        if validation_result:
-            video_data = self.retrieve_video_metadata(formatted_url_or_id)
+        video_id = youtube_video_id(video_url)
+        if video_id:
+            video_data = self.retrieve_video_metadata(YouTubeURLValidator._watch_url(video_id))
             if video_data:
                 self.video_titles_links.append(video_data)
             return self.video_titles_links

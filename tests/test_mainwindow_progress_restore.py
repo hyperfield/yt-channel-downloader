@@ -33,8 +33,8 @@ def test_snapshot_restorable_progress_state_keeps_partial_progress_for_matching_
     dummy = type("DummyWindow", (), {})()
     dummy.model = QtGui.QStandardItemModel()
     dummy.dl_path_correspondences = {
-        "Video One": VIDEO_ONE_PATH,
-        "Video Two": VIDEO_TWO_PATH,
+        "https://www.youtube.com/watch?v=abc123": VIDEO_ONE_PATH,
+        "https://www.youtube.com/watch?v=def456": VIDEO_TWO_PATH,
     }
     dummy.model.appendRow(
         _build_row(

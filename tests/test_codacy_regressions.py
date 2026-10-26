@@ -72,19 +72,16 @@ def test_build_proxy_url_rejects_disabled_or_incomplete_proxy_settings():
     )
 
 
-def test_build_quality_fallback_selector_preserves_height_then_extension():
-    thread = object.__new__(DownloadThread)
+def test_quality_fallback_preserves_resolution_and_leaves_container_to_conversion():
+    thread = DownloadThread.__new__(DownloadThread)
 
     _expect_equal(
         DownloadThread._build_quality_fallback_selector(thread, 1080, "mp4"),
-        "bestvideo[ext=mp4][height<=1080]+bestaudio/"
-        "best[ext=mp4][height<=1080]/"
-        "bestvideo[height<=1080]+bestaudio/"
-        "best[height<=1080]",
+        "bestvideo[height<=?1080]+bestaudio/best[height<=?1080]",
     )
     _expect_equal(
         DownloadThread._build_quality_fallback_selector(thread, None, "webm"),
-        "bestvideo[ext=webm]+bestaudio/best[ext=webm]",
+        "bestvideo+bestaudio/best",
     )
     _expect_equal(
         DownloadThread._build_quality_fallback_selector(thread, None, "Any"),

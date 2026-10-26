@@ -40,13 +40,13 @@ from ..ui.ui_about import Ui_aboutDialog
 from .settings_manager import SettingsManager
 from .enums import ColumnIndexes
 from ..config.constants import (
-    settings_map,
     DEFAULT_CHANNEL_FETCH_LIMIT,
     DEFAULT_PLAYLIST_FETCH_LIMIT,
     CHANNEL_FETCH_BATCH_SIZE,
     SUPPORT_URL,
 )
 from .download_thread import DownloadThread
+from .download_identity import download_directory, download_path, index_download_paths
 from .custom_dialog import CustomDialog
 from .youtube_cookies_dialog import YoutubeCookiesDialog
 from .fetch_progress_dialog import FetchProgressDialog
@@ -57,9 +57,12 @@ from .videoitem import VideoItem, THUMBNAIL_URL_ROLE
 from .thumbnail_loader import ThumbnailLoader
 from .settings import SettingsDialog
 from .youtube_auth_manager import YoutubeAuthManager
-from .validators import is_supported_media_url
+from .source_urls import is_http_media_url, youtube_url_parts, youtube_video_id
+from .validators import single_media_entry
 from .quiet_ydl_logger import QuietYDLLogger
-from .utils import filter_formats
+from .yt_dlp_options import javascript_options
+from .utils import rank_video_formats
+from .download_identity import audio_preferences, video_preferences
 from .js_warning_tracker import js_warning_tracker
 from .node_runtime_notifier import NodeRuntimeNotifier
 from .support_prompt import (
@@ -74,11 +77,6 @@ from .auto_update_worker import AutoUpdateWorker
 
 
 logger = get_logger("MainWindow")
-YOUTUBE_ID_PATTERNS = (
-    re.compile(r"youtu\.be/([^?&/]+)"),
-    re.compile(r"[?&]v=([^?&/]+)"),
-    re.compile(r"/shorts/([^?&/]+)"),
-)
 
 
 class MainWindow(QMainWindow):
@@ -103,8 +101,7 @@ class MainWindow(QMainWindow):
                                           and link data.
         vid_dl_indexes (list): List of indexes of videos to download.
         dl_threads (list): List of download threads.
-        dl_path_correspondences (dict): Map between video download paths and
-                                        video data.
+        dl_path_correspondences (dict): Map source URLs to the paths shown in the list.
     """
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
@@ -518,6 +515,9 @@ class MainWindow(QMainWindow):
 
     def cleanup_download_thread(self, index):
         """Remove finished or cancelled download threads from tracking."""
+        thread = self.active_download_threads.get(index)
+        if thread and thread.isRunning():
+            return
         thread = self.active_download_threads.pop(index, None)
         if thread and thread in self.dl_threads:
             self.dl_threads.remove(thread)
@@ -564,6 +564,7 @@ class MainWindow(QMainWindow):
         self.settings_manager = SettingsManager()
         self.user_settings = self.settings_manager.settings
         self._refresh_settings_signature()
+        self._update_load_next_button_state()
         self.user_settings.setdefault('suppress_node_runtime_warning', False)
         self.user_settings.setdefault('downloads_completed', 0)
         self.user_settings.setdefault('support_prompt_next_at', DEFAULT_SUPPORT_PROMPT_INITIAL_THRESHOLD)
@@ -805,8 +806,10 @@ class MainWindow(QMainWindow):
 
     def _is_download_complete_for_row(self, row: int) -> bool:
         title = self._item_text(row, ColumnIndexes.TITLE)
-        full_file_path = self.dl_path_correspondences.get(title)
-        return bool(full_file_path and DownloadThread.is_download_complete(full_file_path))
+        link = self._item_text(row, ColumnIndexes.LINK)
+        path = self._get_video_filepath(title, link)
+        self.dl_path_correspondences[link] = path
+        return DownloadThread.is_download_complete(path)
 
     def _set_row_checked(self, row: int, checked: bool) -> None:
         index = self.model.index(row, ColumnIndexes.DOWNLOAD)
@@ -915,10 +918,21 @@ class MainWindow(QMainWindow):
         application preferences. This dialog is modal and will block further
         input until closed.
         """
+        if self.active_download_threads:
+            return
+        previous_signature = self._settings_signature
         settings_dialog = SettingsDialog()
         settings_dialog.exec()
         self.user_settings = self.settings_manager.settings
         self._refresh_settings_signature()
+        self._update_load_next_button_state()
+        if self._settings_signature != previous_signature and self.model.rowCount():
+            checked_links = {self._item_text(row, ColumnIndexes.LINK) for row in self._checked_row_indexes()}
+            self.populate_window_list()
+            for row in range(self.model.rowCount()):
+                if self._item_text(row, ColumnIndexes.LINK) in checked_links and not self._is_download_complete_for_row(row):
+                    self._set_row_checked(row, True)
+            self.update_download_button_state()
         self.update_selection_size_summary()
 
     def show_about_dialog(self):
@@ -952,6 +966,7 @@ class MainWindow(QMainWindow):
         if enabled and self.active_download_threads:
             enabled = False
         self.ui.chanUrlEdit.setEnabled(enabled)
+        self.ui.actionSettings.setEnabled(enabled)
         fetch_button_enabled = enabled and not self.fetch_in_progress
         self.getVidListButton.setEnabled(fetch_button_enabled)
         self.getVidListAddButton.setEnabled(fetch_button_enabled)
@@ -1032,6 +1047,9 @@ class MainWindow(QMainWindow):
     def populate_window_list(self):
         """Populates the main window's list view with video details."""
         restored_progress_state = self._snapshot_restorable_progress_state()
+        self.dl_path_correspondences.clear()
+        self._download_path_directory = download_directory(self.user_settings)
+        self._download_path_index = index_download_paths(self._download_path_directory)
         self.reinit_model()
         if self._is_thumbnail_enabled() and self.thumbnail_loader:
             thumb_items = []
@@ -1049,7 +1067,6 @@ class MainWindow(QMainWindow):
 
         self._finalize_list_view()
         self.update_selection_size_summary()
-        self._maybe_prompt_on_js_warning()
         self._maybe_prompt_on_js_warning()
         # Ensure thumbnails queue after the view is built when enabled.
         if self._is_thumbnail_enabled():
@@ -1073,12 +1090,9 @@ class MainWindow(QMainWindow):
     @staticmethod
     def _progress_restore_keys(link: str, download_path: str) -> tuple[str, ...]:
         """Build stable lookup keys for restoring progress across list rebuilds."""
-        keys = []
-        if link:
-            keys.append(f"url:{link}")
         if download_path:
-            keys.append(f"path:{download_path}")
-        return tuple(keys)
+            return (f"path:{download_path}",)
+        return (f"url:{link}",) if link else ()
 
     def _snapshot_restorable_progress_state(self):
         """Capture partial progress from the current model before it is rebuilt."""
@@ -1088,7 +1102,6 @@ class MainWindow(QMainWindow):
         restored_state = {}
         for row in range(self.model.rowCount()):
             link_item = self.model.item(row, ColumnIndexes.LINK)
-            title_item = self.model.item(row, ColumnIndexes.TITLE)
             progress_item = self.model.item(row, ColumnIndexes.PROGRESS)
             if not link_item or not progress_item:
                 continue
@@ -1100,9 +1113,8 @@ class MainWindow(QMainWindow):
             if not progress_state:
                 continue
 
-            title = title_item.text() if title_item else ""
             link = link_item.text()
-            download_path = self.dl_path_correspondences.get(title)
+            download_path = self.dl_path_correspondences.get(link)
             for key in MainWindow._progress_restore_keys(link, download_path):
                 restored_state[key] = progress_state
 
@@ -1134,11 +1146,11 @@ class MainWindow(QMainWindow):
         title = video_entry.get('title', 'Unknown Title')
         link = video_entry.get('url', '')
         duration = video_entry.get('duration')
-        download_path = self._get_video_filepath(title)
+        download_path = self._get_video_filepath(title, link)
         thumbnail_url = self._thumbnail_url_for_entry(video_entry)
         video_item = VideoItem(title, link, duration, download_path, thumbnail_url=thumbnail_url)
         self.root_item.appendRow(video_item.get_qt_item())
-        self.dl_path_correspondences[title] = download_path
+        self.dl_path_correspondences[link] = download_path
         row_index = self.model.rowCount() - 1
         self._apply_row_height_hint(row_index)
         progress_index = self.model.index(row_index, ColumnIndexes.PROGRESS)
@@ -1166,12 +1178,14 @@ class MainWindow(QMainWindow):
         else:
             self._maybe_queue_thumbnail(row_index)
 
-    def _get_video_filepath(self, title):
-        """Generates the file path for a given video title based on user
-        settings."""
+    def _get_video_filepath(self, title, link):
+        """Resolve one source/settings identity without trusting title-only files."""
         filename = DownloadThread.sanitize_filename(title)
-        download_dir = self.user_settings.get('download_directory', './')
-        return os.path.join(download_dir, filename)
+        directory = download_directory(self.user_settings)
+        if directory != getattr(self, '_download_path_directory', None):
+            self._download_path_directory = directory
+            self._download_path_index = index_download_paths(directory)
+        return download_path(filename, link, self.user_settings, self._download_path_index)
 
     @staticmethod
     def _thumbnail_candidate_url(candidate) -> Optional[str]:
@@ -1332,17 +1346,16 @@ class MainWindow(QMainWindow):
         logger.info("Thumbnail fetch failed: row=%s url=%s", row_index, url)
 
     def _shutdown_background_workers(self):
-        """Ensure background threads/executors are stopped before exit."""
-        if self._size_recalc_worker_thread and self._size_recalc_worker_thread.isRunning():
-            self._size_recalc_worker_thread.quit()
-            self._size_recalc_worker_thread.wait(1500)
-        self._size_recalc_worker_thread = None
-        self._size_recalc_worker = None
-
-        if self._auto_update_thread and self._auto_update_thread.isRunning():
-            self._auto_update_thread.quit()
-            self._auto_update_thread.wait(1500)
-        self._auto_update_thread = None
+        """Request cancellation without destroying threads inside network requests."""
+        for thread in self._background_threads():
+            if not thread.isRunning():
+                continue
+            worker = getattr(thread, '_size_worker', None)
+            if worker:
+                worker.request_size_eta_cancellation()
+            if hasattr(thread, 'cancel'):
+                thread.cancel()
+            thread.quit()
 
         if self.thumbnail_loader:
             try:
@@ -1350,18 +1363,15 @@ class MainWindow(QMainWindow):
             except Exception:  # noqa: BLE001
                 logger.debug("Thumbnail loader shutdown failed", exc_info=True)
 
+    def _background_threads(self):
+        threads = set(self.findChildren(QtCore.QThread))
+        threads.update(self.active_download_threads.values())
+        return threads
+
     @staticmethod
     def _extract_youtube_id(link: str) -> Optional[str]:
         """Extract a YouTube video ID from common URL shapes."""
-        if not link:
-            return None
-        for pattern in YOUTUBE_ID_PATTERNS:
-            match = pattern.search(link)
-            if match:
-                video_id = match.group(1)
-                if video_id:
-                    return video_id
-        return None
+        return youtube_video_id(link) if link else None
 
     def _finalize_list_view(self):
         """Adjusts and displays the list view once all items are populated."""
@@ -1411,6 +1421,8 @@ class MainWindow(QMainWindow):
             self._cleanup_async_thread(self._size_recalc_worker_thread)
 
     def _selection_summary_text(self) -> Optional[str]:
+        if getattr(self, '_closing_requested', False):
+            return 'Closing…'
         if self.model.rowCount() == 0:
             return ""
 
@@ -1423,7 +1435,11 @@ class MainWindow(QMainWindow):
             self._stop_recalc_watchdog()
             return f"Selected: {len(selected_rows)} | Size estimation disabled"
 
-        if self._size_recalc_indicator_needed and self._start_async_selection_summary(selected_rows):
+        cache_miss = any(
+            (self._item_text(row, ColumnIndexes.LINK), self._settings_signature or ())
+            not in self.size_estimate_cache for row in selected_rows
+        )
+        if (self._size_recalc_indicator_needed or cache_miss) and self._start_async_selection_summary(selected_rows):
             return None
 
         total_estimated, total_remaining, has_unknown = self._calculate_selection_totals(selected_rows)
@@ -1524,6 +1540,7 @@ class MainWindow(QMainWindow):
             generation,
         )
         self._size_recalc_worker = worker
+        thread._size_worker = worker
         worker.moveToThread(thread)
         worker.finished.connect(self._on_async_selection_summary_finished)
         worker.finished.connect(worker.deleteLater)
@@ -1716,12 +1733,15 @@ class MainWindow(QMainWindow):
             return cached
 
         ydl_opts = {
+            **javascript_options(),
             'quiet': True,
             'no_warnings': True,
             'skip_download': True,
             'noplaylist': True,
+            'playlist_items': '1',
+            'lazy_playlist': True,
+            'socket_timeout': 15,
             'logger': QuietYDLLogger(),
-            'remote_components': ['ejs:github'],
         }
         auth_opts = self._get_auth_options() or {}
         proxy_url = self.settings_manager.build_proxy_url(self.user_settings)
@@ -1734,6 +1754,7 @@ class MainWindow(QMainWindow):
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(link, download=False)
+                info = single_media_entry(info, link) if info else None
             self.format_info_cache[link] = info
             return info
         except Exception as exc:  # noqa: BLE001
@@ -1747,12 +1768,10 @@ class MainWindow(QMainWindow):
 
         formats = info.get('formats') or []
         if self.user_settings.get('audio_only'):
-            audio_quality = self._map_setting('preferred_audio_quality', 'bestaudio')
-            audio_ext = self._map_setting('preferred_audio_format', None)
+            audio_ext, audio_quality = audio_preferences(self.user_settings)
             return self._estimate_audio_only_size(formats, audio_ext, audio_quality, duration_seconds)
 
-        video_quality = self._map_setting('preferred_video_quality', 'bestvideo')
-        video_ext = self._map_setting('preferred_video_format', None)
+        video_ext, video_quality = video_preferences(self.user_settings)
         return self._estimate_video_size(formats, video_quality, video_ext, duration_seconds)
 
     def _estimate_audio_only_size(
@@ -1798,60 +1817,20 @@ class MainWindow(QMainWindow):
 
     def _select_video_format(self, formats, target_resolution: str, target_ext: Optional[str]):
         """Pick the best matching video stream (could be muxed) for estimates."""
-        filtered = self._filter_video_formats(formats, target_ext)
-        if not filtered:
+        candidates = rank_video_formats(formats, target_resolution, target_ext)
+        if not candidates:
             return None
-
-        target_height = self._parse_target_height(target_resolution)
-        sorted_formats = self._sort_video_formats_by_preference(filtered, target_height)
-        return sorted_formats[0] if sorted_formats else None
-
-    @staticmethod
-    def _video_extension_key(target_ext: Optional[str]) -> str:
-        return target_ext if target_ext not in (None, 'Any') else 'Any'
-
-    def _filtered_video_candidates(self, formats, ext_key: str):
-        filtered = filter_formats(formats, ext_key) or []
-        if filtered or ext_key == 'Any':
-            return filtered
-        return filter_formats(formats, 'Any') or []
-
-    @staticmethod
-    def _valid_video_formats(formats):
-        return [fmt for fmt in formats if fmt.get('format_id') and fmt.get('url')]
-
-    def _filter_video_formats(self, formats, target_ext: Optional[str]):
-        """Filter and sanitize video formats based on extension preference."""
-        ext_key = self._video_extension_key(target_ext)
-        filtered = self._filtered_video_candidates(formats, ext_key)
-        return self._valid_video_formats(filtered)
-
-    def _parse_target_height(self, target_resolution: Optional[str]) -> Optional[int]:
-        """Extract a numeric target height from a resolution label."""
-        if not target_resolution or target_resolution == 'bestvideo':
-            return None
-        digits = ''.join(filter(str.isdigit, str(target_resolution)))
-        if not digits:
-            return None
-        try:
-            return int(digits)
-        except ValueError:
-            return None
-
-    def _sort_video_formats_by_preference(self, formats, target_height: Optional[int]):
-        """Order formats closest to the desired height, then by quality."""
-        if target_height:
-            def sort_key(fmt):
-                height = fmt.get('height') or 0
-                delta = abs(height - target_height)
-                return (delta, -height, -(fmt.get('tbr') or 0))
-            return sorted(formats, key=sort_key)
-
-        return sorted(formats, key=lambda f: (-(f.get('height') or 0), -(f.get('tbr') or 0)))
+        if not self._audio_only_formats(formats):
+            combined = [fmt for fmt in candidates if fmt.get('acodec') not in (None, 'none')]
+            if combined:
+                return combined[0]
+        return candidates[0]
 
     def _select_audio_format(self, formats, preferred_ext: Optional[str], preferred_quality: Optional[str]):
-        """Pick the audio stream closest to the requested quality/extension."""
+        """Estimate the source transfer using the downloader's audio preferences."""
         base_audio = self._audio_only_formats(formats)
+        if self._parse_bitrate_kbps(preferred_quality):
+            preferred_ext = None
         audio_formats = self._filter_audio_by_extension(base_audio, preferred_ext) or base_audio
         if not audio_formats:
             audio_formats = self._fallback_audio_formats(formats)
@@ -1862,7 +1841,8 @@ class MainWindow(QMainWindow):
 
     def _audio_only_formats(self, formats):
         """Return formats that contain audio but no video stream."""
-        return [f for f in formats if f.get('vcodec') == 'none' and f.get('url')]
+        return [f for f in formats if f.get('vcodec') == 'none'
+                and f.get('acodec') not in (None, 'none') and f.get('url')]
 
     def _fallback_audio_formats(self, formats):
         """Return any format that carries audio for fallback selection."""
@@ -1872,22 +1852,13 @@ class MainWindow(QMainWindow):
         """Filter audio formats to the requested extension or codec when possible."""
         if preferred_ext in (None, 'Any'):
             return audio_formats
-        return [
-            f for f in audio_formats
-            if f.get('ext') == preferred_ext or preferred_ext in (f.get('acodec') or '')
-        ]
+        source_ext = 'ogg' if preferred_ext == 'vorbis' else preferred_ext
+        return [f for f in audio_formats if f.get('ext') == source_ext]
 
     def _pick_best_audio_by_bitrate(self, audio_formats, preferred_quality: Optional[str]):
-        """Choose the audio format closest to the preferred bitrate target."""
-        target_bitrate = self._parse_bitrate_kbps(preferred_quality)
+        """Choose the best source bitrate; encoding quality affects the saved file."""
         bitrate = lambda f: self._get_audio_bitrate(f) or 0  # noqa: E731
-        if target_bitrate:
-            sorted_audio = sorted(
-                audio_formats,
-                key=lambda f: (abs(bitrate(f) - target_bitrate), -bitrate(f)),
-            )
-        else:
-            sorted_audio = sorted(audio_formats, key=lambda f: -bitrate(f))
+        sorted_audio = sorted(audio_formats, key=lambda f: -bitrate(f))
         return sorted_audio[0] if sorted_audio else None
 
     @staticmethod
@@ -1956,10 +1927,10 @@ class MainWindow(QMainWindow):
             return None
         if self.user_settings.get('audio_only'):
             bitrate_kbps = self._parse_bitrate_kbps(
-                self._map_setting('preferred_audio_quality', 'bestaudio')
+                audio_preferences(self.user_settings)[1]
             ) or 192
         else:
-            quality = self._map_setting('preferred_video_quality', '1080p')
+            quality = video_preferences(self.user_settings)[1]
             bitrate_lookup = {
                 '2160p': 20000,
                 '1440p': 12000,
@@ -1974,18 +1945,18 @@ class MainWindow(QMainWindow):
             bitrate_kbps = bitrate_lookup.get(quality, 4000)
         return int(bitrate_kbps * 1000 / 8 * duration_seconds)
 
-    def _map_setting(self, key: str, default):
-        """Resolve a user setting through settings_map with a default fallback."""
-        return settings_map.get(key, {}).get(self.user_settings.get(key), default)
-
     def _build_settings_signature(self) -> Tuple:
         """Build a tuple that reflects current download-affecting settings."""
         return (
+            download_directory(self.user_settings),
             self.user_settings.get('audio_only'),
             self.user_settings.get('preferred_audio_format'),
             self.user_settings.get('preferred_audio_quality'),
             self.user_settings.get('preferred_video_format'),
             self.user_settings.get('preferred_video_quality'),
+            self.user_settings.get('proxy_server_type'),
+            self.user_settings.get('proxy_server_addr'),
+            self.user_settings.get('proxy_server_port'),
         )
 
     def _refresh_settings_signature(self):
@@ -2135,7 +2106,6 @@ class MainWindow(QMainWindow):
         if hasattr(self, "recalc_status_widget"):
             self.recalc_status_widget.setVisible(True)
             self.selection_summary_label.setVisible(False)
-            QApplication.processEvents(QtCore.QEventLoop.ProcessEventsFlag.AllEvents)
 
     def _hide_recalc_status(self):
         """Hide the recalculation indicator and restore the selection summary."""
@@ -2261,7 +2231,9 @@ class MainWindow(QMainWindow):
         )
 
     def _start_generic_media_fetch(self, yt_channel, channel_url: str, append: bool) -> None:
-        logger.debug("URL supported by generic extractor; treating as single media")
+        logger.debug("Checking generic media URL in the fetch worker")
+        self.current_fetch_is_channel = False
+        self.channel_fetch_context = None
         self._start_fetch_dialog(
             None,
             yt_channel,
@@ -2271,11 +2243,11 @@ class MainWindow(QMainWindow):
 
     def _show_vid_list_internal(self, append: bool):
         """Shared fetch handler for replace and append modes."""
-        if self.node_notifier:
-            self.node_notifier.maybe_prompt()
         self.window_resize_needed = True
         self._set_fetch_controls_enabled(False)
-        channel_url = self.ui.chanUrlEdit.text()
+        channel_url = self.ui.chanUrlEdit.text().strip()
+        if self.node_notifier and (youtube_url_parts(channel_url) or youtube_video_id(channel_url)):
+            self.node_notifier.maybe_prompt()
         logger.info("Fetching video list for URL: %s (append=%s)", channel_url, append)
         yt_channel = self._prepare_yt_channel()
 
@@ -2287,13 +2259,12 @@ class MainWindow(QMainWindow):
             self._start_single_video_fetch(yt_channel, channel_url, append)
             return
 
-        if "youtube.com" in channel_url or "youtu.be" in channel_url:
+        if youtube_url_parts(channel_url):
             logger.debug("Attempting to fetch channel data")
             self._handle_channel_fetch(yt_channel, channel_url, append=append)
             return
 
-        auth_opts = self._get_auth_options()
-        if is_supported_media_url(channel_url, auth_opts):
+        if is_http_media_url(channel_url):
             self._start_generic_media_fetch(yt_channel, channel_url, append)
             return
 
@@ -2525,8 +2496,7 @@ class MainWindow(QMainWindow):
             progress_item.setData("Completed", Qt.ItemDataRole.DisplayRole)
 
     def _skip_completed_download(self, row: int, item) -> bool:
-        download_path = self.dl_path_correspondences.get(self._item_text(row, ColumnIndexes.TITLE))
-        if not download_path or not DownloadThread.is_download_complete(download_path):
+        if not self._is_download_complete_for_row(row):
             return False
         item.setCheckState(Qt.CheckState.Unchecked)
         self._mark_row_completed(row)
@@ -2534,12 +2504,17 @@ class MainWindow(QMainWindow):
 
     def _selected_download_rows(self):
         rows = []
+        pending_paths = set()
         for row in range(self.model.rowCount()):
             item = self.model.item(row, ColumnIndexes.DOWNLOAD)
             if not item or item.checkState() != Qt.CheckState.Checked:
                 continue
             if self._skip_completed_download(row, item):
                 continue
+            path = self.dl_path_correspondences[self._item_text(row, ColumnIndexes.LINK)]
+            if path in pending_paths:
+                continue
+            pending_paths.add(path)
             rows.append(row)
         return rows
 
@@ -2557,7 +2532,7 @@ class MainWindow(QMainWindow):
     def _register_download_thread(self, index: int):
         link = self._item_text(index, ColumnIndexes.LINK)
         title = self._item_text(index, ColumnIndexes.TITLE)
-        dl_thread = DownloadThread(link, index, title, self)
+        dl_thread = DownloadThread(link, index, title, self, output_path=self._get_video_filepath(title, link))
         dl_thread.download_complete_signal.connect(self.on_download_complete)
         dl_thread.download_progress_signal.connect(self.update_progress)
         dl_thread.finished.connect(lambda idx=index: self.cleanup_download_thread(idx))
@@ -2619,12 +2594,10 @@ class MainWindow(QMainWindow):
         speed_item = self.model.item(file_index, ColumnIndexes.SPEED)
         self._update_speed_item(speed_item, progress_data)
 
-        if "progress" in progress_data:
-            self._handle_progress_update(file_index, progress_bar, progress_data)
-            return
-
         if "error" in progress_data:
             self._handle_progress_error(file_index, progress_bar, speed_item, progress_data)
+        elif "progress" in progress_data:
+            self._handle_progress_update(file_index, progress_bar, progress_data)
 
     def _update_speed_item(self, speed_item, progress_data):
         """Refresh the speed column for a download row when data is available."""
@@ -2697,10 +2670,14 @@ class MainWindow(QMainWindow):
         """
         Exits the application by closing the PyQt main window.
         """
-        self._shutdown_background_workers()
-        QApplication.quit()
+        self.close()
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:  # noqa: D401
         """Ensure background threads are stopped before window closes."""
+        self._closing_requested = True
         self._shutdown_background_workers()
+        if any(thread.isRunning() for thread in self._background_threads()):
+            event.ignore()
+            QtCore.QTimer.singleShot(100, self.close)
+            return
         super().closeEvent(event)

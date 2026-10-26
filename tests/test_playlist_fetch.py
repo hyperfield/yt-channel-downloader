@@ -91,6 +91,14 @@ def test_extract_playlist_entries_requests_flat_playlist_metadata(monkeypatch):
     _expect_equal(entries, [{"id": "abc123def45", "title": "Video One"}])
 
 
+def test_playlist_fetch_honors_limits_above_one_thousand(monkeypatch):
+    monkeypatch.setattr(validators_module.yt_dlp, "YoutubeDL", _DummyYoutubeDL)
+
+    YouTubeURLValidator.extract_playlist_entries("https://www.youtube.com/playlist?list=PL123", limit=2500)
+
+    _expect_equal(_DummyYoutubeDL.captured_opts['playlist_items'], '1-2500')
+
+
 def test_playlist_collection_respects_limit_for_flat_entries():
     ytchannel_module = _import_ytchannel_module()
     channel = ytchannel_module.YTChannel()
