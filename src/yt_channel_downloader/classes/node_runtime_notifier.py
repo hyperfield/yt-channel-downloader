@@ -3,6 +3,7 @@
 # Description: Helper to prompt users to install a JavaScript runtime for yt-dlp
 
 from pathlib import Path
+import re
 import shutil
 import subprocess  # nosec B404 - only used with fixed argv lists and validated absolute executable paths
 
@@ -11,6 +12,7 @@ from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QDesktopServices
 
 from .logger import get_logger
+from .yt_dlp_options import MIN_JS_RUNTIME_VERSIONS
 
 
 logger = get_logger("NodeRuntimeNotifier")
@@ -44,7 +46,7 @@ class NodeRuntimeNotifier:
         if not force and self._has_working_js_runtime():
             return
 
-        if self.prompted_this_session and not force:
+        if self.prompted_this_session:
             logger.debug("JS runtime warning already shown this session")
             return
 
@@ -52,7 +54,7 @@ class NodeRuntimeNotifier:
 
     def _has_working_js_runtime(self) -> bool:
         """Check for a usable JavaScript runtime (Node.js or Deno) on PATH."""
-        for binary in ("node", "deno"):
+        for binary, minimum_version in MIN_JS_RUNTIME_VERSIONS.items():
             runtime_path = shutil.which(binary)
             if not runtime_path:
                 continue
@@ -60,9 +62,13 @@ class NodeRuntimeNotifier:
             if not runtime_path:
                 continue
             try:
-                subprocess.run([runtime_path, "--version"], check=True,  # nosec B603
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                               timeout=2, shell=False)
+                result = subprocess.run([runtime_path, "--version"], check=True,  # nosec B603
+                                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                        text=True, timeout=2, shell=False)
+                match = re.search(r'(?:^|\s)v?(\d+)\.(\d+)\.(\d+)', result.stdout)
+                if not match or tuple(map(int, match.groups())) < minimum_version:
+                    logger.info("%s at %s is not a supported runtime version", binary, runtime_path)
+                    continue
                 logger.debug("%s detected at %s", binary, runtime_path)
                 return True
             except Exception:  # noqa: BLE001
@@ -74,7 +80,7 @@ class NodeRuntimeNotifier:
         """Resolve PATH results to an absolute executable file before running it."""
         try:
             resolved = Path(runtime_path).resolve(strict=True)
-        except OSError:
+        except (OSError, RuntimeError):
             return None
         if not resolved.is_absolute() or not resolved.is_file():
             return None
@@ -88,8 +94,8 @@ class NodeRuntimeNotifier:
         msg.setText("A JavaScript runtime is recommended for more complete YouTube format coverage.")
         msg.setInformativeText(
             "A JavaScript runtime to facilitate downloading of videos is missing. "
-            "Installing it reduces missing formats. It is recommended that you\n\n"
-            "install Deno, since node.js may still go undetected by yt-dlp."
+            "Installing it reduces missing formats. Install Deno 2.3 or newer "
+            "(recommended), or Node.js 22 or newer."
         )
         msg.setStandardButtons(QMessageBox.StandardButton.Ok)
         deno_btn = msg.addButton("Open Deno.com", QMessageBox.ButtonRole.ActionRole)
