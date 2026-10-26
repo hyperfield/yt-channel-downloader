@@ -28,4 +28,7 @@ class QuietYDLLogger:
         self.warning(msg)
 
     def error(self, msg):
+        # yt-dlp sends deprecated_feature() to warning() and then to error().
+        if isinstance(msg, str) and msg.startswith('Deprecated Feature:'):
+            return
         logger.error(msg)
