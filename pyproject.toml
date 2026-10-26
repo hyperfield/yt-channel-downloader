@@ -8,7 +8,7 @@ version = "0.8.9"
 description = "Desktop app for downloading entire YouTube channels or playlists via yt-dlp."
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.14"
 authors = [
   { name = "hyperfield", email = "info@quicknode.net" }
 ]
@@ -19,25 +19,21 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Operating System :: OS Independent",
   "Topic :: Multimedia :: Video",
   "Environment :: X11 Applications :: Qt",
 ]
 dependencies = [
   "appdirs>=1.4.4",
-  "requests>=2.31",
-  "yt-dlp[default]>=2026.03.17",
-  "PyQt6>=6.6.0",
+  "requests[socks]>=2.34.2",
+  "yt-dlp[default]>=2026.10.26",
+  "PyQt6>=6.11.0",
 ]
 
 [project.optional-dependencies]
 test = [
-  "pytest>=7.4",
+  "pytest>=9.1.1",
 ]
 
 [project.scripts]

@@ -1,3 +1,9 @@
-# Convenience handle: install the project (and its runtime dependencies)
-# in editable mode for local development.
+# Runtime minimums checked against stable PyPI releases on 2026-10-26.
+# Keep these aligned with [project].dependencies in pyproject.toml.
+appdirs>=1.4.4
+requests[socks]>=2.34.2
+yt-dlp[default]>=2026.10.26
+PyQt6>=6.11.0
+
+# Install the project and its command-line entry point for local development.
 -e .
