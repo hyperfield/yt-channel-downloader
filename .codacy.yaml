@@ -1,5 +1,5 @@
 exclude_paths:
-  - ui/form_ui.py
-  - ui/settings_ui.py
-  - ui/login_prompt_ui.py
-  - ui/about_ui.py
+  - src/yt_channel_downloader/ui/ui_form.py
+  - src/yt_channel_downloader/ui/ui_settings.py
+  - src/yt_channel_downloader/ui/ui_login_prompt.py
+  - src/yt_channel_downloader/ui/ui_about.py
