@@ -1,0 +1,43 @@
+name: Tests and package build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install Qt system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libegl1 libopengl0
+      - name: Install development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test]" build
+      - name: Check dependencies
+        run: python -m pip check
+      - name: Run tests
+        run: python -m pytest -q
+      - name: Build wheel and source distribution
+        run: python -m build
+      - name: Check installed wheel version
+        run: |
+          python -m pip install --no-deps --force-reinstall dist/*.whl
+          python -I -c "from importlib.metadata import version; from yt_channel_downloader import __version__; assert __version__ == version('yt-channel-downloader')"
