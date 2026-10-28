@@ -5,6 +5,7 @@
 # License: MIT License
 
 from urllib import error
+from html import escape
 import os
 import math
 import re
@@ -34,6 +35,7 @@ from PyQt6.QtCore import QUrl, QSize
 from PyQt6.QtGui import QDesktopServices
 import yt_dlp
 
+from .. import __release_date__, __version__
 from ..assets import resources_rc    # Qt resources  # noqa: F401  # pylint: disable=unused-import
 from ..ui.ui_form import Ui_MainWindow
 from ..ui.ui_about import Ui_aboutDialog
@@ -433,6 +435,9 @@ class MainWindow(QMainWindow):
         self.about_dialog = QDialog()
         self.about_ui = Ui_aboutDialog()
         self.about_ui.setupUi(self.about_dialog)
+        self.about_ui.aboutLabel.setText(self.about_ui.aboutLabel.text().format(
+            version=escape(__version__), release_date=escape(__release_date__),
+        ))
 
     def connect_signals(self):
         """Connects various UI signals to their respective slots."""
