@@ -118,6 +118,81 @@ spec files remain ignored and are not part of a fresh clone; keep any local
 customizations separately. The local scripts accept `YT_DL_PYTHON` to select a
 Python 3.11+ interpreter explicitly.
 
+### Automated Linux and macOS releases
+
+The **Linux desktop packages** and **macOS desktop packages** GitHub Actions
+workflows can be started from **Actions → Run workflow**. Manual runs save
+downloadable artifacts for 30 days. Publishing a GitHub release also starts both
+workflows; validated packages, build information, and SHA-256 checksums are then
+attached to that release. These workflows do not commit or push source changes.
+
+Set an `X.Y.Z` version in `_release.py` and publish the corresponding `vX.Y.Z`
+release from a commit containing the workflows and packaging scripts. A mismatched
+release tag fails before the application is built. Existing Python CI continues
+to test and build wheels and source distributions separately.
+
+The Linux workflow builds a frozen Python 3.13/cx_Freeze application on Ubuntu
+22.04 x86_64, then packages that same folder into **AppImage, DEB, and RPM**.
+DEB and RPM metadata are generated directly; no RPM-to-DEB conversion is used.
+It checks the real Qt X11 platform plugin under Xvfb, extracts and checks the
+AppImage, and installs, launches, and removes the native packages in fresh
+Ubuntu 22.04, Ubuntu 24.04, Debian 12, and Fedora 44 containers. All Linux checks
+must pass before release assets are uploaded. The compatibility baseline is
+glibc 2.35; other distributions and display stacks require separate testing.
+
+The macOS workflow builds separate **Apple Silicon (`arm64`)** and **Intel
+(`x86_64`)** application bundles and DMGs on macOS 15. The declared minimum is
+macOS 15. Each DMG is mounted and the executable inside it is checked before the
+artifact is uploaded. Both architectures must succeed before release uploads.
+
+To enable Developer ID signing and notarization, set all six repository Actions
+secrets:
+
+- `MACOS_CERTIFICATE_P12_BASE64`: base64-encoded Developer ID Application
+  certificate and its private key, exported as a `.p12` file.
+- `MACOS_CERTIFICATE_PASSWORD`: password protecting that `.p12` file.
+- `MACOS_SIGNING_IDENTITY`: full Developer ID Application signing identity.
+- `APPLE_ID`: Apple Developer account email.
+- `APPLE_APP_SPECIFIC_PASSWORD`: app-specific password for notarization.
+- `APPLE_TEAM_ID`: Apple Developer team identifier.
+
+With these secrets, the workflow signs bundled native code and the DMG, submits
+the DMG to Apple, staples and validates its ticket, and checks Gatekeeper
+acceptance. Temporary certificate files and keychains are cleaned up. Supplying
+only some of the secrets fails the build. With no signing secrets, it builds an
+ad-hoc-signed app in a clearly named `-unsigned.dmg`; this is useful for testing
+but does not provide Developer ID or notarization for public distribution.
+
+All bundles contain Python, Qt, yt-dlp, EJS, and the app's Python dependencies.
+DEB/RPM packages require system FFmpeg/ffprobe and recommend a supported
+JavaScript runtime where available. AppImage and macOS users install FFmpeg,
+ffprobe, and Deno 2.3+ or Node.js 22+ separately. The macOS launcher also searches
+the usual Homebrew binary directories; Unix launchers include `~/.deno/bin`
+when it exists. These packages do not establish APT/DNF repositories or automatic
+package-manager updates.
+
+For local builds, install the project and `cx-Freeze==8.7.4` in a virtual
+environment on the target OS. Use the system tools listed in the relevant
+workflow, then run:
+
+```bash
+# Linux x86_64
+python scripts/build_unix_cxfreeze.py build_exe
+python scripts/smoke_unix_bundle.py build/linux/cxfreeze/x86_64/app/yt-channel-downloader
+python scripts/package_linux.py
+
+# macOS (builds for the architecture of the current Python interpreter)
+python scripts/build_unix_cxfreeze.py bdist_mac
+python scripts/package_macos.py
+```
+
+Outputs are under `dist/linux/` and `dist/macos/`. Build information records the
+actual bundled dependency versions. Rebuild releases when yt-dlp needs fixes for
+website changes. The `--verify-bundle` diagnostic exercises package metadata,
+TLS certificates, extractor and EJS resources, a local HTTP download, Qt resources,
+and threading with temporary settings. It does not contact YouTube or test live
+challenge solving, browser cookies, or FFmpeg conversions.
+
 ### Windows builds
 
 The Windows build helper adds executable version information from

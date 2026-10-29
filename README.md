@@ -57,6 +57,8 @@ Browse [available downloads on SourceForge](https://sourceforge.net/projects/yt-
 
 Bundled builds include Python and the app's Python dependencies. The current [NSIS setup builds](CONTRIBUTING.md#nsis-installers-with-prerequisite-setup) check and install FFmpeg, ffprobe, and a supported JavaScript runtime when needed. Portable bundles, the plain cx_Freeze MSI, and earlier installers may require installing these tools separately as described under [Requirements](#requirements). Binary releases may lag behind the source checkout and PyPI releases.
 
+[Desktop release workflows](CONTRIBUTING.md#automated-linux-and-macos-releases) produce Linux x86_64 AppImage, DEB, and RPM packages, plus separate Apple Silicon and Intel macOS DMGs. Linux builds target glibc 2.35 or newer; macOS builds target macOS 15 or newer. Manual runs provide Actions artifacts, and published GitHub releases receive packages after their checks pass. macOS DMGs marked `unsigned` lack Developer ID signing and notarization. AppImage and macOS builds require external FFmpeg/ffprobe and a supported JavaScript runtime; native Linux packages declare FFmpeg dependencies.
+
 ## Features
 
 - **Fetch & Replace / Fetch & Add**: Replace the current list or append newly fetched items to it.
