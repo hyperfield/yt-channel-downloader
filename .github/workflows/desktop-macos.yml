@@ -1,0 +1,97 @@
+name: macOS desktop packages
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-macos-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and check DMG (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '15.0'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Validate release metadata and architecture
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: python scripts/desktop_release.py --tag "$RELEASE_TAG" --expect-arch "$EXPECTED_ARCH"
+      - name: Install build environment
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . cx-Freeze==8.7.4
+          python -m pip check
+      - name: Build application bundle
+        run: python scripts/build_unix_cxfreeze.py bdist_mac
+      - name: Package, optionally sign and notarize, and check mounted DMG
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: python scripts/package_macos.py
+      - name: Verify checksums
+        run: |
+          cd dist/macos
+          shasum --algorithm 256 --check SHA256SUMS-*.txt
+      - name: Save disk image
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-${{ matrix.arch }}-packages
+          path: dist/macos/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  publish:
+    name: Attach validated macOS packages to release
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: macos-*-packages
+          path: packages
+          merge-multiple: true
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          cd packages
+          for checksum_file in SHA256SUMS-*.txt; do
+            sha256sum --check "$checksum_file"
+          done
+          gh release upload "$RELEASE_TAG" ./* --clobber
