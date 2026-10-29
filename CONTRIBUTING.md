@@ -151,6 +151,39 @@ and the other detecting vendors, such as [Bkav support](https://www.bkav.com/en/
 that each vendor controls its own verdict. Reanalyse the final artifact after
 the vendor has reviewed it.
 
+### Windows builds with cx_Freeze
+
+cx_Freeze provides an alternative folder bundle and a per-user MSI installer.
+The build reads the version from `src/yt_channel_downloader/_release.py` and
+includes the app's resources, yt-dlp extractors, EJS scripts, package metadata,
+and the Visual C++ runtime. With the project installed in `.venv`, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install cx-Freeze==8.7.4
+.\.venv\Scripts\python.exe scripts\build_windows_cxfreeze.py bdist_msi
+```
+
+The installer is written to `dist/windows/cxfreeze/` and the folder bundle to
+`dist/windows/cxfreeze/YT Channel Downloader/`. To build only the folder bundle,
+use `build_exe` instead of `bdist_msi`. Distribute the entire folder, including
+`lib` and the accompanying DLLs. FFmpeg, ffprobe, and a supported JavaScript
+runtime remain external requirements.
+
+To verify the frozen dependencies in a separate diagnostic build:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\build_windows_cxfreeze.py --probe build_exe
+.\build\windows\cxfreeze\probe\verify-bundle.exe
+```
+
+The diagnostic checks package metadata, TLS certificates, dynamic extractors,
+EJS resources, Qt window creation, icons, and Qt thread signals. It also downloads
+a generated WAV file from a temporary local HTTP server. Settings and logs use
+a temporary directory, and browser-cookie access and automatic update checks are
+disabled for the diagnostic. Live YouTube challenge solving and FFmpeg
+conversions require separate testing. The diagnostic executable is kept under
+`build/` and is not included in the MSI.
+
 ---
 
 ## Credits and Attribution
