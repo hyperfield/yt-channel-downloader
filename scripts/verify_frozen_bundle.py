@@ -90,7 +90,7 @@ def check_qt() -> None:
 
 def main() -> None:
     assert getattr(sys, "frozen", False), "Run the frozen diagnostic executable."
-    os.environ["QT_QPA_PLATFORM"] = "offscreen"
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     with tempfile.TemporaryDirectory(prefix="yt-channel-downloader-bundle-check-") as temporary:
         directory = Path(temporary)
         import appdirs
