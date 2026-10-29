@@ -42,20 +42,20 @@ This project welcomes bug reports, feature requests, documentation improvements,
 
 ## Development setup
 
-Use **Python 3.14 or newer**. Install the external dependencies listed in the
+Use **Python 3.11 or newer**. Install the external dependencies listed in the
 [README requirements](README.md#requirements) to run the app or try real downloads.
 From the repository root, create and activate a virtual environment:
 
 ```bash
-python3.14 -m venv .venv314
-source .venv314/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e '.[test]'
 ```
 
-For Windows PowerShell, use `py -3.14 -m venv .venv314` and
-`.\.venv314\Scripts\Activate.ps1`, then run the same pip commands. An existing
-Python 3.14+ environment can be used instead.
+For Windows PowerShell, use `py -3 -m venv .venv` and
+`.\.venv\Scripts\Activate.ps1`, then run the same pip commands. An existing
+Python 3.11+ environment can be used instead.
 
 Run the app with `python -m yt_channel_downloader`. Installing the project in
 editable mode also provides the `yt-channel-downloader` command and makes source
@@ -73,8 +73,8 @@ python -m pip check
 
 In PowerShell, set `$env:QT_QPA_PLATFORM = "offscreen"` before running
 `python -m pytest -q`. The tests use mocked providers and do not require live
-YouTube access. GitHub Actions runs the suite on Python 3.14 and builds the Python
-distributions on pushes and pull requests.
+YouTube access. GitHub Actions runs the suite and builds the Python distributions
+on Python 3.11, 3.12, 3.13, and 3.14 on pushes and pull requests.
 
 Edit Qt Designer files under `src/yt_channel_downloader/ui/` and regenerate the
 matching Python file, for example:
@@ -116,7 +116,7 @@ FFmpeg and a supported JavaScript runtime remain external requirements. The
 command generates an ignored `.spec` file. Local packaging shell scripts and
 spec files remain ignored and are not part of a fresh clone; keep any local
 customizations separately. The local scripts accept `YT_DL_PYTHON` to select a
-Python 3.14+ interpreter explicitly.
+Python 3.11+ interpreter explicitly.
 
 ---
 

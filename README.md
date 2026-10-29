@@ -40,7 +40,7 @@ Screenshots show earlier releases; some labels and settings have since changed.
 
 Release date: 2026-10-27
 
-- Python 3.14+ and refreshed dependency minimums.
+- Python 3.11+ and refreshed dependency minimums.
 - Consistent format/quality settings, safer filenames and completion detection, and improved non-YouTube handling.
 - Background size estimates and improved cancellation.
 
@@ -82,7 +82,7 @@ Provider support follows yt-dlp and can depend on account access. The app's logi
 
 ### Requirements
 
-- **Python 3.14 or newer** for the current source checkout. Install Python from [python.org](https://www.python.org/downloads/) or your OS package manager. Bundled binaries include their own Python runtime.
+- **Python 3.11 or newer** for the current source checkout. Install Python from [python.org](https://www.python.org/downloads/) or your OS package manager. Bundled binaries include their own Python runtime.
 - **FFmpeg and ffprobe**, available on the app's `PATH`, for merging streams, extracting audio, and converting formats.
 - **A supported JavaScript runtime for full YouTube support**: [Deno 2.3.0 or newer](https://docs.deno.com/runtime/getting_started/installation/) (recommended by yt-dlp), or [Node.js 22.0.0 or newer](https://nodejs.org/en/download). The app enables both runtime types automatically. See [yt-dlp's runtime setup guide](https://github.com/yt-dlp/yt-dlp/wiki/EJS) for details.
 
@@ -149,12 +149,12 @@ This installs the published release. To use the current [0.9.0 source](CHANGELOG
 
 ### macOS or Linux (from source)
 
-Install the [requirements above](#requirements), then clone the repository and create an environment with Python 3.14:
+Install the [requirements above](#requirements), then clone the repository and create an environment with Python 3.11 or newer:
 
 ```bash
 git clone https://github.com/hyperfield/yt-channel-downloader.git
 cd yt-channel-downloader
-python3.14 -m venv .venv
+python3 -m venv .venv
 ```
 
 For bash/zsh, activate it with:
@@ -163,7 +163,7 @@ For bash/zsh, activate it with:
 source .venv/bin/activate
 ```
 
-For fish, use `source .venv/bin/activate.fish`. If using a newer Python version or an existing virtual environment, check that `python --version` reports 3.14 or newer.
+For fish, use `source .venv/bin/activate.fish`. Check that `python --version` reports 3.11 or newer before installing the project.
 
 Install the project in editable mode and launch it:
 
@@ -178,12 +178,12 @@ Run `deactivate` when finished.
 
 For a published package, install the [requirements above](#requirements), activate a Python environment, and follow [Install from PyPI](#install-from-pypi).
 
-To run the current source checkout, install Python 3.14+, Git, FFmpeg, and a supported JavaScript runtime, then use PowerShell:
+To run the current source checkout, install Python 3.11+, Git, FFmpeg, and a supported JavaScript runtime, then use PowerShell:
 
 ```powershell
 git clone https://github.com/hyperfield/yt-channel-downloader.git
 cd yt-channel-downloader
-py -3.14 -m venv .venv
+py -3 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade -r requirements.txt
 yt-channel-downloader
@@ -195,7 +195,7 @@ In Command Prompt, use `.venv\Scripts\activate.bat` to activate the environment.
 
 For a **PyPI installation**, rerun the installation command under [Install from PyPI](#install-from-pypi). Upgrading `yt-dlp[default]` also selects its matching companion dependencies.
 
-For a **source checkout**, activate its Python 3.14+ environment and run from the repository root:
+For a **source checkout**, activate its Python 3.11+ environment and run from the repository root:
 
 ```bash
 git pull

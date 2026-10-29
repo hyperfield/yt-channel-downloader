@@ -1,3 +1,4 @@
+# Requires Python 3.11 or newer.
 # Runtime minimums checked against stable PyPI releases on 2026-10-26.
 # Keep these aligned with [project].dependencies in pyproject.toml.
 appdirs>=1.4.4
