@@ -184,6 +184,65 @@ disabled for the diagnostic. Live YouTube challenge solving and FFmpeg
 conversions require separate testing. The diagnostic executable is kept under
 `build/` and is not included in the MSI.
 
+### NSIS installers with prerequisite setup
+
+Install NSIS 3, then use the appropriate entry point for the application bundle:
+
+```powershell
+# PyInstaller one-file payload
+.\.venv\Scripts\python.exe scripts\build_windows.py --layout onefile
+.\.venv\Scripts\python.exe scripts\build_windows_installer.py --backend pyinstaller
+
+# cx_Freeze complete folder payload
+.\.venv\Scripts\python.exe scripts\build_windows_cxfreeze.py build_exe
+.\.venv\Scripts\python.exe scripts\build_windows_installer.py --backend cxfreeze
+```
+
+Skip rebuilding the application if the existing payload already matches the
+version in `_release.py`. The installer helper rejects missing or mismatched
+Windows version metadata. Pass `--makensis PATH` if the compiler is not in
+`PATH` or either standard NSIS installation directory.
+
+The setup executables are written to `dist/windows/installers/` with the version
+and backend in their filenames. Both install the app under Program Files, request
+administrator access, and use the shared prerequisite helper to:
+
+- Verify that both `ffmpeg` and `ffprobe` execute successfully, downloading and
+  installing a new pair if either is missing or broken.
+- Accept Deno 2.3.0+ or Node.js 22.0.0+; install Deno if neither is supported.
+- Verify archive SHA-256 checksums, check the downloaded executables, and add
+  managed tool directories to the machine `PATH`.
+- Abort before replacing application files if prerequisite setup fails.
+
+Missing tools require internet access. Existing supported tools are reused.
+FFmpeg and Deno installed by this helper are shared installations under Program
+Files and are retained when the app is uninstalled. Uninstall removes the bundled
+application files and empty directories while preserving unrelated user files.
+Uninstall a previous build before changing between the one-file and folder
+formats so obsolete files from the other format are removed.
+
+The tracked sources are `packaging/windows/installer_pyinstaller.nsi`,
+`installer_cxfreeze.nsi`, `installer_common.nsh`, and `install_dependencies.ps1`.
+Compiler inputs and exact install/uninstall file lists are generated under
+`build/windows/nsis/`. Direct compilation of either tracked `.nsi` also runs the
+preparation helper using `.venv`. The historical `dist/mk_installer_ffmpeg.nsi`
+and the new `dist/mk_installer_cxfreeze.nsi` are generated compatibility entry
+points; edit the tracked sources rather than these ignored aliases.
+
+The plain cx_Freeze MSI and portable ZIP do not run prerequisite setup. Use the
+NSIS setup executable for automatic installation of external tools.
+
+Run the Windows installer integration tests with:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p test_windows_installer.py -v
+```
+
+These tests compile small fixture installers and run setup/uninstall under
+`build/windows/nsis/tests/`, use a temporary HKCU registry namespace and local
+HTTP downloads, and leave the machine `PATH` unchanged. Other platforms and
+Windows machines without NSIS skip these tests.
+
 ---
 
 ## Credits and Attribution

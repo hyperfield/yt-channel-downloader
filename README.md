@@ -55,7 +55,7 @@ Release date: 2026-10-27
 
 Browse [available downloads on SourceForge](https://sourceforge.net/projects/yt-channel-downloader/files/) and [release notes on GitHub](https://github.com/hyperfield/yt-channel-downloader/releases). Choose the build for your operating system and architecture.
 
-Bundled builds include Python and the app's Python dependencies. Install FFmpeg and a supported JavaScript runtime separately as described under [Requirements](#requirements). Binary releases may lag behind the source checkout and PyPI releases.
+Bundled builds include Python and the app's Python dependencies. The current [NSIS setup builds](CONTRIBUTING.md#nsis-installers-with-prerequisite-setup) check and install FFmpeg, ffprobe, and a supported JavaScript runtime when needed. Portable bundles, the plain cx_Freeze MSI, and earlier installers may require installing these tools separately as described under [Requirements](#requirements). Binary releases may lag behind the source checkout and PyPI releases.
 
 ## Features
 
