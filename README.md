@@ -8,12 +8,42 @@
 
 This README describes the current source checkout, including the [0.9.0 changes](CHANGELOG.md#090). Published packages and binaries can have different requirements and behavior; check their release notes.
 
-![YT Channel Downloader Screenshot (Windows)](docs/images/yt-chan-dl-win.gif)
-![YT Channel Downloader Screenshot (Windows)](docs/images/ytdl-settings_win.png)
-![YT Channel Downloader Screenshot (Linux)](docs/images/screenshot_lin.png)
-![YT Channel Downloader Screenshot (macOS)](docs/images/screenshot_mac.png)
+![YT Channel Downloader 0.9.0 demo on Linux: fetch, search, select, and download](docs/images/yt-channel-downloader-demo.gif)
 
-Screenshots show earlier releases; some labels and settings have since changed.
+Captured on Linux with version 0.9.0 using [Blender's public YouTube channel](https://www.youtube.com/@BlenderOfficial). The 13-second animation omits waiting time.
+
+<details>
+<summary>Current screenshots (Linux, version 0.9.0)</summary>
+
+**Main window during a download**
+
+![Current Linux main window with fetch controls, title search, thumbnails, and download progress](docs/images/screenshot_lin.png)
+
+**Video settings**
+
+![Video settings with MP4 output, a maximum resolution, and channel and playlist fetch limits](docs/images/settings-video.png)
+
+**Audio settings**
+
+![Audio-only settings with FLAC selected and the inapplicable bitrate control disabled](docs/images/settings-audio.png)
+
+**About**
+
+![About dialog showing version 0.9.0 and its release date](docs/images/about.png)
+
+</details>
+
+<details>
+<summary>Earlier Windows and macOS screenshots</summary>
+
+These images are from earlier releases and show older controls and labels.
+
+![Earlier Windows main window](docs/images/screenshot_win.png)
+![Earlier macOS main window](docs/images/screenshot_mac.png)
+
+[Earlier Windows Settings screenshot](docs/images/ytdl-settings_win.png) · [Earlier Windows animation](docs/images/yt-chan-dl-win.gif)
+
+</details>
 
 ---
 
