@@ -10,8 +10,13 @@ permissions:
 
 jobs:
   test-and-build:
+    name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     env:
       QT_QPA_PLATFORM: offscreen
     steps:
@@ -20,7 +25,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: pyproject.toml
       - name: Install Qt system libraries

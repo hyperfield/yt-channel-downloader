@@ -6,7 +6,7 @@ All notable changes to this project are documented here.
 
 Release date: 2026-10-27
 
-- **Python 3.14+ required**: Updated dependencies and installation instructions for the new minimum Python version.
+- **Python 3.11+ supported**: Updated dependencies and installation instructions, with compatibility tested on Python 3.11, 3.12, and 3.13.
 - **More reliable YouTube downloads**: Improved recovery from HTTP 403/404 errors and support for both Deno and Node.js runtimes.
 - **Consistent format and quality settings**: Video downloads respect the selected maximum resolution and output format. Audio extraction honors format and bitrate choices, with clearer options for native and lossless audio.
 - **Safer filenames and completion checks**: Prevented downloads with matching titles or different quality settings from overwriting or incorrectly skipping each other. Unfinished files no longer appear complete. Older files are kept, but may need downloading again.
