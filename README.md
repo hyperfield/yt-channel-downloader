@@ -48,11 +48,26 @@ filtering and download selection.
 </details>
 
 <details>
-<summary>Earlier macOS screenshot</summary>
+<summary>Current screenshots and animation (macOS, version 0.9.0)</summary>
 
-This image is from an earlier release and shows older controls and labels.
+Recorded on macOS using [Blender's public YouTube channel](https://www.youtube.com/@BlenderOfficial).
+The 16-second animation shows fetching, filtering, selection, download progress,
+and completion, with waiting time omitted. The still screenshots below use
+demonstration data.
 
-![Earlier macOS main window](docs/images/screenshot_mac.png)
+![YT Channel Downloader 0.9.0 demo on macOS: fetch, filter, select, download, and completion](docs/images/yt-channel-downloader-demo-mac.gif)
+
+**Main window**
+
+![Current macOS main window with fetch controls, title search, thumbnails, selection, and size estimates](docs/images/screenshot_mac.png)
+
+**Video settings**
+
+![macOS video settings with MP4 output, a maximum resolution, and channel and playlist fetch limits](docs/images/ytdl-settings_mac.png)
+
+**Audio settings**
+
+![macOS audio-only settings with FLAC selected and the inapplicable bitrate control disabled](docs/images/settings-audio_mac.png)
 
 </details>
 
