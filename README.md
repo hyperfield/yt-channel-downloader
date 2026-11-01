@@ -27,10 +27,6 @@ Captured on Linux with version 0.9.0 using [Blender's public YouTube channel](ht
 
 ![Audio-only settings with FLAC selected and the inapplicable bitrate control disabled](docs/images/settings-audio.png)
 
-**About**
-
-![About dialog showing version 0.9.0 and its release date](docs/images/about.png)
-
 </details>
 
 <details>

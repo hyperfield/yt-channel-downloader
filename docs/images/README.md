@@ -13,7 +13,6 @@ captures of the running application, including the window borders.
 | `screenshot_lin.png` | Channel results and a download in progress | 1322 × 915 |
 | `settings-video.png` | MP4 output, resolution cap, and fetch limits | 956 × 607 |
 | `settings-audio.png` | Audio-only FLAC output with bitrate disabled | 956 × 607 |
-| `about.png` | Version and release date | 491 × 353 |
 | `yt-channel-downloader-demo.gif` | Fetch, filter, select, download, and completion | 1100 × 762 |
 
 The example listings and thumbnail images come from
