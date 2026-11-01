@@ -34,16 +34,33 @@ Captured on Linux with version 0.9.0 using [Blender's public YouTube channel](ht
 </details>
 
 <details>
-<summary>Earlier Windows and macOS screenshots</summary>
+<summary>Current screenshots and animation (Windows, version 0.9.0)</summary>
 
-These images are from earlier releases and show older controls and labels.
+Captured on Windows using demonstration data. The eight-second GIF shows title
+filtering and download selection.
 
-![Earlier Windows main window](docs/images/screenshot_win.png)
-![Earlier macOS main window](docs/images/screenshot_mac.png)
+![Filtering fetched titles and selecting downloads](docs/images/yt-chan-dl-win.gif)
 
-[Earlier Windows Settings screenshot](docs/images/ytdl-settings_win.png) · [Earlier Windows animation](docs/images/yt-chan-dl-win.gif)
+**Main window**
+
+![YT Channel Downloader main window with thumbnails, selection, and size estimates](docs/images/screenshot_win.png)
+
+**Settings**
+
+![Settings for video and audio formats, fetch limits, and proxies](docs/images/ytdl-settings_win.png)
 
 </details>
+
+<details>
+<summary>Earlier macOS screenshot</summary>
+
+This image is from an earlier release and shows older controls and labels.
+
+![Earlier macOS main window](docs/images/screenshot_mac.png)
+
+</details>
+
+[Capture details and image credits](docs/images/README.md).
 
 ---
 
