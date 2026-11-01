@@ -27,9 +27,10 @@ MOVIES = (
 def capture(output, style):
     # Capture widgets without opening windows on the user's desktop. Use the
     # native OS's Qt style; never simulate another operating system's chrome.
-    os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
+    platform = {"win32": "windows", "darwin": "cocoa", "linux": "offscreen"}[sys.platform]
+    os.environ.setdefault("QT_QPA_PLATFORM", platform)
     os.environ["QT_SCALE_FACTOR"] = "1"
-    os.environ["QT_FONT_DPI"] = "96"
+    os.environ["QT_FONT_DPI"] = "72" if sys.platform == "darwin" else "96"
     sys.path.insert(0, str(ROOT / "src"))
 
     import appdirs
@@ -91,8 +92,8 @@ def capture(output, style):
         try:
             window.window_resize_needed = False
             window.setAttribute(QtCore.Qt.WidgetAttribute.WA_DontShowOnScreen)
-            window.resize(1280, 640)
-            window.ui.chanUrlEdit.setText("https://www.youtube.com/@Blender")
+            window.resize(1280, 720 if sys.platform == "darwin" else 640)
+            window.ui.chanUrlEdit.setText("https://www.youtube.com/@BlenderOfficial")
             window.ui.chanUrlEdit.setCursorPosition(0)
             window.yt_chan_vids_titles_links = [
                 {"title": title, "url": f"https://www.youtube.com/watch?v={identifier}", "duration": duration}
@@ -122,8 +123,20 @@ def capture(output, style):
 
             def frame(duration=650):
                 settle()
-                frames.append(fromqimage(window.grab().toImage()).convert("RGB"))
+                snapshot = fromqimage(window.grab().toImage()).convert("RGB")
+                # Retina stills retain their native resolution; keep the GIF at
+                # logical window size so it stays compact and readable inline.
+                if snapshot.size != (window.width(), window.height()):
+                    snapshot = snapshot.resize(
+                        (window.width(), window.height()), Image.Resampling.LANCZOS,
+                    )
+                frames.append(snapshot)
                 durations.append(duration)
+
+            def screenshot(widget, filename):
+                settle()
+                if not widget.grab().save(str(output / filename)):
+                    raise RuntimeError(f"Could not save {filename}")
 
             def click_row(row):
                 index = window.model.index(row, ColumnIndexes.DOWNLOAD)
@@ -163,8 +176,7 @@ def capture(output, style):
             window.ui.treeView.clearSelection()
             window.ui.treeView.setFocus()
             frame(1300)
-            if not window.grab().save(str(output / f"screenshot_{suffix}.png")):
-                raise RuntimeError("Could not save the main window screenshot")
+            screenshot(window, f"screenshot_{suffix}.png")
 
             checkbox = window.select_all_checkbox
             checkbox_point = QtCore.QPoint(8, checkbox.height() // 2)
@@ -185,9 +197,13 @@ def capture(output, style):
             settings.setAttribute(QtCore.Qt.WidgetAttribute.WA_DontShowOnScreen)
             settings.show()
             app.setActiveWindow(settings)
-            settle()
-            if not settings.grab().save(str(output / f"ytdl-settings_{suffix}.png")):
-                raise RuntimeError("Could not save the settings screenshot")
+            screenshot(settings, f"ytdl-settings_{suffix}.png")
+
+            settings.ui.check_audio_only.setChecked(True)
+            settings.ui.pref_aud_format_dropdown.setCurrentText("flac")
+            if settings.ui.pref_aud_quality_dropdown.isEnabled():
+                raise RuntimeError("FLAC should disable the audio bitrate control")
+            screenshot(settings, f"settings-audio_{suffix}.png")
         finally:
             if settings:
                 settings.close()
